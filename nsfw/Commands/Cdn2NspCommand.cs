@@ -12,9 +12,9 @@ public sealed class Cdn2NspCommand : Command<Cdn2NspSettings>
         
         var metaNcaList = Directory.GetFiles(settings.CdnDirectory, "*.cnmt.nca", SearchOption.AllDirectories);
 
-        if (metaNcaList.Length == 0)
+        if (!metaNcaList.Any())
         {
-            AnsiConsole.MarkupLine("[red]No CDN files found.[/]");
+            AnsiConsole.MarkupLine("[red]Cannot find any CNMT NCA files[/]");
             return 1;
         }
 
