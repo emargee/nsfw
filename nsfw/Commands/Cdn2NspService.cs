@@ -40,8 +40,10 @@ public class Cdn2NspService
     public bool IsTicketSignatureValid { get; private set; }
     public int MasterKeyRevision { get; private set; }
     public byte[] NewTicket { get; private set; }
-    
     public Dictionary<string, long> ContentFiles { get; private set; } = new();
+    
+    public byte[] FixedSignature = Enumerable.Repeat((byte)0xFF, 0x100).ToArray();
+    public bool IsFixedSignature;
     
     public Cdn2NspService(Cdn2NspSettings settings)
     {
@@ -151,8 +153,18 @@ public class Cdn2NspService
                 KeySet.ExternalKeySet.Add(new RightsId(RightsId), new AccessKey(TitleKeyEnc));
                 
                 TitleKeyDec = contentNca.GetDecryptedTitleKey();
+
+                if (FixedSignature.ToHexString() == ticket.Signature.ToHexString())
+                {
+                    IsTicketSignatureValid = true;
+                    IsFixedSignature = true;
+                }
+                else
+                {
+                    IsTicketSignatureValid = ValidateTicket(ticket, _settings.CertFile);
+                }
                 
-                IsTicketSignatureValid = ValidateTicket(ticket, _settings.CertFile);
+                
                 MasterKeyRevision = Utilities.GetMasterKeyRevision(contentNca.Header.KeyGeneration);
 
                 var ticketMasterKey = Utilities.GetMasterKeyRevision(RightsId.Last());
@@ -206,12 +218,20 @@ public class Cdn2NspService
             AnsiConsole.MarkupLine($"Title Key (Dec) : [olive]{TitleKeyDec.ToHexString()}[/]");
             AnsiConsole.MarkupLine($"MasterKey Rev.  : [olive]{MasterKeyRevision}[/]");
             if (IsTicketSignatureValid)
-            { 
-                AnsiConsole.MarkupLine($"Signature       : [green]VALID[/]");  
+            {
+                if (IsFixedSignature)
+                {
+                    AnsiConsole.MarkupLine($"Signature       : [green]VALID (Normalised)[/]");
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine($"Signature       : [green]VALID[/]");
+                }
+                  
             }
             else
             {
-                AnsiConsole.MarkupLine($"Signature       : [red]INVALID - Updating ticket..[/]");
+                AnsiConsole.MarkupLine($"Signature       : [red]INVALID - Normalising ticket..[/]");
             }
             
         }
@@ -230,7 +250,7 @@ public class Cdn2NspService
                 var ticket = new Ticket
                 {
                     SignatureType = TicketSigType.Rsa2048Sha256,
-                    Signature = Enumerable.Repeat((byte)0xFF, 0x100).ToArray(),
+                    Signature = FixedSignature,
                     Issuer = "Root-CA00000003-XS00000020",
                     FormatVersion = 2,
                     RightsId = RightsId,
