@@ -140,7 +140,7 @@ public class Cdn2NspService
                 }
 
                 TitleKeyEnc = ticket.GetTitleKey(KeySet).ToHexString();
-                IsTicketSignatureValid = ValidateTicket(ticket, TicketFile, _settings.CertFile);
+                IsTicketSignatureValid = ValidateTicket(ticket, _settings.CertFile);
             }
 
             if (_settings.CheckShas)
@@ -264,7 +264,7 @@ public class Cdn2NspService
         return $"{title} [{version}][{titleId}][{titleVersion}][{titleType}].nsp";
     }
 
-    private bool ValidateTicket(Ticket ticket, string ticketFile, string certPath)
+    private bool ValidateTicket(Ticket ticket, string certPath)
     {
         using var fileStream = new FileStream(certPath, FileMode.Open);
         fileStream.Seek(1480, SeekOrigin.Begin);
@@ -276,18 +276,15 @@ public class Cdn2NspService
 
         var modulus = new BigInteger(modulusBytes, true, true);
         var pubExp = new BigInteger(pubExpBytes, true, true);
-                
-        var rsaParameters = new RSAParameters
+        
+        using var pubKey = RSA.Create();
+        pubKey.ImportParameters(new RSAParameters
         {
             Modulus = modulus.ToByteArray(true, true),
             Exponent = pubExp.ToByteArray(true, true)
-        };
-
-        using var pubKey = RSA.Create();
-        pubKey.ImportParameters(rsaParameters);
-
-        var ticketBytes = File.ReadAllBytes(ticketFile);
-        var message = ticketBytes.Skip(0x140).ToArray();
+        });
+        
+        var message = ticket.File.Skip(0x140).ToArray();
             
         try
         {
