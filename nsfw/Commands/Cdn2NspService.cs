@@ -1,10 +1,14 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using LibHac.Common;
 using LibHac.Common.Keys;
 using LibHac.Fs;
 using LibHac.Fs.Fsa;
 using LibHac.FsSystem;
 using LibHac.Ncm;
+using LibHac.Tools.Es;
 using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
@@ -29,6 +33,9 @@ public class Cdn2NspService
     public bool HasRightsId { get; private set; }
     public string CertFile { get; private set; }
     public string TicketFile { get; private set; }
+    public string TitleKeyEnc { get; private set; }
+    public string TitleKeyDec { get; private set; }
+    public bool IsTicketSignatureValid { get; private set; }
     
     public Dictionary<string, long> ContentFiles { get; private set; } = new();
     
@@ -43,6 +50,8 @@ public class Cdn2NspService
         Version = "UNKNOWN";
         CertFile = string.Empty;
         TicketFile = string.Empty;
+        TitleKeyEnc = string.Empty;
+        TitleKeyDec = string.Empty; ;
     }
     
     public int Process(string currentDirectory, string metaNcaFileName)
@@ -51,7 +60,7 @@ public class Cdn2NspService
         
         if (_settings.Verbose)
         {
-            AnsiConsole.MarkupLine($"Processing Dir  : [olive]{currentDirectory}[/]");
+            AnsiConsole.MarkupLine($"Processing Dir  : [olive]{new DirectoryInfo(currentDirectory).Name.EscapeMarkup()}[/]");
             AnsiConsole.MarkupLine($"Processing CNMT : [olive]{metaNcaFileName}[/]");
         }
         
@@ -91,22 +100,59 @@ public class Cdn2NspService
         foreach (var contentEntry in cnmt.ContentEntries)
         {
             var fileName = $"{contentEntry.NcaId.ToHexString().ToLower()}.nca";
-            if(!File.Exists(Path.Combine(currentDirectory, fileName)) && contentEntry.Type != ContentType.DeltaFragment)
+            if(!File.Exists(Path.Combine(currentDirectory, fileName)))
             {
-                AnsiConsole.MarkupLine($"[red]Cannot find {fileName}[/]");
+                var msg = $"[red]Cannot find {fileName}[/]";
+                
+                if (contentEntry.Type != ContentType.DeltaFragment)
+                {
+                    AnsiConsole.MarkupLine(msg+".Skipping delta fragment");
+                    continue;
+                }
+                AnsiConsole.MarkupLine(msg);
                 return 1;
             }
             var contentNca = new Nca(KeySet, new LocalStorage(Path.Combine(currentDirectory, fileName), FileAccess.Read));
-            if (contentNca.Header.HasRightsId)
+            if (contentNca.Header.HasRightsId && TitleKeyEnc == string.Empty)
             {
                 HasRightsId = contentNca.Header.HasRightsId;
                 TicketFile = Path.Combine(currentDirectory, $"{contentNca.Header.RightsId.ToHexString()}.tik".ToLowerInvariant());
                 CertFile = Path.Combine(currentDirectory, $"{contentNca.Header.RightsId.ToHexString()}.cert".ToLowerInvariant());
-            }
-         
-            //var sha256 = SHA256.HashData(File.ReadAllBytes(Path.Combine(currentDirectory, fileName)));
-            //if(contentEntry.NcaId.ToHexString() != contentEntry.Hash.Take(16).ToArray().ToHexString() || contentEntry.NcaId.ToHexString() != sha256.Take(16).ToArray().ToHexString())
+
+                if (!File.Exists(TicketFile))
+                {
+                    AnsiConsole.MarkupLine($"[red]Cannot find ticket file - {TicketFile}[/]");
+                    return 1;
+                }
                 
+                var ticket = new Ticket(new LocalFile(TicketFile, OpenMode.Read).AsStream());
+                
+                if (ticket.SignatureType != TicketSigType.Rsa2048Sha256)
+                {
+                    AnsiConsole.MarkupLine($"[red]Unsupported ticket signature type {ticket.SignatureType}[/]");
+                    return 1;
+                }
+
+                if (ticket.TitleKeyType != TitleKeyType.Common)
+                {
+                    AnsiConsole.MarkupLine($"[red]Unsupported ticket titleKey type {ticket.TitleKeyType}[/]");
+                    return 1;
+                }
+
+                TitleKeyEnc = ticket.GetTitleKey(KeySet).ToHexString();
+                IsTicketSignatureValid = ValidateTicket(ticket, TicketFile, _settings.CertFile);
+            }
+
+            if (_settings.CheckShas)
+            {
+                var sha256 = SHA256.HashData(File.ReadAllBytes(Path.Combine(currentDirectory, fileName)));
+                if (sha256.Take(16).ToArray().ToHexString() != contentEntry.Hash.Take(16).ToArray().ToHexString())
+                {
+                    AnsiConsole.MarkupLine($"[red]SHA256 Hash mismatch for {fileName}[/]");
+                    return 1;
+                }
+            }
+            
             if(contentEntry.NcaId.ToHexString() != contentEntry.Hash.Take(16).ToArray().ToHexString())
             {
                 AnsiConsole.MarkupLine($"[red]Hash mismatch for {fileName}[/]");
@@ -135,6 +181,8 @@ public class Cdn2NspService
         {
             AnsiConsole.MarkupLine($"Display Title   : [olive]{Title}[/]");
             AnsiConsole.MarkupLine($"Display Version : [olive]{Version}[/]");
+            AnsiConsole.MarkupLine($"Title Key (Enc) : [olive]{TitleKeyEnc}[/]");
+            AnsiConsole.MarkupLine($"Ticket Valid ?  : [olive]{IsTicketSignatureValid}[/]");
         }
         
         ContentFiles.Add(Path.GetFullPath(metaNcaFilePath), new FileInfo(Path.Combine(metaNcaFilePath)).Length);
@@ -142,24 +190,37 @@ public class Cdn2NspService
         if (HasRightsId && !string.IsNullOrEmpty(TicketFile) && File.Exists(TicketFile))
         {
             File.Copy(_settings.CertFile, CertFile, true);
-            ContentFiles.Add(TicketFile, new FileInfo(TicketFile).Length);
             ContentFiles.Add(CertFile, new FileInfo(_settings.CertFile).Length);
+            if (IsTicketSignatureValid)
+            {
+                ContentFiles.Add(TicketFile, new FileInfo(TicketFile).Length);
+            }
+            else
+            {
+                Console.WriteLine("TODO: MAKE NEW TICKET!");
+            }
         }
         
-        var nspFilename = $"{Title} [{Version}][{TitleId}][{TitleVersion}][{TitleType}].nsp";
+        var nspFilename = BuildNspName(Title, Version, TitleId, TitleVersion, TitleType);
         if (_settings.Verbose)
         {
-            var nspFilenameEsc = $"{Title} [[{Version}]][[{TitleId}]][[{TitleVersion}]][[{TitleType}]].nsp";
-            var root = new Tree($"[olive]{nspFilenameEsc}[/]");
+            AnsiConsole.WriteLine("----------------------------------------");
+            var root = new Tree($"[olive]{nspFilename.EscapeMarkup()}[/]");
             foreach (var contentFile in ContentFiles)
             {
-                root.AddNode($"{Path.GetFileName(contentFile.Key)} -> {contentFile.Value} bytes");
+                var nodeLabel = $"{Path.GetFileName(contentFile.Key)} -> {contentFile.Value:N0} bytes";
+                if (_settings.CheckShas)
+                {
+                    nodeLabel = "[[[green]V[/]]] "+nodeLabel;
+                }
+                root.AddNode(nodeLabel);
             }
         
             AnsiConsole.Write(root);
+            AnsiConsole.WriteLine("----------------------------------------");
         }
         
-        AnsiConsole.WriteLine($"Creating  : {nspFilename}");
+        AnsiConsole.MarkupLine($"Creating : [olive]{nspFilename.EscapeMarkup()}[/]");
 
         if (!_settings.Verbose)
         {
@@ -187,5 +248,56 @@ public class Cdn2NspService
         AnsiConsole.WriteLine(" -> Done!");
         
         return 0;
+    }
+
+    private string BuildNspName(string title, string version, string titleId, string titleVersion, string titleType)
+    {
+        titleType = titleType switch
+        {
+            "PATCH" => "UPD",
+            "APPLICATION" => "BASE",
+            "ADDONCONTENT" => "DLC",
+            "DELTA" => "DLCUPD",
+            _ => "UNKNOWN"
+        };
+
+        return $"{title} [{version}][{titleId}][{titleVersion}][{titleType}].nsp";
+    }
+
+    private bool ValidateTicket(Ticket ticket, string ticketFile, string certPath)
+    {
+        using var fileStream = new FileStream(certPath, FileMode.Open);
+        fileStream.Seek(1480, SeekOrigin.Begin);
+        
+        var modulusBytes = new byte[256];
+        var pubExpBytes = new byte[4];
+        fileStream.Read(modulusBytes, 0, modulusBytes.Length);
+        fileStream.Read(pubExpBytes, 0, pubExpBytes.Length);
+
+        var modulus = new BigInteger(modulusBytes, true, true);
+        var pubExp = new BigInteger(pubExpBytes, true, true);
+                
+        var rsaParameters = new RSAParameters
+        {
+            Modulus = modulus.ToByteArray(true, true),
+            Exponent = pubExp.ToByteArray(true, true)
+        };
+
+        using var pubKey = RSA.Create();
+        pubKey.ImportParameters(rsaParameters);
+
+        var ticketBytes = File.ReadAllBytes(ticketFile);
+        var message = ticketBytes.Skip(0x140).ToArray();
+            
+        try
+        {
+            // Verify ticket signature.
+            return pubKey.VerifyData(message, ticket.Signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        }
+        catch (CryptographicException)
+        {
+            // Invalid signature.
+            return false;
+        }
     }
 }

@@ -8,25 +8,33 @@ public sealed class Cdn2NspCommand : Command<Cdn2NspSettings>
 {
     public override int Execute([NotNull] CommandContext context, [NotNull] Cdn2NspSettings settings)
     {
-        //SettingsDumper.Dump(settings);
-        
-        var metaNcaList = Directory.GetFiles(settings.CdnDirectory, "*.cnmt.nca", SearchOption.AllDirectories);
-
-        if (!metaNcaList.Any())
+        foreach (var directory in Directory.EnumerateDirectories(settings.CdnDirectory))
         {
-            AnsiConsole.MarkupLine("[red]Cannot find any CNMT NCA files[/]");
-            return 1;
-        }
-
-        foreach (var metaNcaFilePath in metaNcaList)
-        {
-            var metaNcaFileFullPath = Path.GetFullPath(metaNcaFilePath);
+            AnsiConsole.WriteLine("----------------------------------------");            
+            var files = Directory.EnumerateFiles(directory, "*.cnmt.nca", SearchOption.TopDirectoryOnly).ToArray();
+            
+            if (files.Length == 0)
+            {
+                Console.Write(directory);
+                AnsiConsole.MarkupLine(" -> [red]Cannot find any CNMT NCA files. Skipping.[/]");
+                continue;
+            }
+            
+            if (files.Length > 1)
+            {
+                Console.Write(directory);
+                AnsiConsole.MarkupLine(" -> [red]Multiple CNMTs found in CDN directory. Skipping.[/]");
+                continue;
+            }
+            
+            var metaNcaFileFullPath = Path.GetFullPath(files.First());
             var workingDirectory = Path.GetDirectoryName(metaNcaFileFullPath) ?? string.Empty;
             
             if (!Directory.Exists(workingDirectory) && !File.Exists(metaNcaFileFullPath))
             {
-                AnsiConsole.MarkupLine("[red]Cannot find CDN directory or file[/]");
-                return 1;
+                Console.Write(directory);
+                AnsiConsole.MarkupLine(" -> [red]Cannot find CDN directory or CNMT file. Skipping.[/]");
+                continue;
             }
             
             var cdn2NspService = new Cdn2NspService(settings);
@@ -37,6 +45,8 @@ public sealed class Cdn2NspCommand : Command<Cdn2NspSettings>
                 return result;
             }
         }
+        
+        AnsiConsole.WriteLine("----------------------------------------");
 
         return 0;
     }

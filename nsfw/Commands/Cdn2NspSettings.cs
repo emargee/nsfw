@@ -26,8 +26,11 @@ public sealed class Cdn2NspSettings : CommandSettings
     [CommandOption("-o|--outdir <DIR>")]
     [Description("Path to output directory.")]
     [DefaultValue("./out")]
-
     public string OutDirectory { get; set; } = string.Empty;
+    
+    [CommandOption("-s|--check-shas")]
+    [Description("Check SHA256 of all files in CDN directory and compare with CNMT hashes.")]
+    public bool CheckShas { get; set; }
     
     [CommandOption("-v|--verbose")]
     [Description("Enable verbose output.")]
