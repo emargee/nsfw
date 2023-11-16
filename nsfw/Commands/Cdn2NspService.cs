@@ -8,6 +8,7 @@ using LibHac.Fs;
 using LibHac.Fs.Fsa;
 using LibHac.FsSystem;
 using LibHac.Ncm;
+using LibHac.Spl;
 using LibHac.Tools.Es;
 using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem;
@@ -33,9 +34,12 @@ public class Cdn2NspService
     public bool HasRightsId { get; private set; }
     public string CertFile { get; private set; }
     public string TicketFile { get; private set; }
-    public string TitleKeyEnc { get; private set; }
-    public string TitleKeyDec { get; private set; }
+    public byte[] TitleKeyEnc { get; private set; }
+    public byte[] TitleKeyDec { get; private set; }
+    public byte[] RightsId { get; private set; }
     public bool IsTicketSignatureValid { get; private set; }
+    public int MasterKeyRevision { get; private set; }
+    public byte[] NewTicket { get; private set; }
     
     public Dictionary<string, long> ContentFiles { get; private set; } = new();
     
@@ -50,8 +54,10 @@ public class Cdn2NspService
         Version = "UNKNOWN";
         CertFile = string.Empty;
         TicketFile = string.Empty;
-        TitleKeyEnc = string.Empty;
-        TitleKeyDec = string.Empty; ;
+        TitleKeyEnc = Array.Empty<byte>();
+        TitleKeyDec = Array.Empty<byte>();
+        RightsId = Array.Empty<byte>();
+        NewTicket = Array.Empty<byte>();
     }
     
     public int Process(string currentDirectory, string metaNcaFileName)
@@ -113,7 +119,7 @@ public class Cdn2NspService
                 return 1;
             }
             var contentNca = new Nca(KeySet, new LocalStorage(Path.Combine(currentDirectory, fileName), FileAccess.Read));
-            if (contentNca.Header.HasRightsId && TitleKeyEnc == string.Empty)
+            if (contentNca.Header.HasRightsId && TitleKeyEnc.Length == 0)
             {
                 HasRightsId = contentNca.Header.HasRightsId;
                 TicketFile = Path.Combine(currentDirectory, $"{contentNca.Header.RightsId.ToHexString()}.tik".ToLowerInvariant());
@@ -139,8 +145,23 @@ public class Cdn2NspService
                     return 1;
                 }
 
-                TitleKeyEnc = ticket.GetTitleKey(KeySet).ToHexString();
+                TitleKeyEnc = ticket.GetTitleKey(KeySet);
+                RightsId = ticket.RightsId;
+                
+                KeySet.ExternalKeySet.Add(new RightsId(RightsId), new AccessKey(TitleKeyEnc));
+                
+                TitleKeyDec = contentNca.GetDecryptedTitleKey();
+                
                 IsTicketSignatureValid = ValidateTicket(ticket, _settings.CertFile);
+                MasterKeyRevision = Utilities.GetMasterKeyRevision(contentNca.Header.KeyGeneration);
+
+                var ticketMasterKey = Utilities.GetMasterKeyRevision(RightsId.Last());
+
+                if (MasterKeyRevision != ticketMasterKey)
+                {
+                    AnsiConsole.MarkupLine($"[red]Invalid rights ID key generation! Got {ticketMasterKey}, expected {MasterKeyRevision}.[/]");
+                    return 1;
+                }
             }
 
             if (_settings.CheckShas)
@@ -181,24 +202,48 @@ public class Cdn2NspService
         {
             AnsiConsole.MarkupLine($"Display Title   : [olive]{Title}[/]");
             AnsiConsole.MarkupLine($"Display Version : [olive]{Version}[/]");
-            AnsiConsole.MarkupLine($"Title Key (Enc) : [olive]{TitleKeyEnc}[/]");
-            AnsiConsole.MarkupLine($"Ticket Valid ?  : [olive]{IsTicketSignatureValid}[/]");
+            AnsiConsole.MarkupLine($"Title Key (Enc) : [olive]{TitleKeyEnc.ToHexString()}[/]");
+            AnsiConsole.MarkupLine($"Title Key (Dec) : [olive]{TitleKeyDec.ToHexString()}[/]");
+            AnsiConsole.MarkupLine($"MasterKey Rev.  : [olive]{MasterKeyRevision}[/]");
+            if (IsTicketSignatureValid)
+            { 
+                AnsiConsole.MarkupLine($"Signature       : [green]VALID[/]");  
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"Signature       : [red]INVALID - Updating ticket..[/]");
+            }
+            
         }
         
         ContentFiles.Add(Path.GetFullPath(metaNcaFilePath), new FileInfo(Path.Combine(metaNcaFilePath)).Length);
         
         if (HasRightsId && !string.IsNullOrEmpty(TicketFile) && File.Exists(TicketFile))
         {
+            if (!IsTicketSignatureValid)
+            {
+                var keyGen = 0;
+                if (MasterKeyRevision > 0)
+                {
+                    keyGen = MasterKeyRevision += 1;
+                }
+                var ticket = new Ticket
+                {
+                    SignatureType = TicketSigType.Rsa2048Sha256,
+                    Signature = Enumerable.Repeat((byte)0xFF, 0x100).ToArray(),
+                    Issuer = "Root-CA00000003-XS00000020",
+                    FormatVersion = 2,
+                    RightsId = RightsId,
+                    TitleKeyBlock = TitleKeyEnc,
+                    CryptoType = (byte)keyGen,
+                    SectHeaderOffset = 0x2C0
+                };
+                NewTicket = ticket.GetBytes();
+                File.WriteAllBytes(TicketFile, NewTicket);
+            }
+            ContentFiles.Add(TicketFile, new FileInfo(TicketFile).Length);
             File.Copy(_settings.CertFile, CertFile, true);
             ContentFiles.Add(CertFile, new FileInfo(_settings.CertFile).Length);
-            if (IsTicketSignatureValid)
-            {
-                ContentFiles.Add(TicketFile, new FileInfo(TicketFile).Length);
-            }
-            else
-            {
-                Console.WriteLine("TODO: MAKE NEW TICKET!");
-            }
         }
         
         var nspFilename = BuildNspName(Title, Version, TitleId, TitleVersion, TitleType);
@@ -261,7 +306,12 @@ public class Cdn2NspService
             _ => "UNKNOWN"
         };
 
-        return $"{title} [{version}][{titleId}][{titleVersion}][{titleType}].nsp";
+        if (titleType is "UPD" or "DLCUPD")
+        {
+            return $"{title} [{version}][{titleId}][{titleVersion}][{titleType}].nsp";   
+        }
+
+        return $"{title} [{titleId}][{titleVersion}][{titleType}].nsp";
     }
 
     private bool ValidateTicket(Ticket ticket, string certPath)
