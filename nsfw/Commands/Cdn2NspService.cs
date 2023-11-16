@@ -24,42 +24,40 @@ namespace Nsfw.Commands;
 public class Cdn2NspService
 {
     private readonly Cdn2NspSettings _settings;
-    
-    public KeySet KeySet { get; }
-    public string Title { get; private set; }
-    public string TitleId { get; private set; }
-    public string TitleVersion { get; private set; }
-    public string Version { get; private set; }
-    public string TitleType { get; private set; }
-    public bool HasRightsId { get; private set; }
-    public string CertFile { get; private set; }
-    public string TicketFile { get; private set; }
-    public byte[] TitleKeyEnc { get; private set; }
-    public byte[] TitleKeyDec { get; private set; }
-    public byte[] RightsId { get; private set; }
-    public bool IsTicketSignatureValid { get; private set; }
-    public int MasterKeyRevision { get; private set; }
-    public byte[] NewTicket { get; private set; }
-    public Dictionary<string, long> ContentFiles { get; private set; } = new();
-    
-    public byte[] FixedSignature = Enumerable.Repeat((byte)0xFF, 0x100).ToArray();
-    public bool IsFixedSignature;
+    private readonly KeySet _keySet;
+    private string _title;
+    private string _titleId;
+    private string _titleVersion;
+    private string _version;
+    private string _titleType;
+    private bool _hasRightsId;
+    private string _certFile;
+    private string _ticketFile;
+    private byte[] _titleKeyEnc;
+    private byte[] _titleKeyDec;
+    private byte[] _rightsId;
+    private bool _isTicketSignatureValid;
+    private int _masterKeyRevision;
+    private byte[] _newTicket;
+    private readonly Dictionary<string, long> _contentFiles = new();
+    private readonly byte[] _fixedSignature = Enumerable.Repeat((byte)0xFF, 0x100).ToArray();
+    private bool _isFixedSignature;
     
     public Cdn2NspService(Cdn2NspSettings settings)
     {
         _settings = settings;
-        KeySet = ExternalKeyReader.ReadKeyFile(settings.KeysFile);
-        TitleId = "UNKNOWN";
-        TitleVersion = "UNKNOWN";
-        TitleType = "UNKNOWN";
-        Title = "UNKNOWN";
-        Version = "UNKNOWN";
-        CertFile = string.Empty;
-        TicketFile = string.Empty;
-        TitleKeyEnc = Array.Empty<byte>();
-        TitleKeyDec = Array.Empty<byte>();
-        RightsId = Array.Empty<byte>();
-        NewTicket = Array.Empty<byte>();
+        _keySet = ExternalKeyReader.ReadKeyFile(settings.KeysFile);
+        _titleId = "UNKNOWN";
+        _titleVersion = "UNKNOWN";
+        _titleType = "UNKNOWN";
+        _title = "UNKNOWN";
+        _version = "UNKNOWN";
+        _certFile = string.Empty;
+        _ticketFile = string.Empty;
+        _titleKeyEnc = Array.Empty<byte>();
+        _titleKeyDec = Array.Empty<byte>();
+        _rightsId = Array.Empty<byte>();
+        _newTicket = Array.Empty<byte>();
     }
     
     public int Process(string currentDirectory, string metaNcaFileName)
@@ -72,7 +70,7 @@ public class Cdn2NspService
             AnsiConsole.MarkupLine($"Processing CNMT : [olive]{metaNcaFileName}[/]");
         }
         
-        var nca = new Nca(KeySet, new LocalStorage(metaNcaFilePath, FileAccess.Read));
+        var nca = new Nca(_keySet, new LocalStorage(metaNcaFilePath, FileAccess.Read));
         
         if(!nca.CanOpenSection(0))
         {
@@ -88,15 +86,15 @@ public class Cdn2NspService
         
         var cnmt = new Cnmt(file.Release().AsStream());
         
-        TitleId = cnmt.TitleId.ToString("X16");
-        TitleVersion = $"v{cnmt.TitleVersion.Version}";
-        TitleType = cnmt.Type.ToString().ToUpperInvariant();
+        _titleId = cnmt.TitleId.ToString("X16");
+        _titleVersion = $"v{cnmt.TitleVersion.Version}";
+        _titleType = cnmt.Type.ToString().ToUpperInvariant();
         
         if (_settings.Verbose)
         {
-            AnsiConsole.MarkupLine($"Title ID        : [olive]{TitleId}[/]");
-            AnsiConsole.MarkupLine($"Title Version   : [olive]{TitleVersion}[/]");
-            AnsiConsole.MarkupLine($"Title Type      : [olive]{TitleType}[/]");
+            AnsiConsole.MarkupLine($"Title ID        : [olive]{_titleId}[/]");
+            AnsiConsole.MarkupLine($"Title Version   : [olive]{_titleVersion}[/]");
+            AnsiConsole.MarkupLine($"Title Type      : [olive]{_titleType}[/]");
         }
         
         if (cnmt.Type != ContentMetaType.Patch && cnmt.Type != ContentMetaType.Application && cnmt.Type != ContentMetaType.Delta)
@@ -120,20 +118,20 @@ public class Cdn2NspService
                 AnsiConsole.MarkupLine(msg);
                 return 1;
             }
-            var contentNca = new Nca(KeySet, new LocalStorage(Path.Combine(currentDirectory, fileName), FileAccess.Read));
-            if (contentNca.Header.HasRightsId && TitleKeyEnc.Length == 0)
+            var contentNca = new Nca(_keySet, new LocalStorage(Path.Combine(currentDirectory, fileName), FileAccess.Read));
+            if (contentNca.Header.HasRightsId && _titleKeyEnc.Length == 0)
             {
-                HasRightsId = contentNca.Header.HasRightsId;
-                TicketFile = Path.Combine(currentDirectory, $"{contentNca.Header.RightsId.ToHexString()}.tik".ToLowerInvariant());
-                CertFile = Path.Combine(currentDirectory, $"{contentNca.Header.RightsId.ToHexString()}.cert".ToLowerInvariant());
+                _hasRightsId = contentNca.Header.HasRightsId;
+                _ticketFile = Path.Combine(currentDirectory, $"{contentNca.Header.RightsId.ToHexString()}.tik".ToLowerInvariant());
+                _certFile = Path.Combine(currentDirectory, $"{contentNca.Header.RightsId.ToHexString()}.cert".ToLowerInvariant());
 
-                if (!File.Exists(TicketFile))
+                if (!File.Exists(_ticketFile))
                 {
-                    AnsiConsole.MarkupLine($"[red]Cannot find ticket file - {TicketFile}[/]");
+                    AnsiConsole.MarkupLine($"[red]Cannot find ticket file - {_ticketFile}[/]");
                     return 1;
                 }
                 
-                var ticket = new Ticket(new LocalFile(TicketFile, OpenMode.Read).AsStream());
+                var ticket = new Ticket(new LocalFile(_ticketFile, OpenMode.Read).AsStream());
                 
                 if (ticket.SignatureType != TicketSigType.Rsa2048Sha256)
                 {
@@ -147,31 +145,30 @@ public class Cdn2NspService
                     return 1;
                 }
 
-                TitleKeyEnc = ticket.GetTitleKey(KeySet);
-                RightsId = ticket.RightsId;
+                _titleKeyEnc = ticket.GetTitleKey(_keySet);
+                _rightsId = ticket.RightsId;
                 
-                KeySet.ExternalKeySet.Add(new RightsId(RightsId), new AccessKey(TitleKeyEnc));
+                _keySet.ExternalKeySet.Add(new RightsId(_rightsId), new AccessKey(_titleKeyEnc));
                 
-                TitleKeyDec = contentNca.GetDecryptedTitleKey();
+                _titleKeyDec = contentNca.GetDecryptedTitleKey();
 
-                if (FixedSignature.ToHexString() == ticket.Signature.ToHexString())
+                if (_fixedSignature.ToHexString() == ticket.Signature.ToHexString())
                 {
-                    IsTicketSignatureValid = true;
-                    IsFixedSignature = true;
+                    _isTicketSignatureValid = true;
+                    _isFixedSignature = true;
                 }
                 else
                 {
-                    IsTicketSignatureValid = ValidateTicket(ticket, _settings.CertFile);
+                    _isTicketSignatureValid = ValidateTicket(ticket, _settings.CertFile);
                 }
                 
-                
-                MasterKeyRevision = Utilities.GetMasterKeyRevision(contentNca.Header.KeyGeneration);
+                _masterKeyRevision = Utilities.GetMasterKeyRevision(contentNca.Header.KeyGeneration);
 
-                var ticketMasterKey = Utilities.GetMasterKeyRevision(RightsId.Last());
+                var ticketMasterKey = Utilities.GetMasterKeyRevision(_rightsId.Last());
 
-                if (MasterKeyRevision != ticketMasterKey)
+                if (_masterKeyRevision != ticketMasterKey)
                 {
-                    AnsiConsole.MarkupLine($"[red]Invalid rights ID key generation! Got {ticketMasterKey}, expected {MasterKeyRevision}.[/]");
+                    AnsiConsole.MarkupLine($"[red]Invalid rights ID key generation! Got {ticketMasterKey}, expected {_masterKeyRevision}.[/]");
                     return 1;
                 }
             }
@@ -203,23 +200,23 @@ public class Cdn2NspService
                     control.Get.Read(out _, 0, title.Control.ByteSpan).ThrowIfFailure();
                 }
              
-                Title = title.Control.Value.Title[0].NameString.ToString() ?? "UNKNOWN";
-                Version = title.Control.Value.DisplayVersionString.ToString() ?? "UNKNOWN";
+                _title = title.Control.Value.Title[0].NameString.ToString() ?? "UNKNOWN";
+                _version = title.Control.Value.DisplayVersionString.ToString() ?? "UNKNOWN";
             }
          
-            ContentFiles.Add(Path.Combine(currentDirectory, $"{contentEntry.NcaId.ToHexString().ToLower()}.nca"), contentEntry.Size);
+            _contentFiles.Add(Path.Combine(currentDirectory, $"{contentEntry.NcaId.ToHexString().ToLower()}.nca"), contentEntry.Size);
         }
         
         if (_settings.Verbose)
         {
-            AnsiConsole.MarkupLine($"Display Title   : [olive]{Title}[/]");
-            AnsiConsole.MarkupLine($"Display Version : [olive]{Version}[/]");
-            AnsiConsole.MarkupLine($"Title Key (Enc) : [olive]{TitleKeyEnc.ToHexString()}[/]");
-            AnsiConsole.MarkupLine($"Title Key (Dec) : [olive]{TitleKeyDec.ToHexString()}[/]");
-            AnsiConsole.MarkupLine($"MasterKey Rev.  : [olive]{MasterKeyRevision}[/]");
-            if (IsTicketSignatureValid)
+            AnsiConsole.MarkupLine($"Display Title   : [olive]{_title}[/]");
+            AnsiConsole.MarkupLine($"Display Version : [olive]{_version}[/]");
+            AnsiConsole.MarkupLine($"Title Key (Enc) : [olive]{_titleKeyEnc.ToHexString()}[/]");
+            AnsiConsole.MarkupLine($"Title Key (Dec) : [olive]{_titleKeyDec.ToHexString()}[/]");
+            AnsiConsole.MarkupLine($"MasterKey Rev.  : [olive]{_masterKeyRevision}[/]");
+            if (_isTicketSignatureValid)
             {
-                if (IsFixedSignature)
+                if (_isFixedSignature)
                 {
                     AnsiConsole.MarkupLine($"Signature       : [green]VALID (Normalised)[/]");
                 }
@@ -227,7 +224,6 @@ public class Cdn2NspService
                 {
                     AnsiConsole.MarkupLine($"Signature       : [green]VALID[/]");
                 }
-                  
             }
             else
             {
@@ -236,42 +232,42 @@ public class Cdn2NspService
             
         }
         
-        ContentFiles.Add(Path.GetFullPath(metaNcaFilePath), new FileInfo(Path.Combine(metaNcaFilePath)).Length);
+        _contentFiles.Add(Path.GetFullPath(metaNcaFilePath), new FileInfo(Path.Combine(metaNcaFilePath)).Length);
         
-        if (HasRightsId && !string.IsNullOrEmpty(TicketFile) && File.Exists(TicketFile))
+        if (_hasRightsId && !string.IsNullOrEmpty(_ticketFile) && File.Exists(_ticketFile))
         {
-            if (!IsTicketSignatureValid)
+            if (!_isTicketSignatureValid)
             {
                 var keyGen = 0;
-                if (MasterKeyRevision > 0)
+                if (_masterKeyRevision > 0)
                 {
-                    keyGen = MasterKeyRevision += 1;
+                    keyGen = _masterKeyRevision += 1;
                 }
                 var ticket = new Ticket
                 {
                     SignatureType = TicketSigType.Rsa2048Sha256,
-                    Signature = FixedSignature,
+                    Signature = _fixedSignature,
                     Issuer = "Root-CA00000003-XS00000020",
                     FormatVersion = 2,
-                    RightsId = RightsId,
-                    TitleKeyBlock = TitleKeyEnc,
+                    RightsId = _rightsId,
+                    TitleKeyBlock = _titleKeyEnc,
                     CryptoType = (byte)keyGen,
                     SectHeaderOffset = 0x2C0
                 };
-                NewTicket = ticket.GetBytes();
-                File.WriteAllBytes(TicketFile, NewTicket);
+                _newTicket = ticket.GetBytes();
+                File.WriteAllBytes(_ticketFile, _newTicket);
             }
-            ContentFiles.Add(TicketFile, new FileInfo(TicketFile).Length);
-            File.Copy(_settings.CertFile, CertFile, true);
-            ContentFiles.Add(CertFile, new FileInfo(_settings.CertFile).Length);
+            _contentFiles.Add(_ticketFile, new FileInfo(_ticketFile).Length);
+            File.Copy(_settings.CertFile, _certFile, true);
+            _contentFiles.Add(_certFile, new FileInfo(_settings.CertFile).Length);
         }
         
-        var nspFilename = BuildNspName(Title, Version, TitleId, TitleVersion, TitleType);
+        var nspFilename = BuildNspName(_title, _version, _titleId, _titleVersion, _titleType);
         if (_settings.Verbose)
         {
             AnsiConsole.WriteLine("----------------------------------------");
             var root = new Tree($"[olive]{nspFilename.EscapeMarkup()}[/]");
-            foreach (var contentFile in ContentFiles)
+            foreach (var contentFile in _contentFiles)
             {
                 var nodeLabel = $"{Path.GetFileName(contentFile.Key)} -> {contentFile.Value:N0} bytes";
                 if (_settings.CheckShas)
@@ -300,7 +296,7 @@ public class Cdn2NspService
 
         var builder = new PartitionFileSystemBuilder();
 
-        foreach (var contentFile in ContentFiles)
+        foreach (var contentFile in _contentFiles)
         {
             builder.AddFile(Path.GetFileName(contentFile.Key), new LocalFile(contentFile.Key, OpenMode.Read));
         }
