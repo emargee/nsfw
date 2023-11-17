@@ -97,7 +97,7 @@ public class Cdn2NspService
             AnsiConsole.MarkupLine($"Title Type      : [olive]{_titleType}[/]");
         }
         
-        if (cnmt.Type != ContentMetaType.Patch && cnmt.Type != ContentMetaType.Application && cnmt.Type != ContentMetaType.Delta)
+        if (cnmt.Type != ContentMetaType.Patch && cnmt.Type != ContentMetaType.Application && cnmt.Type != ContentMetaType.Delta && cnmt.Type != ContentMetaType.AddOnContent)
         {
             AnsiConsole.MarkupLine($"[red]Unsupported rebuild type {cnmt.Type}[/]");
             return 1;
@@ -159,7 +159,7 @@ public class Cdn2NspService
                 }
                 else
                 {
-                    _isTicketSignatureValid = ValidateTicket(ticket, _settings.CertFile);
+                    _isTicketSignatureValid = NsfwUtilities.ValidateTicket(ticket, _settings.CertFile);
                 }
                 
                 _masterKeyRevision = Utilities.GetMasterKeyRevision(contentNca.Header.KeyGeneration);
@@ -328,39 +328,5 @@ public class Cdn2NspService
         }
 
         return $"{title} [{titleId}][{titleVersion}][{titleType}].nsp";
-    }
-
-    private bool ValidateTicket(Ticket ticket, string certPath)
-    {
-        using var fileStream = new FileStream(certPath, FileMode.Open);
-        fileStream.Seek(1480, SeekOrigin.Begin);
-        
-        var modulusBytes = new byte[256];
-        var pubExpBytes = new byte[4];
-        fileStream.Read(modulusBytes, 0, modulusBytes.Length);
-        fileStream.Read(pubExpBytes, 0, pubExpBytes.Length);
-
-        var modulus = new BigInteger(modulusBytes, true, true);
-        var pubExp = new BigInteger(pubExpBytes, true, true);
-        
-        using var pubKey = RSA.Create();
-        pubKey.ImportParameters(new RSAParameters
-        {
-            Modulus = modulus.ToByteArray(true, true),
-            Exponent = pubExp.ToByteArray(true, true)
-        });
-        
-        var message = ticket.File.Skip(0x140).ToArray();
-            
-        try
-        {
-            // Verify ticket signature.
-            return pubKey.VerifyData(message, ticket.Signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        }
-        catch (CryptographicException)
-        {
-            // Invalid signature.
-            return false;
-        }
     }
 }
