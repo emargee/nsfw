@@ -1,4 +1,5 @@
-﻿using Nsfw.Commands;
+﻿using System.Text;
+using Nsfw.Commands;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -6,9 +7,11 @@ public static class Program
 {
     public static int Main(string[] args)
     {
+        Console.OutputEncoding = Encoding.UTF8;
         var app = new CommandApp();
         app.Configure(config =>
         {
+            config.SetApplicationVersion("0.1");
             config.SetApplicationName("nsfw");
             config.ValidateExamples();
 

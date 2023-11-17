@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Runtime.InteropServices.ComTypes;
+using System.Text;
 using LibHac.Common;
 using LibHac.Common.Keys;
 using LibHac.Crypto;
@@ -144,11 +145,6 @@ public class ValidateNspService
             {
                 AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Title count ({switchFs.Titles.Count}) does not match Application count ({switchFs.Applications.Count})");
             }
-            
-            if(switchFs.Applications.Values.First().Main == null)
-            {
-                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Expected Application to have main NCA, found nothing.");
-            }
 
             var title = switchFs.Titles.First();
             
@@ -250,7 +246,7 @@ public class ValidateNspService
             
             phase = $"[olive]Validate Metadata[/]";
 
-            if (cnmt.TitleId.ToString("X16") != _titleId)
+            if (cnmt.TitleId.ToString("X16") != _titleId && title.Value.Metadata.Type == ContentMetaType.Application)
             {
                 AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - TitleID Mis-match. Expected {_titleId}, found {cnmt.TitleId.ToString("X16")}");
             }
@@ -306,7 +302,18 @@ public class ValidateNspService
             var foundNcaTree = new Tree("NCAs:");
             foreach (var fsNca in title.Value.Ncas)
             {
-                var validity = fsNca.VerifyNca();
+                var validity = Validity.Unchecked;
+                
+                try
+                {
+                    validity = fsNca.VerifyNca();
+                }
+                catch (Exception e)
+                {
+                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase} - {e.Message}");
+                    return 1;
+                }
+
                 if (validity != Validity.Valid)
                 {
                     foundNcaTree.AddNode("[[[red]X[/]]] " + fsNca.NcaId + " -> " + fsNca.Nca.Header.ContentType + $" -> {validity.ToString().ToUpperInvariant()}");
@@ -334,7 +341,7 @@ public class ValidateNspService
 
             if (!string.IsNullOrEmpty(title.Value.Control.Value.DisplayVersionString.ToString()))
             {
-                _version = title.Value.Control.Value.DisplayVersionString.ToString()!;
+                _version = title.Value.Control.Value.DisplayVersionString.ToString()!.Trim();
             }
             
             var table = new Table();
