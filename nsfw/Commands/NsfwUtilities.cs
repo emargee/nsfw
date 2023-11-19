@@ -6,6 +6,7 @@ namespace Nsfw.Commands;
 
 public static class NsfwUtilities
 {
+    public static byte[] FixedSignature { get; }= Enumerable.Repeat((byte)0xFF, 0x100).ToArray();
     public static bool ValidateTicket(Ticket ticket, string certPath)
     {
         using var fileStream = new FileStream(certPath, FileMode.Open);
@@ -57,5 +58,27 @@ public static class NsfwUtilities
         }
 
         return $"{title} [{titleId}][{titleVersion}][{titleType}]";
+    }
+
+    public static Ticket CreateTicket(int masterKeyRevision, byte[] rightsId, byte[] titleKeyEnc)
+    {
+        var keyGen = 0;
+        if (masterKeyRevision > 0)
+        {
+            keyGen = masterKeyRevision += 1;
+        }
+        var ticket = new Ticket
+        {
+            SignatureType = TicketSigType.Rsa2048Sha256,
+            Signature = FixedSignature,
+            Issuer = "Root-CA00000003-XS00000020",
+            FormatVersion = 2,
+            RightsId = rightsId,
+            TitleKeyBlock = titleKeyEnc,
+            CryptoType = (byte)keyGen,
+            SectHeaderOffset = 0x2C0
+        };
+        
+        return ticket;
     }
 }

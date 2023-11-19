@@ -361,11 +361,11 @@ public class ValidateNspService
                 table.AddRow("TitleKey (Dec)", _titleKeyDec.ToHexString());
                 if (_isFixedSignature)
                 {
-                    table.AddRow("Valid Signature?", "FIXED");
+                    table.AddRow("Ticket Signature?", "Normalised");
                 }
                 else
                 {
-                    table.AddRow("Valid Signature?", _isTicketSignatureValid.ToString());
+                    table.AddRow("Ticket Signature?", _isTicketSignatureValid ? "Valid" : "Invalid");
                 }
                 table.AddRow("MasterKey Revision", _masterKeyRevision.ToString());
             }
@@ -377,10 +377,12 @@ public class ValidateNspService
                 return 0;
             }
             
-            phase = $"[olive]Extract NCAs[/]";
+            phase = $"[olive]Extracting NCAs[/]";
             
             if(_settings.Extract && canExtract)
             {
+                AnsiConsole.MarkupLine($"Exporting..");
+                
                 var outDir = System.IO.Path.Combine(_settings.OutDirectory, NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType));
                 
                 if(_settings.DryRun)
@@ -392,7 +394,7 @@ public class ValidateNspService
                     Directory.CreateDirectory(outDir);
                 }
                 
-                foreach (var nca in title.Value.Ncas.Where(nca => nca.Nca.Header.ContentType != NcaContentType.Data))
+                foreach (var nca in title.Value.Ncas)
                 {
                     if(_settings.DryRun)
                     {
@@ -411,19 +413,25 @@ public class ValidateNspService
                 {
                      var decFile = $"{_ticket.RightsId.ToHexString().ToLower()}.dectitlekey.tik";
                      var encFile = $"{_ticket.RightsId.ToHexString().ToLower()}.enctitlekey.tik";
+
+                     if (!_isTicketSignatureValid)
+                     {
+                         _ticket = NsfwUtilities.CreateTicket(_masterKeyRevision, _ticket.RightsId, _titleKeyEnc);
+                         AnsiConsole.WriteLine("[[[green]DONE[/]]] -> Generated new normalised ticket.");
+                     }
                      
-                    if(_settings.DryRun)
-                    {
-                        AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would export: [olive]{decFile.EscapeMarkup()}[/]");
-                        AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would export: [olive]{encFile.EscapeMarkup()}[/]");
-                        AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would export: [olive]{_ticket.RightsId.ToHexString().ToLower()}.tik[/]");
-                    }
-                    else
-                    {
-                        File.WriteAllBytes(System.IO.Path.Combine(outDir, decFile), _titleKeyDec);
-                        File.WriteAllBytes(System.IO.Path.Combine(outDir, encFile), _titleKeyEnc);
-                        File.WriteAllBytes(System.IO.Path.Combine(outDir, $"{_ticket.RightsId.ToHexString().ToLower()}.tik"), _ticket.File);
-                    }
+                     if(_settings.DryRun)
+                     {
+                         AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would export: [olive]{decFile.EscapeMarkup()}[/]");
+                         AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would export: [olive]{encFile.EscapeMarkup()}[/]");
+                         AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would export: [olive]{_ticket.RightsId.ToHexString().ToLower()}.tik[/]");
+                     }
+                     else
+                     {
+                         File.WriteAllBytes(System.IO.Path.Combine(outDir, decFile), _titleKeyDec);
+                         File.WriteAllBytes(System.IO.Path.Combine(outDir, encFile), _titleKeyEnc);
+                         File.WriteAllBytes(System.IO.Path.Combine(outDir, $"{_ticket.RightsId.ToHexString().ToLower()}.tik"), _ticket.File);
+                     }
                 }
                 
                 if(!_settings.DryRun)

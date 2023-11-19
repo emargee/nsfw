@@ -40,7 +40,6 @@ public class Cdn2NspService
     private int _masterKeyRevision;
     private byte[] _newTicket;
     private readonly Dictionary<string, long> _contentFiles = new();
-    private readonly byte[] _fixedSignature = Enumerable.Repeat((byte)0xFF, 0x100).ToArray();
     private bool _isFixedSignature;
     
     public Cdn2NspService(Cdn2NspSettings settings)
@@ -152,7 +151,7 @@ public class Cdn2NspService
                 
                 _titleKeyDec = contentNca.GetDecryptedTitleKey();
 
-                if (_fixedSignature.ToHexString() == ticket.Signature.ToHexString())
+                if (NsfwUtilities.FixedSignature.ToHexString() == ticket.Signature.ToHexString())
                 {
                     _isTicketSignatureValid = true;
                     _isFixedSignature = true;
@@ -238,23 +237,8 @@ public class Cdn2NspService
         {
             if (!_isTicketSignatureValid)
             {
-                var keyGen = 0;
-                if (_masterKeyRevision > 0)
-                {
-                    keyGen = _masterKeyRevision += 1;
-                }
-                var ticket = new Ticket
-                {
-                    SignatureType = TicketSigType.Rsa2048Sha256,
-                    Signature = _fixedSignature,
-                    Issuer = "Root-CA00000003-XS00000020",
-                    FormatVersion = 2,
-                    RightsId = _rightsId,
-                    TitleKeyBlock = _titleKeyEnc,
-                    CryptoType = (byte)keyGen,
-                    SectHeaderOffset = 0x2C0
-                };
-                _newTicket = ticket.GetBytes();
+
+                _newTicket = NsfwUtilities.CreateTicket(_masterKeyRevision, _rightsId, _titleKeyEnc).GetBytes();
                 File.WriteAllBytes(_ticketFile, _newTicket);
             }
             _contentFiles.Add(_ticketFile, new FileInfo(_ticketFile).Length);
