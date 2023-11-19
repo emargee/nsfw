@@ -16,6 +16,19 @@ public class ValidateNspSettings : CommandSettings
     [DefaultValue("~/.switch/common.cert")]
     public string CertFile { get; set; } = string.Empty;
     
+    [CommandOption("-x|--extract")]
+    [Description("Extract NSP contents to output directory.")]
+    public bool Extract { get; set; }
+    
+    [CommandOption("-o|--outdir <DIR>")]
+    [Description("Path to output directory.")]
+    [DefaultValue("./cdn")]
+    public string OutDirectory { get; set; } = string.Empty;
+    
+    [CommandOption("-d|--dryrun")]
+    [Description("Print files but do not generate NSP.")]
+    public bool DryRun { get; set; }
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;
@@ -25,6 +38,8 @@ public class ValidateNspSettings : CommandSettings
         KeysFile = KeysFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
         NspFile = NspFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
         CertFile = CertFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        OutDirectory = OutDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        OutDirectory = Path.GetFullPath(OutDirectory);
         
         if (!File.Exists(NspFile))
         {
@@ -39,6 +54,11 @@ public class ValidateNspSettings : CommandSettings
         if (!File.Exists(CertFile))
         {
             return ValidationResult.Error($"Certificate file '{CertFile}' does not exist.");
+        }
+        
+        if(!Directory.Exists(OutDirectory))
+        {
+            return ValidationResult.Error($"Output directory '{OutDirectory}' does not exist.");
         }
         
         return base.Validate();

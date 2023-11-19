@@ -39,4 +39,23 @@ public static class NsfwUtilities
             return false;
         }
     }
+
+    public static string BuildName(string title, string version, string titleId, string titleVersion, string titleType)
+    {
+        titleType = titleType switch
+        {
+            "PATCH" => "UPD",
+            "APPLICATION" => "BASE",
+            "ADDONCONTENT" => "DLC",
+            "DELTA" => "DLCUPD",
+            _ => "UNKNOWN"
+        };
+
+        if (titleType is "UPD" or "DLCUPD")
+        {
+            return $"{title} [{version}][{titleId}][{titleVersion}][{titleType}]";   
+        }
+
+        return $"{title} [{titleId}][{titleVersion}][{titleType}]";
+    }
 }

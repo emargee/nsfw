@@ -262,7 +262,7 @@ public class Cdn2NspService
             _contentFiles.Add(_certFile, new FileInfo(_settings.CertFile).Length);
         }
         
-        var nspFilename = BuildNspName(_title, _version, _titleId, _titleVersion, _titleType);
+        var nspFilename = $"{NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType)}.nsp";
         if (_settings.Verbose)
         {
             AnsiConsole.WriteLine("----------------------------------------");
@@ -309,24 +309,5 @@ public class Cdn2NspService
         AnsiConsole.WriteLine(" -> Done!");
         
         return 0;
-    }
-
-    private string BuildNspName(string title, string version, string titleId, string titleVersion, string titleType)
-    {
-        titleType = titleType switch
-        {
-            "PATCH" => "UPD",
-            "APPLICATION" => "BASE",
-            "ADDONCONTENT" => "DLC",
-            "DELTA" => "DLCUPD",
-            _ => "UNKNOWN"
-        };
-
-        if (titleType is "UPD" or "DLCUPD")
-        {
-            return $"{title} [{version}][{titleId}][{titleVersion}][{titleType}].nsp";   
-        }
-
-        return $"{title} [{titleId}][{titleVersion}][{titleType}].nsp";
     }
 }

@@ -298,7 +298,7 @@ public class ValidateNspService
                 AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase}");
                 return 1;
             }
-            
+            var canExtract = true;
             var foundNcaTree = new Tree("NCAs:");
             foreach (var fsNca in title.Value.Ncas)
             {
@@ -316,6 +316,7 @@ public class ValidateNspService
 
                 if (validity != Validity.Valid)
                 {
+                    canExtract = false;
                     foundNcaTree.AddNode("[[[red]X[/]]] " + fsNca.NcaId + " -> " + fsNca.Nca.Header.ContentType + $" -> {validity.ToString().ToUpperInvariant()}");
                 }
                 else
@@ -370,6 +371,70 @@ public class ValidateNspService
             }
             
             AnsiConsole.Write(new Padder(table).PadRight(1));
+
+            if (!_settings.Extract)
+            {
+                return 0;
+            }
+            
+            phase = $"[olive]Extract NCAs[/]";
+            
+            if(_settings.Extract && canExtract)
+            {
+                var outDir = System.IO.Path.Combine(_settings.OutDirectory, NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType));
+                
+                if(_settings.DryRun)
+                {
+                    AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would create: [olive]{outDir.EscapeMarkup()}[/]");
+                }
+                else
+                {
+                    Directory.CreateDirectory(outDir);
+                }
+                
+                foreach (var nca in title.Value.Ncas.Where(nca => nca.Nca.Header.ContentType != NcaContentType.Data))
+                {
+                    if(_settings.DryRun)
+                    {
+                        AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would export: [olive]{nca.Filename}[/]");
+                        continue;
+                    }
+                    
+                    var stream = nca.Nca.BaseStorage.AsStream();
+                    var outFile = System.IO.Path.Combine(outDir, nca.Filename);
+
+                    using var outStream = new FileStream(outFile, FileMode.Create, FileAccess.ReadWrite);
+                    stream.CopyStream(outStream, stream.Length);
+                }
+
+                if (_hasTitleKeyCrypto)
+                {
+                     var decFile = $"{_ticket.RightsId.ToHexString().ToLower()}.dectitlekey.tik";
+                     var encFile = $"{_ticket.RightsId.ToHexString().ToLower()}.enctitlekey.tik";
+                     
+                    if(_settings.DryRun)
+                    {
+                        AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would export: [olive]{decFile.EscapeMarkup()}[/]");
+                        AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would export: [olive]{encFile.EscapeMarkup()}[/]");
+                        AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would export: [olive]{_ticket.RightsId.ToHexString().ToLower()}.tik[/]");
+                    }
+                    else
+                    {
+                        File.WriteAllBytes(System.IO.Path.Combine(outDir, decFile), _titleKeyDec);
+                        File.WriteAllBytes(System.IO.Path.Combine(outDir, encFile), _titleKeyEnc);
+                        File.WriteAllBytes(System.IO.Path.Combine(outDir, $"{_ticket.RightsId.ToHexString().ToLower()}.tik"), _ticket.File);
+                    }
+                }
+                
+                if(!_settings.DryRun)
+                {
+                    AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> Exported: [olive]{outDir.EscapeMarkup()}[/]");
+                }
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Skipping extraction - Validation failed.");
+            }
         }
         else
         {
@@ -447,6 +512,7 @@ public class ValidateNspService
             yield return ticket;
         }
     }
+    
 }
 
 public static class Extensions

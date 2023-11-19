@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Reflection;
+using System.Text;
 using Nsfw.Commands;
 using Spectre.Console;
 using Spectre.Console.Cli;
