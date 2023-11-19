@@ -20,10 +20,19 @@ public class ValidateNspSettings : CommandSettings
     [Description("Extract NSP contents to output directory.")]
     public bool Extract { get; set; }
     
-    [CommandOption("-o|--outdir <DIR>")]
-    [Description("Path to output directory.")]
+    [CommandOption("-s|--standard")]
+    [Description("Convert to Standardised NSP")]
+    public bool Convert { get; set; }
+    
+    [CommandOption("--nspdir <DIR>")]
+    [Description("Path to standardised NSP output directory.")]
+    [DefaultValue("./nsp")]
+    public string NspDirectory { get; set; } = string.Empty;
+    
+    [CommandOption("--cdndir <DIR>")]
+    [Description("Path to CDN output directory.")]
     [DefaultValue("./cdn")]
-    public string OutDirectory { get; set; } = string.Empty;
+    public string CdnDirectory { get; set; } = string.Empty;
     
     [CommandOption("-d|--dryrun")]
     [Description("Print files but do not generate NSP.")]
@@ -38,8 +47,10 @@ public class ValidateNspSettings : CommandSettings
         KeysFile = KeysFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
         NspFile = NspFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
         CertFile = CertFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-        OutDirectory = OutDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-        OutDirectory = Path.GetFullPath(OutDirectory);
+        CdnDirectory = CdnDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        NspDirectory= NspDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        CdnDirectory = Path.GetFullPath(CdnDirectory);
+        NspDirectory = Path.GetFullPath(NspDirectory);
         
         if (!File.Exists(NspFile))
         {
@@ -56,9 +67,14 @@ public class ValidateNspSettings : CommandSettings
             return ValidationResult.Error($"Certificate file '{CertFile}' does not exist.");
         }
         
-        if(!Directory.Exists(OutDirectory))
+        if(Extract && !Directory.Exists(CdnDirectory))
         {
-            return ValidationResult.Error($"Output directory '{OutDirectory}' does not exist.");
+            return ValidationResult.Error($"CDN Output directory '{CdnDirectory}' does not exist.");
+        }
+        
+        if(Convert && !Directory.Exists(NspDirectory))
+        {
+            return ValidationResult.Error($"NSP Output directory '{NspDirectory}' does not exist.");
         }
         
         return base.Validate();

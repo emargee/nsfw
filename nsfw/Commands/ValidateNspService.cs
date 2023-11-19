@@ -1,8 +1,5 @@
-﻿using System.Runtime.InteropServices.ComTypes;
-using System.Text;
-using LibHac.Common;
+﻿using LibHac.Common;
 using LibHac.Common.Keys;
-using LibHac.Crypto;
 using LibHac.Fs;
 using LibHac.Fs.Fsa;
 using LibHac.FsSystem;
@@ -302,7 +299,7 @@ public class ValidateNspService
             var foundNcaTree = new Tree("NCAs:");
             foreach (var fsNca in title.Value.Ncas)
             {
-                var validity = Validity.Unchecked;
+                Validity validity;
                 
                 try
                 {
@@ -372,18 +369,31 @@ public class ValidateNspService
             
             AnsiConsole.Write(new Padder(table).PadRight(1));
 
-            if (!_settings.Extract)
+            if (!_settings.Extract && !_settings.Convert)
             {
                 return 0;
             }
-            
-            phase = $"[olive]Extracting NCAs[/]";
-            
-            if(_settings.Extract && canExtract)
+
+            if (!canExtract)
             {
-                AnsiConsole.MarkupLine($"Exporting..");
+                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] - Exiting - NSP Validation failed.");
+                return 1;
+            }
+
+            var formattedName = NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType);
+            
+            if (!_isTicketSignatureValid)
+            {
+                _ticket = NsfwUtilities.CreateTicket(_masterKeyRevision, _ticket.RightsId, _titleKeyEnc);
+                AnsiConsole.WriteLine("[[[green]DONE[/]]] -> Generated new normalised ticket.");
+            }
+            
+            if(_settings.Extract)
+            {
+                phase = $"[olive]Extracting[/]";
+                AnsiConsole.MarkupLine($"{phase}..");
                 
-                var outDir = System.IO.Path.Combine(_settings.OutDirectory, NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType));
+                var outDir = System.IO.Path.Combine(_settings.CdnDirectory, formattedName);
                 
                 if(_settings.DryRun)
                 {
@@ -413,12 +423,6 @@ public class ValidateNspService
                 {
                      var decFile = $"{_ticket.RightsId.ToHexString().ToLower()}.dectitlekey.tik";
                      var encFile = $"{_ticket.RightsId.ToHexString().ToLower()}.enctitlekey.tik";
-
-                     if (!_isTicketSignatureValid)
-                     {
-                         _ticket = NsfwUtilities.CreateTicket(_masterKeyRevision, _ticket.RightsId, _titleKeyEnc);
-                         AnsiConsole.WriteLine("[[[green]DONE[/]]] -> Generated new normalised ticket.");
-                     }
                      
                      if(_settings.DryRun)
                      {
@@ -439,9 +443,47 @@ public class ValidateNspService
                     AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> Exported: [olive]{outDir.EscapeMarkup()}[/]");
                 }
             }
-            else
+
+            if (_settings.Convert)
             {
-                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Skipping extraction - Validation failed.");
+                phase = $"[olive]Converting[/]";
+                AnsiConsole.MarkupLine($"{phase}..");
+                
+                var builder = new PartitionFileSystemBuilder();
+
+                foreach (var nca in title.Value.Ncas)
+                {
+                    if (_settings.DryRun)
+                    {
+                        AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would convert: [olive]{nca.Filename}[/]");
+                    }
+                    else
+                    {
+                        builder.AddFile(nca.Filename, nca.Nca.BaseStorage.AsFile(OpenMode.Read));
+                    }
+                }
+
+                if (_hasTitleKeyCrypto)
+                {
+                    if (_settings.DryRun)
+                    {
+                        AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would convert: [olive]{_ticket.RightsId.ToHexString().ToLower()}.tik[/]");
+                        AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would convert: [olive]{_ticket.RightsId.ToHexString().ToLower()}.cert[/]");
+                    }
+                    else
+                    {
+                        builder.AddFile($"{_ticket.RightsId.ToHexString().ToLower()}.tik", new MemoryStorage(_ticket.File).AsFile(OpenMode.Read));
+                        builder.AddFile($"{_ticket.RightsId.ToHexString().ToLower()}.cert", new LocalFile(_settings.CertFile, OpenMode.Read));
+                    }
+                }
+
+                if (_settings.DryRun) return 0;
+                
+                using var outStream = new FileStream(System.IO.Path.Combine(_settings.NspDirectory, $"{formattedName}_conv.nsp"), FileMode.Create, FileAccess.ReadWrite);
+                var builtPfs = builder.Build(PartitionFileSystemType.Standard);
+                builtPfs.GetSize(out var pfsSize).ThrowIfFailure();
+                builtPfs.CopyToStream(outStream, pfsSize);
+                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> Converted: [olive]{formattedName.EscapeMarkup()}_conv.nsp[/]");
             }
         }
         else

@@ -237,7 +237,6 @@ public class Cdn2NspService
         {
             if (!_isTicketSignatureValid)
             {
-
                 _newTicket = NsfwUtilities.CreateTicket(_masterKeyRevision, _rightsId, _titleKeyEnc).GetBytes();
                 File.WriteAllBytes(_ticketFile, _newTicket);
             }
