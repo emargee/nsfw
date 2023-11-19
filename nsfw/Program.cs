@@ -20,7 +20,7 @@ public static class Program
                 .WithDescription("Deterministically recreates NSP files from extracted CDN data following nxdumptool NSP generation guidelines.")
                 .WithAlias("c2n");
             
-            config.AddCommand<ValidateNspCommand>("validateNsp")
+            config.AddCommand<ValidateNspCommand>("validate")
                 .WithDescription("Validates NSP.")
                 .WithAlias("v");
         });

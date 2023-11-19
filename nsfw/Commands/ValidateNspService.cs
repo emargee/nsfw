@@ -169,7 +169,7 @@ public class ValidateNspService
 
             if (tickets.Length > 0 && !_hasTitleKeyCrypto)
             {
-                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Has a ticket but no title key crypto.");
+                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Has a ticket but no title key crypto. DLC Unlocker?");
             }
             
             if (tickets.Length == 0 && _hasTitleKeyCrypto)
@@ -382,7 +382,7 @@ public class ValidateNspService
 
             var formattedName = NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType);
             
-            if (!_isTicketSignatureValid)
+            if (_hasTitleKeyCrypto && !_isTicketSignatureValid)
             {
                 _ticket = NsfwUtilities.CreateTicket(_masterKeyRevision, _ticket.RightsId, _titleKeyEnc);
                 AnsiConsole.WriteLine("[[[green]DONE[/]]] -> Generated new normalised ticket.");
