@@ -38,6 +38,11 @@ public class ValidateNspSettings : CommandSettings
     [Description("Print files but do not generate NSP.")]
     public bool DryRun { get; set; }
     
+    [CommandOption("-t|--titledb <FILE>")]
+    [Description("Path to converted titledb file. -> cat US.en.json | jq -r \"[[values[[]]|{id:.id, name:.name,languages:.languages}]]\" > us-en.json")]
+    [DefaultValue("./titledb/us-en.json")]
+    public string TitleDbFile { get; set; } = string.Empty;
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;
@@ -49,6 +54,7 @@ public class ValidateNspSettings : CommandSettings
         CertFile = CertFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
         CdnDirectory = CdnDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
         NspDirectory= NspDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        TitleDbFile= TitleDbFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
         CdnDirectory = Path.GetFullPath(CdnDirectory);
         NspDirectory = Path.GetFullPath(NspDirectory);
         

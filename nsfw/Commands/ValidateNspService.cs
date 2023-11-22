@@ -33,6 +33,8 @@ public class ValidateNspService
     private int _masterKeyRevision;
     private string _title = "UNKNOWN";
     private string _version = "UNKNOWN";
+    private bool _possibleUnlocker;
+    private bool _fromTitleDb;
 
     public ValidateNspService(ValidateNspSettings settings)
     {
@@ -88,7 +90,7 @@ public class ValidateNspService
                     break;
                 }
                 
-                foundTree.AddNode(StringUtils.Utf8ZToString(dirEntry.Name) + " -> (" + dirEntry.Size + " bytes)");
+                foundTree.AddNode(StringUtils.Utf8ZToString(dirEntry.Name) + " - " + dirEntry.Size + " (" + dirEntry.Size.BytesToHumanReadable() + ")");
             }
             AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
             AnsiConsole.Write(new Padder(foundTree).PadRight(1));
@@ -169,7 +171,8 @@ public class ValidateNspService
 
             if (tickets.Length > 0 && !_hasTitleKeyCrypto)
             {
-                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Has a ticket but no title key crypto. DLC Unlocker?");
+                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Has a ticket but no title key crypto.");
+                _possibleUnlocker = true;
             }
             
             if (tickets.Length == 0 && _hasTitleKeyCrypto)
@@ -275,7 +278,7 @@ public class ValidateNspService
                     deltaCount++;
                 }
                 
-                foundContentTree.AddNode(filename + "-> " + contentEntry.Type + " -> " + contentEntry.Size + " bytes");
+                foundContentTree.AddNode(filename + " (" + contentEntry.Type + ") -> " + contentEntry.Size + " (" + contentEntry.Size.BytesToHumanReadable() + ")");
             }
             
             if(cnmt.ContentEntryCount + 1 != title.Value.Ncas.Count)
@@ -289,41 +292,58 @@ public class ValidateNspService
             AnsiConsole.Write(new Padder(foundContentTree).PadRight(1));
             
             phase = $"[olive]Validate NCAs[/]";
-
-            if (title.Value.Ncas.Count == 0)
-            {
-                AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase}");
-                return 1;
-            }
             var canExtract = true;
-            var foundNcaTree = new Tree("NCAs:");
-            foreach (var fsNca in title.Value.Ncas)
+            
+            AnsiConsole.Status()
+            .Start("Validating NCAs...", ctx =>
             {
-                Validity validity;
+                ctx.Spinner(Spinner.Known.Line);
+                ctx.SpinnerStyle(Style.Parse("green"));
                 
-                try
+                if (title.Value.Ncas.Count == 0)
                 {
-                    validity = fsNca.VerifyNca();
-                }
-                catch (Exception e)
-                {
-                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase} - {e.Message}");
+                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase}");
                     return 1;
                 }
-
-                if (validity != Validity.Valid)
-                {
-                    canExtract = false;
-                    foundNcaTree.AddNode("[[[red]X[/]]] " + fsNca.NcaId + " -> " + fsNca.Nca.Header.ContentType + $" -> {validity.ToString().ToUpperInvariant()}");
-                }
-                else
-                {
-                    foundNcaTree.AddNode("[[[green]V[/]]] " + fsNca.NcaId + " -> " + fsNca.Nca.Header.ContentType);
-                }
-            }
+                
+                var foundNcaTree = new Tree("NCAs:");
+                foundNcaTree.Expanded = true;
             
-            AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
-            AnsiConsole.Write(new Padder(foundNcaTree).PadRight(1));
+                foreach (var fsNca in title.Value.Ncas)
+                {
+                    Validity validity;
+                    var logger = new NsfwProgressLogger();
+                
+                    try
+                    {
+                        ctx.Status($"Validating: {fsNca.Filename}");
+                        validity = NsfwUtilities.VerifyNca(fsNca, logger);
+                    }
+                    catch (Exception e)
+                    {
+                        AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase} - {e.Message}");
+                        return 1;
+                    }
+                
+                    var node = new TreeNode(new Markup($"{fsNca.Filename} ({fsNca.Nca.Header.ContentType})"));
+
+                    if (validity != Validity.Valid)
+                    {
+                        canExtract = false;
+                        node.AddNodes(logger.GetReport());
+                        foundNcaTree.AddNode(node);
+                    }
+                    else
+                    {
+                        node.AddNodes(logger.GetReport());
+                        foundNcaTree.AddNode(node);
+                    }
+                }
+            
+                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
+                AnsiConsole.Write(new Padder(foundNcaTree).PadRight(1));
+                return 0;
+            });
 
             if (title.Value.Control.Value.Title.Items != null)
             {
@@ -342,14 +362,35 @@ public class ValidateNspService
                 _version = title.Value.Control.Value.DisplayVersionString.ToString()!.Trim();
             }
             
+            var titledbPath = System.IO.Path.GetFullPath(_settings.TitleDbFile);
+            
+            if(_title == "UNKNOWN" && File.Exists(titledbPath))
+            {
+                var titleName = NsfwUtilities.GetTitleDbInfo(titledbPath, _titleId).Result;
+                if(!string.IsNullOrEmpty(titleName))
+                {
+                    _title = titleName;
+                    _fromTitleDb = true;
+                }
+            }
+            
+            var type = _titleType switch
+            {
+                "PATCH" => "UPD",
+                "APPLICATION" => "BASE",
+                "ADDONCONTENT" => "DLC",
+                "DELTA" => "DLCUPD",
+                _ => "UNKNOWN"
+            };
+            
             var table = new Table();
             table.AddColumn("Property");
             table.AddColumn("Value");
 
-            table.AddRow("Display Title", _title);
+            table.AddRow("Display Title", _title + (_fromTitleDb ? " [olive](From TitleDB)[/]" : ""));
             table.AddRow("Display Version", _version);
             table.AddRow("Title ID", _titleId);
-            table.AddRow("Title Type", _titleType);
+            table.AddRow("Title Type", type + " (" + _titleType + ")");
             table.AddRow("Title Version", _titleVersion);
 
             if (_titleKeyDec != null)
@@ -365,6 +406,12 @@ public class ValidateNspService
                     table.AddRow("Ticket Signature?", _isTicketSignatureValid ? "Valid" : "Invalid");
                 }
                 table.AddRow("MasterKey Revision", _masterKeyRevision.ToString());
+            }
+
+            if (_possibleUnlocker && type == "DLC")
+            {
+                canExtract = false;
+                table.AddRow("[red]Possible DLC Unlocker[/]", "This appears to be a homebrew DLC Unlocker. Converting will lose the ticket + cert.");
             }
             
             AnsiConsole.Write(new Padder(table).PadRight(1));
@@ -479,7 +526,7 @@ public class ValidateNspService
 
                 if (_settings.DryRun) return 0;
                 
-                using var outStream = new FileStream(System.IO.Path.Combine(_settings.NspDirectory, $"{formattedName}_conv.nsp"), FileMode.Create, FileAccess.ReadWrite);
+                using var outStream = new FileStream(System.IO.Path.Combine(_settings.NspDirectory, $"{formattedName}.nsp"), FileMode.Create, FileAccess.ReadWrite);
                 var builtPfs = builder.Build(PartitionFileSystemType.Standard);
                 builtPfs.GetSize(out var pfsSize).ThrowIfFailure();
                 builtPfs.CopyToStream(outStream, pfsSize);
