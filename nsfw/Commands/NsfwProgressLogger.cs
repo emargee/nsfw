@@ -1,4 +1,5 @@
 ﻿using LibHac.Common;
+using LibHac.Tools.FsSystem.NcaUtils;
 using Spectre.Console;
 
 namespace Nsfw.Commands;
@@ -36,20 +37,32 @@ public class NsfwProgressLogger : IProgressReport
 
     public void AddSection(int i)
     {
-        _sections.Add(i, "[-/-]");
+        _sections.Add(i, "[[-/-]]");
         _currentBlock = 0;
         _totalBlocks = null;
     }
 
-    public void CloseSection(int index, Validity validity)
+    public void CloseSection(int index, Validity validity, NcaHashType ncaHashType = NcaHashType.Ivfc)
     {
         if (validity == Validity.Invalid)
         {
             _sections[index] = $"Section {index} -> [red]ERROR[/] " + $"[{_currentBlock}/{_totalBlocks} Blocks]".EscapeMarkup();
+            return;
         }
-        else
+
+        if (validity == Validity.Unchecked)
         {
-            _sections[index] = $"Section {index} -> [green]VALID[/] " + $"[{_currentBlock}/{_totalBlocks} Blocks]".EscapeMarkup();
+            if (ncaHashType != NcaHashType.Sha256 && ncaHashType != NcaHashType.Ivfc)
+            {
+                _sections[index] = $"Section {index} -> [olive]SKIPD[/] " + $"HashType = {ncaHashType}".EscapeMarkup();
+                return;
+            }
+
+            _sections[index] = $"Section {index} -> [olive]SKIPD[/] ";
+            return;
+
         }
+
+        _sections[index] = $"Section {index} -> [green]VALID[/] " + $"[{_currentBlock}/{_totalBlocks} Blocks]".EscapeMarkup();
     }
 }

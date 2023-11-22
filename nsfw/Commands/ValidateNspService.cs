@@ -376,10 +376,10 @@ public class ValidateNspService
             
             var type = _titleType switch
             {
-                "PATCH" => "UPD",
-                "APPLICATION" => "BASE",
+                "PATCH" => "Update",
+                "APPLICATION" => "Game",
                 "ADDONCONTENT" => "DLC",
-                "DELTA" => "DLCUPD",
+                "DELTA" => "DLC Update",
                 _ => "UNKNOWN"
             };
             

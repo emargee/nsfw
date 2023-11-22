@@ -63,12 +63,14 @@ public static class NsfwUtilities
             "DELTA" => "DLCUPD",
             _ => "UNKNOWN"
         };
+        
+        title = title.Replace('/', '-');
 
         if (titleType is "UPD" or "DLCUPD")
         {
             return $"{title} [{version}][{titleId}][{titleVersion}][{titleType}]";
         }
-
+        
         return $"{title} [{titleId}][{titleVersion}][{titleType}]";
     }
 
@@ -117,10 +119,17 @@ public static class NsfwUtilities
     {
         var sect = nca.GetFsHeader(index);
         var hashType = sect.HashType;
-        if (hashType != NcaHashType.Sha256 && hashType != NcaHashType.Ivfc) return Validity.Unchecked;
+        if (hashType != NcaHashType.Sha256 && hashType != NcaHashType.Ivfc)
+        {
+            logger.CloseSection(index, Validity.Unchecked, hashType);
+            return Validity.Unchecked;
+        }
 
-        if (nca.OpenStorage(index, IntegrityCheckLevel.IgnoreOnInvalid, true) is not
-            HierarchicalIntegrityVerificationStorage stream) return Validity.Unchecked;
+        if (nca.OpenStorage(index, IntegrityCheckLevel.IgnoreOnInvalid, true) is not HierarchicalIntegrityVerificationStorage stream)
+        {
+            logger.CloseSection(index, Validity.Unchecked);
+            return Validity.Unchecked;
+        }
 
         var validity = stream.Validate(true, logger);
 
