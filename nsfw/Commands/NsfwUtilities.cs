@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Globalization;
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -62,19 +63,27 @@ public static class NsfwUtilities
         
         title = title.CleanTitle();
         parentTitle = parentTitle.CleanTitle();
-
+        
+        var textInfo = new CultureInfo("en-US", false).TextInfo;
+        title = textInfo.ToTitleCase(title);
+        
         if (titleType is "UPD" or "DLCUPD")
         {
-            return $"{title} [{version}][{titleId}][{titleVersion}][{titleType}]";
+            return $"{title} [{version}][{titleId}][{titleVersion}][{titleType}]".CleanTitle();
         }
 
         if (titleType is "DLC" && !string.IsNullOrEmpty(parentTitle))
         {
-            title = title.Replace(parentTitle, string.Empty).Replace(" - ", "").Trim();
-            return $"{parentTitle} - {title} [{titleId}][{titleVersion}][{titleType}]";
+            var parentParts = parentTitle.Split(" - ", StringSplitOptions.TrimEntries);
+
+            title = parentParts.Aggregate(title, (current, part) => current.Replace(part, string.Empty));
+
+            var formattedTitle = $"{parentTitle} - {title} [{titleId}][{titleVersion}][{titleType}]";
+               
+            return formattedTitle.CleanTitle();
         }
         
-        return $"{title} [{titleId}][{titleVersion}][{titleType}]";
+        return $"{title} [{titleId}][{titleVersion}][{titleType}]".CleanTitle();
     }
 
     private static string CleanTitle(this string title)
@@ -82,7 +91,12 @@ public static class NsfwUtilities
         return title
             .Replace('/', '-')
             .Replace(": ", " - ")
-            .Replace("'","")
+            .Replace(" ~", " - ")
+            .Replace("~ ", " - ")
+            .Replace(" - - ", " - ")
+            .Replace(" -  - ", " - ")
+            .Replace("\"", string.Empty)
+            .Replace(" dlc", " DLC")
             .Replace("Digital Edition", "(Digital Edition)");
     }
 
