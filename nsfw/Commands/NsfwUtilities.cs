@@ -1,16 +1,12 @@
 ﻿using System.Numerics;
-using System.Runtime.InteropServices.ComTypes;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using LibHac.Common;
-using LibHac.FsSystem;
 using LibHac.Tools.Es;
 using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
-using LibHac.Util;
 using HierarchicalIntegrityVerificationStorage = LibHac.Tools.FsSystem.HierarchicalIntegrityVerificationStorage;
 
 namespace Nsfw.Commands;
@@ -53,7 +49,7 @@ public static class NsfwUtilities
         }
     }
 
-    public static string BuildName(string title, string version, string titleId, string titleVersion, string titleType)
+    public static string BuildName(string title, string version, string titleId, string titleVersion, string titleType, string parentTitle)
     {
         titleType = titleType switch
         {
@@ -64,14 +60,30 @@ public static class NsfwUtilities
             _ => "UNKNOWN"
         };
         
-        title = title.Replace('/', '-');
+        title = title.CleanTitle();
+        parentTitle = parentTitle.CleanTitle();
 
         if (titleType is "UPD" or "DLCUPD")
         {
             return $"{title} [{version}][{titleId}][{titleVersion}][{titleType}]";
         }
+
+        if (titleType is "DLC" && !string.IsNullOrEmpty(parentTitle))
+        {
+            title = title.Replace(parentTitle, string.Empty).Replace(" - ", "").Trim();
+            return $"{parentTitle} - {title} [{titleId}][{titleVersion}][{titleType}]";
+        }
         
         return $"{title} [{titleId}][{titleVersion}][{titleType}]";
+    }
+
+    private static string CleanTitle(this string title)
+    {
+        return title
+            .Replace('/', '-')
+            .Replace(": ", " - ")
+            .Replace("'","")
+            .Replace("Digital Edition", "(Digital Edition)");
     }
 
     public static Ticket CreateTicket(int masterKeyRevision, byte[] rightsId, byte[] titleKeyEnc)
@@ -158,7 +170,7 @@ public static class NsfwUtilities
         };
     }
 
-    public static async Task<string?> GetTitleDbInfo(string titledbPath, string titleId)
+    private static async IAsyncEnumerable<string> GetTitleDbInfo(string titledbPath, string titleId)
     {
         await using var fs = File.OpenRead(titledbPath);
 
@@ -166,9 +178,41 @@ public static class NsfwUtilities
         
         await foreach(var node in enumerable)
         {
-            if(node?["id"]?.ToString() == titleId) return node["name"]?.ToString();
+            if (node == null) continue;
+            
+            if(node["id"] is not { }) continue;
+            
+            if (!node["id"]!.ToString().StartsWith(titleId)) continue;
+
+            if (node["name"] is { } nameNode)
+            {
+                yield return nameNode.ToString().Replace("Ôäó",""); 
+            }
+        }
+    }
+
+    public static void LookUpTitle(string titledbPath, string titleId, out string titleDbTitle, out bool fromTitleDb)
+    {
+        var titleNames = GetTitleDbInfo(titledbPath, titleId).ToBlockingEnumerable().ToArray();
+        
+        if(titleNames.Length != 0)
+        {
+            titleDbTitle = titleNames.First();
+            fromTitleDb = true;
+            return;
         }
 
-        return string.Empty;
+        titleDbTitle = string.Empty;
+        fromTitleDb = false;
+    }
+
+    public static string? LookUpTitle(string titleDbPath, string titleId)
+    {
+        return GetTitleDbInfo(titleDbPath, titleId).ToBlockingEnumerable().FirstOrDefault();
+    }
+    
+    public static string[] LookUpRelatedTitles(string titleDbPath, string titleId)
+    {
+        return GetTitleDbInfo(titleDbPath, titleId[..^3]).ToBlockingEnumerable().ToArray();
     }
 }

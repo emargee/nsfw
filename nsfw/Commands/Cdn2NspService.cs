@@ -245,7 +245,7 @@ public class Cdn2NspService
             _contentFiles.Add(_certFile, new FileInfo(_settings.CertFile).Length);
         }
         
-        var nspFilename = $"{NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType)}.nsp";
+        var nspFilename = $"{NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType, string.Empty)}.nsp";
         if (_settings.Verbose)
         {
             AnsiConsole.WriteLine("----------------------------------------");

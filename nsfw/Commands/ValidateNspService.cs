@@ -1,4 +1,7 @@
-﻿using LibHac.Common;
+﻿using System.IO.Compression;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.ComTypes;
+using LibHac.Common;
 using LibHac.Common.Keys;
 using LibHac.Fs;
 using LibHac.Fs.Fsa;
@@ -35,16 +38,26 @@ public class ValidateNspService
     private string _version = "UNKNOWN";
     private bool _possibleUnlocker;
     private bool _fromTitleDb;
+    private string _baseTitleId;
+    private string _titleDbTitle;
+    private Dictionary<string, long> _rawContents = new();
+    private bool _metaMissing;
+    private bool _metaMissingNonDelta;
+    private string _parentTitle;
+    private bool _metaSizeMismatch;
 
     public ValidateNspService(ValidateNspSettings settings)
     {
         _settings = settings;
         _keySet = ExternalKeyReader.ReadKeyFile(settings.KeysFile);
+        _parentTitle = string.Empty;
     }
 
     public int Process(string nspFullPath)
     {
-        AnsiConsole.MarkupLine($"Processing NSP  : [olive]{new DirectoryInfo(nspFullPath).Name.EscapeMarkup()}[/]");
+        var inputFilename = new DirectoryInfo(nspFullPath).Name;
+        
+        AnsiConsole.MarkupLine($"Processing NSP  : [olive]{inputFilename.EscapeMarkup()}[/]");
         AnsiConsole.WriteLine("----------------------------------------");
 
         var phase = "[olive]Open RAW NSP file-system[/]";
@@ -89,8 +102,11 @@ public class ValidateNspService
                 {
                     break;
                 }
+
+                var name = StringUtils.Utf8ZToString(dirEntry.Name);
+                _rawContents.Add(name,dirEntry.Size);
                 
-                foundTree.AddNode(StringUtils.Utf8ZToString(dirEntry.Name) + " - " + dirEntry.Size + " (" + dirEntry.Size.BytesToHumanReadable() + ")");
+                foundTree.AddNode(name + " - " + dirEntry.Size + " (" + dirEntry.Size.BytesToHumanReadable() + ")");
             }
             AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
             AnsiConsole.Write(new Padder(foundTree).PadRight(1));
@@ -250,6 +266,9 @@ public class ValidateNspService
             {
                 AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - TitleID Mis-match. Expected {_titleId}, found {cnmt.TitleId.ToString("X16")}");
             }
+
+            _baseTitleId = _titleId;
+            _titleId = cnmt.TitleId.ToString("X16");
             
             _titleVersion = $"v{cnmt.TitleVersion.Version}";
             _titleType = cnmt.Type.ToString().ToUpperInvariant();
@@ -261,7 +280,6 @@ public class ValidateNspService
             }
             
             var foundContentTree = new Tree("Metadata Content:");
-            var deltaCount = 0;
             
             foreach (var contentEntry in cnmt.ContentEntries)
             {
@@ -272,20 +290,27 @@ public class ValidateNspService
                     AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase} - Hash Mis-match {filename}.");
                     return 1;
                 }
-                
-                if(contentEntry.Type == ContentType.DeltaFragment)
+
+                if (!_rawContents.ContainsKey(filename))
                 {
-                    deltaCount++;
+                    foundContentTree.AddNode("[red][[X]][/] " + filename + " -> " + contentEntry.Type + " (Missing)");
+                    _metaMissing = true;
+                    if (contentEntry.Type != ContentType.DeltaFragment)
+                    {
+                        _metaMissingNonDelta = true;
+                    }
                 }
-                
-                foundContentTree.AddNode(filename + " (" + contentEntry.Type + ") -> " + contentEntry.Size + " (" + contentEntry.Size.BytesToHumanReadable() + ")");
-            }
-            
-            if(cnmt.ContentEntryCount + 1 != title.Value.Ncas.Count)
-            {
-                if (cnmt.ContentEntryCount + 1 - deltaCount != title.Value.Ncas.Count())
+                else
                 {
-                    AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - ContentEntryCount ({cnmt.ContentEntryCount + 1}) does not match NCA count ({title.Value.Ncas.Count})");
+                    if (_rawContents[filename] != contentEntry.Size)
+                    {
+                        _metaSizeMismatch = true;
+                        foundContentTree.AddNode("[red][[X]][/] " + filename + " -> " + contentEntry.Type + " (Size Mis-match)");
+                    }
+                    else
+                    {
+                        foundContentTree.AddNode("[green][[V]][/] " +filename + " -> " + contentEntry.Type);
+                    }
                 }
             }
             
@@ -344,6 +369,15 @@ public class ValidateNspService
                 AnsiConsole.Write(new Padder(foundNcaTree).PadRight(1));
                 return 0;
             });
+            
+            var type = _titleType switch
+            {
+                "PATCH" => "Update",
+                "APPLICATION" => "Game",
+                "ADDONCONTENT" => "DLC",
+                "DELTA" => "DLC Update",
+                _ => "UNKNOWN"
+            };
 
             if (title.Value.Control.Value.Title.Items != null)
             {
@@ -364,34 +398,88 @@ public class ValidateNspService
             
             var titledbPath = System.IO.Path.GetFullPath(_settings.TitleDbFile);
             
-            if(_title == "UNKNOWN" && File.Exists(titledbPath))
+            if((_title == "UNKNOWN" || _settings.VerifyTitle) && File.Exists(titledbPath))
             {
-                var titleName = NsfwUtilities.GetTitleDbInfo(titledbPath, _titleId).Result;
-                if(!string.IsNullOrEmpty(titleName))
-                {
-                    _title = titleName;
-                    _fromTitleDb = true;
-                }
+                NsfwUtilities.LookUpTitle(titledbPath, _baseTitleId != _titleId ? _baseTitleId : _titleId, out _titleDbTitle, out _fromTitleDb);
             }
             
-            var type = _titleType switch
+            var table = new Table
             {
-                "PATCH" => "Update",
-                "APPLICATION" => "Game",
-                "ADDONCONTENT" => "DLC",
-                "DELTA" => "DLC Update",
-                _ => "UNKNOWN"
+                ShowHeaders = false
             };
-            
-            var table = new Table();
             table.AddColumn("Property");
             table.AddColumn("Value");
 
-            table.AddRow("Display Title", _title + (_fromTitleDb ? " [olive](From TitleDB)[/]" : ""));
+            if(_title == "UNKNOWN" && _fromTitleDb)
+            {
+                table.AddRow("Display Title", _titleDbTitle + " [olive](From TitleDB)[/]");
+                _title = _titleDbTitle;
+            }
+            else
+            {
+                if (_fromTitleDb)
+                {
+                    table.AddRow("Display Title", _title + $" (TitleDB: [olive]{_titleDbTitle}[/])");
+                }
+                else
+                {
+                    if (_title == "UNKNOWN" && type == "DLC" && inputFilename.Contains('['))
+                    {
+                        var filenameParts = inputFilename.Split('[', StringSplitOptions.TrimEntries);
+                        
+                        if(filenameParts.Length > 1)
+                        {
+                            _title = filenameParts[0];
+
+                            if (!char.IsDigit(filenameParts[1][0]) && filenameParts.Length > 2)
+                            {
+                                _title += " - " + filenameParts[1].Replace("]",String.Empty).Trim();
+                            }
+                            table.AddRow("Display Title", _title + " [olive](From Filename)[/]");
+                        }
+                    }
+                    else
+                    {
+                        table.AddRow("Display Title", _title);
+                    }
+                }
+            }
+
+            if (type == "DLC" && File.Exists(titledbPath))
+            {
+                var parentTitleId = (cnmt.TitleId & 0xFFFFFFFFFFFFF000 ^ 0x1000).ToString("X16");
+                
+                var parentResult = NsfwUtilities.LookUpTitle(_settings.TitleDbFile, parentTitleId);
+
+                if (!string.IsNullOrEmpty(parentResult))
+                {
+                    _parentTitle = parentResult;
+                    table.AddRow("Parent Title", parentResult);
+                }
+
+                if (_settings.RelatedTitles)
+                {
+                    var relatedResults = NsfwUtilities.LookUpRelatedTitles(_settings.TitleDbFile, _titleId);
+
+                    if (relatedResults.Length > 0)
+                    {
+                        table.AddRow(new Text("Related Titles?"),
+                            new Rows(relatedResults.Where(x => x != _title).Select(x => new Text(x))));
+                    }
+                }
+            }
+            
             table.AddRow("Display Version", _version);
+
+            if (_baseTitleId != _titleId)
+            {
+                table.AddRow("Base Title ID", _baseTitleId);
+            }
+
             table.AddRow("Title ID", _titleId);
             table.AddRow("Title Type", type + " (" + _titleType + ")");
             table.AddRow("Title Version", _titleVersion);
+            table.AddRow("Rights ID", mainNca.Nca.Header.RightsId.IsZeros() ? "EMPTY" : mainNca.Nca.Header.RightsId.ToHexString());
 
             if (_titleKeyDec != null)
             {
@@ -407,11 +495,41 @@ public class ValidateNspService
                 }
                 table.AddRow("MasterKey Revision", _masterKeyRevision.ToString());
             }
+            
+            var formattedName = NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType, _parentTitle);
+            
+            if(_settings.Extract || _settings.Convert)
+            {
+                table.AddRow("Output Name", formattedName.EscapeMarkup());
+            }
 
             if (_possibleUnlocker && type == "DLC")
             {
                 canExtract = false;
-                table.AddRow("[red]Possible DLC Unlocker[/]", "This appears to be a homebrew DLC Unlocker. Converting will lose the ticket + cert.");
+                table.AddRow(string.Empty, string.Empty);
+                table.AddRow("[red]Warning[/]", "This appears to be a [olive]Homebrew DLC Unlocker[/]. Conversion will lose the ticket + cert.");
+            }
+
+            if (_metaMissing)
+            {
+                table.AddRow(string.Empty, string.Empty);
+                if (_metaMissingNonDelta)
+                {
+                    table.AddRow("[red]Warning[/]", "NSP file-system is missing files listed in the CNMT. Conversion will fail.");
+                    canExtract = false;
+                }
+                else
+                {
+                    table.AddRow("[olive]Notice[/]", "NSP file-system is missing delta fragments listed in CNMT. These errors can be ignored if you do not need them.");
+                }
+                
+            }
+
+            if (_metaSizeMismatch)
+            {
+                table.AddRow(string.Empty, string.Empty);
+                table.AddRow("[red]Warning[/]", "NSP file-system entries have different sizes to those listed in CNMT. Conversion will fail.");
+                canExtract = false;
             }
             
             AnsiConsole.Write(new Padder(table).PadRight(1));
@@ -427,7 +545,7 @@ public class ValidateNspService
                 return 1;
             }
 
-            var formattedName = NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType);
+            
             
             if (_hasTitleKeyCrypto && !_isTicketSignatureValid)
             {
@@ -495,6 +613,11 @@ public class ValidateNspService
             {
                 phase = $"[olive]Converting[/]";
                 AnsiConsole.MarkupLine($"{phase}..");
+
+                if (_settings.DryRun)
+                {
+                    AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Would create: [olive]{formattedName.EscapeMarkup()}.nsp[/]");
+                }
                 
                 var builder = new PartitionFileSystemBuilder();
 

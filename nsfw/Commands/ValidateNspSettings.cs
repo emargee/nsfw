@@ -43,6 +43,14 @@ public class ValidateNspSettings : CommandSettings
     [DefaultValue("./titledb/us-en.json")]
     public string TitleDbFile { get; set; } = string.Empty;
     
+    [CommandOption("--verify-title")]
+    [Description("Verify title against TitleDB.")]
+    public bool VerifyTitle { get; set; }
+    
+    [CommandOption("--related-titles")]
+    [Description("For DLC, print related titles.")]
+    public bool RelatedTitles { get; set; }
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;
