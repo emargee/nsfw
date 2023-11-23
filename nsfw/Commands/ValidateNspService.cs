@@ -63,9 +63,17 @@ public class ValidateNspService
         var phase = "[olive]Open RAW NSP file-system[/]";
         
         using var file = new LocalStorage(nspFullPath, FileAccess.Read);
+        
+        
+        // else if (!ResultFs.PartitionSignatureVerificationFailed.Includes(res))
+        // {
+        //     res.ThrowIfFailure();
+        // }
+        // 
 
         IFileSystem fs = null;
         using var pfs = new UniqueRef<PartitionFileSystem>();
+        using var hfs = new UniqueRef<Sha256PartitionFileSystem>();
         
         pfs.Reset(new PartitionFileSystem());
         var res = pfs.Get.Initialize(file);
@@ -76,6 +84,23 @@ public class ValidateNspService
         else if (!ResultFs.PartitionSignatureVerificationFailed.Includes(res))
         {
             res.ThrowIfFailure();
+        }
+        else
+        {
+            // Reading the input as a PartitionFileSystem didn't work. Try reading it as an Sha256PartitionFileSystem
+            hfs.Reset(new Sha256PartitionFileSystem());
+            res = hfs.Get.Initialize(file);
+            if (res.IsFailure())
+            {
+                if (ResultFs.Sha256PartitionSignatureVerificationFailed.Includes(res))
+                {
+                    ResultFs.PartitionSignatureVerificationFailed.Value.ThrowIfFailure();
+                }
+        
+                res.ThrowIfFailure();
+            }
+            Console.WriteLine("Using HFS");
+            fs = hfs.Get;
         }
 
         if (fs == null)
@@ -664,44 +689,6 @@ public class ValidateNspService
         
         return 0;
     }
-
-    private static IFileSystem? OpenFileSystem(LocalStorage file)
-    {
-        IFileSystem? fs = null;
-        using var pfs = new UniqueRef<PartitionFileSystem>();
-        using var hfs = new UniqueRef<Sha256PartitionFileSystem>();
-
-        pfs.Reset(new PartitionFileSystem());
-        var res = pfs.Get.Initialize(file);
-        if (res.IsSuccess())
-        {
-            fs = pfs.Get;
-
-        }
-        else if (!ResultFs.PartitionSignatureVerificationFailed.Includes(res))
-        {
-            res.ThrowIfFailure();
-        }
-        else
-        {
-            // Reading the input as a PartitionFileSystem didn't work. Try reading it as an Sha256PartitionFileSystem
-            hfs.Reset(new Sha256PartitionFileSystem());
-            res = hfs.Get.Initialize(file);
-            if (res.IsFailure())
-            {
-                if (ResultFs.Sha256PartitionSignatureVerificationFailed.Includes(res))
-                {
-                    ResultFs.PartitionSignatureVerificationFailed.Value.ThrowIfFailure();
-                }
-
-                res.ThrowIfFailure();
-            }
-
-            fs = hfs.Get;
-        }
-
-        return fs;
-    }
     
     private static IEnumerable<Ticket> ImportTickets(KeySet keySet, IFileSystem fileSystem)
     {
@@ -733,8 +720,4 @@ public class ValidateNspService
         }
     }
     
-}
-
-public static class Extensions
-{
 }
