@@ -23,6 +23,11 @@ public static class Program
             config.AddCommand<ValidateNspCommand>("validate")
                 .WithDescription("Validates NSP.")
                 .WithAlias("v");
+            
+            config.AddCommand<BuildTitleDbCommand>("build-titledb")
+                .WithDescription("Builds TitleDB from NSP files.")
+                .IsHidden()
+                .WithAlias("btdb");
         });
 
         return app.Run(args);

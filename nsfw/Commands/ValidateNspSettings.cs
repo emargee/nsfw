@@ -39,8 +39,8 @@ public class ValidateNspSettings : CommandSettings
     public bool DryRun { get; set; }
     
     [CommandOption("-t|--titledb <FILE>")]
-    [Description("Path to converted titledb file. -> cat US.en.json | jq -r \"[[values[[]]|{id:.id, name:.name,languages:.languages}]]\" > us-en.json")]
-    [DefaultValue("./titledb/us-en.json")]
+    [Description("Path to titledb.db file.")]
+    [DefaultValue("./titledb/titledb.db")]
     public string TitleDbFile { get; set; } = string.Empty;
     
     [CommandOption("--verify-title")]

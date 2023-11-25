@@ -481,15 +481,40 @@ public class ValidateNspService
                     _parentTitle = parentResult;
                     table.AddRow("Parent Title", parentResult);
                 }
+            }
+            
+            if(_settings.RelatedTitles && File.Exists(titledbPath))
+            {
+                var titleResults = NsfwUtilities.GetTitleDbInfo(_settings.TitleDbFile, _baseTitleId != _titleId ? _baseTitleId : _titleId).Result;
 
-                if (_settings.RelatedTitles)
+                if (titleResults.Length > 0)
                 {
-                    var relatedResults = NsfwUtilities.LookUpRelatedTitles(_settings.TitleDbFile, _titleId);
+                    var regionTable = new Table() { ShowHeaders = false };
+                    regionTable.AddColumns("Region", "Title");
+                    regionTable.AddRow(new Text("Regional Titles"));
+                    regionTable.AddEmptyRow();
+                    foreach (var titleResult in titleResults.DistinctBy(x => x.RegionLanguage))
+                    {
+                        regionTable.AddRow(new Markup($"{titleResult.Name}"), new Markup($"{titleResult.RegionLanguage.ToUpper()}"));
+                    }
+                    AnsiConsole.Write(new Padder(regionTable).PadRight(1));
+                }
+                
+                if (type == "DLC")
+                {
+                    var relatedResults = NsfwUtilities.LookUpRelatedTitles(_settings.TitleDbFile, _titleId).Result;
 
                     if (relatedResults.Length > 0)
                     {
-                        table.AddRow(new Text("Related Titles?"),
-                            new Rows(relatedResults.Where(x => x != _title).Select(x => new Text(x))));
+                        var relatedTable = new Table() { ShowHeaders = false };
+                        relatedTable.AddColumn("Title");
+                        relatedTable.AddRow(new Text("Related DLC Titles"));
+                        relatedTable.AddEmptyRow();
+                        foreach (var relatedResult in relatedResults.Distinct())
+                        {
+                            relatedTable.AddRow(new Markup($"{relatedResult}"));
+                        }
+                        AnsiConsole.Write(new Padder(relatedTable).PadRight(1));
                     }
                 }
             }

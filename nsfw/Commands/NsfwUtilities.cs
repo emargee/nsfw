@@ -8,6 +8,7 @@ using LibHac.Tools.Es;
 using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
+using SQLite;
 using HierarchicalIntegrityVerificationStorage = LibHac.Tools.FsSystem.HierarchicalIntegrityVerificationStorage;
 
 namespace Nsfw.Commands;
@@ -96,6 +97,7 @@ public static class NsfwUtilities
             .Replace(" - - ", " - ")
             .Replace(" -  - ", " - ")
             .Replace("\"", string.Empty)
+            .Replace("\u2122", string.Empty)
             .Replace(" dlc", " DLC")
             .Replace("Digital Edition", "(Digital Edition)");
     }
@@ -184,34 +186,32 @@ public static class NsfwUtilities
         };
     }
 
-    private static async IAsyncEnumerable<string> GetTitleDbInfo(string titledbPath, string titleId)
+    public static async Task<GameInfo[]> GetTitleDbInfo(string titledbPath, string titleId, string? region = null)
     {
-        await using var fs = File.OpenRead(titledbPath);
+        var db = new SQLiteAsyncConnection(titledbPath);
+        AsyncTableQuery<GameInfo> query;
 
-        var enumerable = JsonSerializer.DeserializeAsyncEnumerable<JsonNode>(fs, JsonSerializerOptions.Default);
-        
-        await foreach(var node in enumerable)
+        if (region != null)
         {
-            if (node == null) continue;
-            
-            if(node["id"] is not { }) continue;
-            
-            if (!node["id"]!.ToString().StartsWith(titleId)) continue;
-
-            if (node["name"] is { } nameNode)
-            {
-                yield return nameNode.ToString().Replace("Ôäó",""); 
-            }
+            query = db.Table<GameInfo>().Where(x => x.Id == titleId && x.RegionLanguage == region);
         }
+        else
+        {
+            query = db.Table<GameInfo>().Where(x => x.Id == titleId).OrderBy(x => x.Id);
+        }
+        
+        var result = await query.ToArrayAsync();
+        
+        return result;
     }
 
     public static void LookUpTitle(string titledbPath, string titleId, out string titleDbTitle, out bool fromTitleDb)
     {
-        var titleNames = GetTitleDbInfo(titledbPath, titleId).ToBlockingEnumerable().ToArray();
+        var titleNames = GetTitleDbInfo(titledbPath, titleId, "en").Result;
         
         if(titleNames.Length != 0)
         {
-            titleDbTitle = titleNames.First();
+            titleDbTitle = titleNames.First().Name ?? "UNKNOWN";
             fromTitleDb = true;
             return;
         }
@@ -222,11 +222,17 @@ public static class NsfwUtilities
 
     public static string? LookUpTitle(string titleDbPath, string titleId)
     {
-        return GetTitleDbInfo(titleDbPath, titleId).ToBlockingEnumerable().FirstOrDefault();
+        return GetTitleDbInfo(titleDbPath, titleId).Result.FirstOrDefault()?.Name;
     }
     
-    public static string[] LookUpRelatedTitles(string titleDbPath, string titleId)
+    public static async Task<string[]> LookUpRelatedTitles(string titleDbPath, string titleId)
     {
-        return GetTitleDbInfo(titleDbPath, titleId[..^3]).ToBlockingEnumerable().ToArray();
+        var db = new SQLiteAsyncConnection(titleDbPath);
+        var trimmedTitleId = titleId[..^3];
+        var query = db.Table<GameInfo>().Where(x => x.Id.StartsWith(trimmedTitleId));
+        
+        var result = await query.ToArrayAsync();
+        
+        return result.Select(x => x.Name ?? "UNKNOWN").ToArray();
     }
 }
