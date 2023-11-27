@@ -158,7 +158,7 @@ public static class NsfwUtilities
 
             title = parentParts.Aggregate(title, (current, part) => current.Replace(part, string.Empty, StringComparison.InvariantCultureIgnoreCase));
 
-            var formattedTitle = $"{parentTitle} - {title} {languageList}[{titleId}][{titleVersion}][{titleType}]";
+            var formattedTitle = $"{parentTitle} - {title} {region}{languageList}[{titleId}][{titleVersion}][{titleType}]";
                
             return formattedTitle.CleanTitle();
         }

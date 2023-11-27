@@ -534,7 +534,34 @@ public class ValidateNspService
                     }
                 }
             }
-            table.AddRow("Languages", titles.Count == 0 ? "UNKNOWN" : string.Join(", ", titles.Select(x => x.RegionLanguage.ToString().ToUpper())));
+
+            var languageList = string.Empty;
+
+            if (titles.Count != 0)
+            {
+                languageList = string.Join(", ", titles.Select(titleInfo => titleInfo.RegionLanguage switch
+                {
+                    NacpLanguage.AmericanEnglish => "English (America)",
+                    NacpLanguage.BritishEnglish => "English (Great Britain)",
+                    NacpLanguage.Japanese => "Japanese",
+                    NacpLanguage.French => "French (France)",
+                    NacpLanguage.CanadianFrench => "French (Canada)",
+                    NacpLanguage.German => "German",
+                    NacpLanguage.Italian => "Italian",
+                    NacpLanguage.Spanish => "Spanish (Spain)",
+                    NacpLanguage.LatinAmericanSpanish => "Spanish (Latin America)",
+                    NacpLanguage.SimplifiedChinese => "Chinese (Simplified)",
+                    NacpLanguage.TraditionalChinese => "Chinese (Traditional)",
+                    NacpLanguage.Korean => "Korean",
+                    NacpLanguage.Dutch => "Dutch",
+                    NacpLanguage.Portuguese => "Portuguese (Portugal)",
+                    NacpLanguage.BrazilianPortuguese => "Portuguese (Brazil)",
+                    NacpLanguage.Russian => "Russian",
+                    _ => "Unknown"
+                }));
+            }
+
+            table.AddRow("Languages", titles.Count == 0 ? "UNKNOWN" : languageList);
             
             table.AddRow("Display Version", _version);
 
@@ -610,11 +637,17 @@ public class ValidateNspService
             {
                 fs.Dispose();
                 file.Dispose();
+
+                if (inputFilename == formattedName+".nsp")
+                {
+                    AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> Renaming skipped. Nothing to do. Filename matches already.");
+                    return 0;
+                }
                 
                 if (_settings.DryRun)
                 {
                     AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Rename FROM: [olive]{inputFilename.EscapeMarkup()}[/]");
-                    AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] ->   Rename TO: [olive]{formattedName.EscapeMarkup()}[/]");
+                    AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] ->   Rename TO: [olive]{formattedName.EscapeMarkup()}.nsp[/]");
                     return 0;
                 }
                 
