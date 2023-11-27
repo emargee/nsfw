@@ -644,13 +644,6 @@ public class ValidateNspService
                     return 0;
                 }
                 
-                if (_settings.DryRun)
-                {
-                    AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Rename FROM: [olive]{inputFilename.EscapeMarkup()}[/]");
-                    AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] ->   Rename TO: [olive]{formattedName.EscapeMarkup()}.nsp[/]");
-                    return 0;
-                }
-                
                 var targetDirectory = System.IO.Path.GetDirectoryName(nspFullPath);
                 
                 if(targetDirectory == null || !Directory.Exists(targetDirectory))
@@ -658,17 +651,30 @@ public class ValidateNspService
                     AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> Failed to open directory.");
                     return 1;
                 }
-
+                
                 var targetName = System.IO.Path.Combine(targetDirectory, formattedName + ".nsp");
 
+                if (targetName.Length > 254)
+                {
+                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> Path too long for Windows ({targetName.Length})");
+                    return 1;
+                }
+                
                 if (File.Exists(targetName))
                 {
-                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> File with the same name already exists. ({formattedName}.nsp)");
+                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> File with the same name already exists. ({formattedName.EscapeMarkup()}.nsp)");
                     return 1;
+                }
+                
+                if (_settings.DryRun)
+                {
+                    AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Rename FROM: [olive]{inputFilename.EscapeMarkup()}[/]");
+                    AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] ->   Rename TO: [olive]{formattedName.EscapeMarkup()}.nsp[/]");
+                    return 0;
                 }
 
                 File.Move(nspFullPath, System.IO.Path.Combine(targetDirectory, formattedName + ".nsp"));
-                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> Renamed: [olive]{inputFilename.EscapeMarkup()}[/] -> [olive]{formattedName.EscapeMarkup()}[/]");
+                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> Renamed TO: [olive]{formattedName.EscapeMarkup()}[/]");
                 return 0;
             }
 
@@ -778,9 +784,17 @@ public class ValidateNspService
                     }
                 }
 
+                var targetName = System.IO.Path.Combine(_settings.NspDirectory, $"{formattedName}.nsp");
+                
+                if (targetName.Length > 254)
+                {
+                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> Path too long for Windows ({targetName.Length})");
+                    return 1;
+                }
+
                 if (_settings.DryRun) return 0;
                 
-                using var outStream = new FileStream(System.IO.Path.Combine(_settings.NspDirectory, $"{formattedName}.nsp"), FileMode.Create, FileAccess.ReadWrite);
+                using var outStream = new FileStream(targetName, FileMode.Create, FileAccess.ReadWrite);
                 var builtPfs = builder.Build(PartitionFileSystemType.Standard);
                 builtPfs.GetSize(out var pfsSize).ThrowIfFailure();
                 builtPfs.CopyToStream(outStream, pfsSize);

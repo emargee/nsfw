@@ -171,7 +171,10 @@ public static class NsfwUtilities
     {
         return title
             .ReplaceLineEndings("")
+            .Replace("“", "'")
+            .Replace("”", "'")
             .Replace('/', '-')
+            .Replace(":||","-")
             .Replace(": ", " - ")
             .Replace(":", "-")
             .Replace(" ~", " - ")
@@ -180,6 +183,7 @@ public static class NsfwUtilities
             .Replace(" -  - ", " - ")
             .Replace("  ", " ")
             .Replace(" - ：", " - ")
+            .Replace("|", string.Empty)
             .Replace("\"", string.Empty)
             .Replace("\u2122", string.Empty)
             .Replace("\u00ae", string.Empty)
@@ -187,7 +191,8 @@ public static class NsfwUtilities
             .Replace("!?", string.Empty)
             .Replace("?", string.Empty)
             .Replace(" - - ", " - ")
-            .Replace("（", " (")
+            .Replace("（", "(")
+            .Replace("）", ")")
             .Replace("） (", ") (")
             .Replace(" dlc", " DLC")
             .Replace("Digital Edition", "(Digital Edition)");
