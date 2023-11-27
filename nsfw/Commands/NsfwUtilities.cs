@@ -51,7 +51,7 @@ public static class NsfwUtilities
         }
     }
 
-    public static string BuildName(string title, string version, string titleId, string titleVersion, string titleType, string parentTitle)
+    public static string BuildName(string title, string version, string titleId, string titleVersion, string titleType, string parentTitle, IEnumerable<TitleInfo> titles)
     {
         titleType = titleType switch
         {
@@ -62,6 +62,85 @@ public static class NsfwUtilities
             _ => "UNKNOWN"
         };
         
+        var titleArray = titles.ToArray();
+        
+        var languageList = string.Join(",", titleArray.Select(titleInfo => titleInfo.RegionLanguage switch
+            {
+                NacpLanguage.AmericanEnglish => "En-US",
+                NacpLanguage.BritishEnglish => "En-GB",
+                NacpLanguage.Japanese => "Ja",
+                NacpLanguage.French => "Fr-FR",
+                NacpLanguage.CanadianFrench => "Fr-CA",
+                NacpLanguage.German => "De",
+                NacpLanguage.Italian => "It",
+                NacpLanguage.Spanish => "Es-ES",
+                NacpLanguage.LatinAmericanSpanish => "Es-XL",
+                NacpLanguage.SimplifiedChinese => "Zh-Hans",
+                NacpLanguage.TraditionalChinese => "Zh-Hant",
+                NacpLanguage.Korean => "Ko",
+                NacpLanguage.Dutch => "Nl",
+                NacpLanguage.Portuguese => "Pt-pt",
+                NacpLanguage.BrazilianPortuguese => "Pt-BR",
+                NacpLanguage.Russian => "Ru",
+                _ => "Unknown"
+            }).Distinct()
+            .ToList());
+
+        if (!string.IsNullOrEmpty(languageList))
+        {
+            languageList = $"({languageList})";
+        }
+
+        var region = string.Empty;
+
+        if (titleArray is [{ RegionLanguage: NacpLanguage.AmericanEnglish }])
+        {
+            region = "(USA)";
+            languageList = string.Empty;
+        }
+        
+        if (titleArray is [{ RegionLanguage: NacpLanguage.Japanese }])
+        {
+            region = "(Japan)";
+            languageList = string.Empty;
+        }
+        
+        if (titleArray is [{ RegionLanguage: NacpLanguage.Korean }])
+        {
+            region = "(Korea)";
+            languageList = string.Empty;
+        }
+        
+        if (titleArray is [{ RegionLanguage: NacpLanguage.Russian }])
+        {
+            region = "(Russia)";
+            languageList = string.Empty;
+        }
+        
+        if (titleArray.Any(x => x.RegionLanguage is NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese))
+        {
+            region = "(China)";
+            
+            if(titleArray.Any(x => x.RegionLanguage is NacpLanguage.Japanese or NacpLanguage.Korean))
+            {
+                region = "(Asia)";
+                if (titleArray.Any(x => x.RegionLanguage == NacpLanguage.AmericanEnglish))
+                {
+                    region = "(World)";
+                }
+            }
+        }
+        
+        if (titleArray.Any(x => x.RegionLanguage is NacpLanguage.BritishEnglish or NacpLanguage.French or NacpLanguage.German or NacpLanguage.Italian or NacpLanguage.Spanish or NacpLanguage.Dutch or NacpLanguage.Portuguese))
+        {
+            region = "(Europe)";
+            
+            if(titleArray.Any(x => x.RegionLanguage is NacpLanguage.AmericanEnglish or NacpLanguage.Japanese or NacpLanguage.Korean or NacpLanguage.Russian or NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese or NacpLanguage.LatinAmericanSpanish or NacpLanguage.BrazilianPortuguese or NacpLanguage.CanadianFrench))
+            {
+                region = "(World)";
+            }
+        }
+
         title = title.CleanTitle();
         parentTitle = parentTitle.CleanTitle();
         
@@ -70,34 +149,46 @@ public static class NsfwUtilities
         
         if (titleType is "UPD" or "DLCUPD")
         {
-            return $"{title} [{version}][{titleId}][{titleVersion}][{titleType}]".CleanTitle();
+            return $"{title} {region}{languageList}[{version}][{titleId}][{titleVersion}][{titleType}]".CleanTitle();
         }
 
         if (titleType is "DLC" && !string.IsNullOrEmpty(parentTitle))
         {
             var parentParts = parentTitle.Split(" - ", StringSplitOptions.TrimEntries);
 
-            title = parentParts.Aggregate(title, (current, part) => current.Replace(part, string.Empty));
+            title = parentParts.Aggregate(title, (current, part) => current.Replace(part, string.Empty, StringComparison.InvariantCultureIgnoreCase));
 
-            var formattedTitle = $"{parentTitle} - {title} [{titleId}][{titleVersion}][{titleType}]";
+            var formattedTitle = $"{parentTitle} - {title} {languageList}[{titleId}][{titleVersion}][{titleType}]";
                
             return formattedTitle.CleanTitle();
         }
         
-        return $"{title} [{titleId}][{titleVersion}][{titleType}]".CleanTitle();
+        return $"{title} {region}{languageList}[{titleId}][{titleVersion}][{titleType}]".CleanTitle();
+        
     }
 
     private static string CleanTitle(this string title)
     {
         return title
+            .ReplaceLineEndings("")
             .Replace('/', '-')
             .Replace(": ", " - ")
+            .Replace(":", "-")
             .Replace(" ~", " - ")
             .Replace("~ ", " - ")
             .Replace(" - - ", " - ")
             .Replace(" -  - ", " - ")
+            .Replace("  ", " ")
+            .Replace(" - ：", " - ")
             .Replace("\"", string.Empty)
             .Replace("\u2122", string.Empty)
+            .Replace("\u00ae", string.Empty)
+            .Replace("\u00a9", string.Empty)
+            .Replace("!?", string.Empty)
+            .Replace("?", string.Empty)
+            .Replace(" - - ", " - ")
+            .Replace("（", " (")
+            .Replace("） (", ") (")
             .Replace(" dlc", " DLC")
             .Replace("Digital Edition", "(Digital Edition)");
     }
@@ -188,6 +279,10 @@ public static class NsfwUtilities
 
     public static async Task<GameInfo[]> GetTitleDbInfo(string titledbPath, string titleId, string? region = null)
     {
+        var languageOrder = new List<string>()
+        {
+            "US", "GB", "JP", "DE", "FR", "ES", "IT", "NL", "PT", "KR", "TW", "CN", "RU"
+        };
         var db = new SQLiteAsyncConnection(titledbPath);
         AsyncTableQuery<GameInfo> query;
 
@@ -197,17 +292,16 @@ public static class NsfwUtilities
         }
         else
         {
-            query = db.Table<GameInfo>().Where(x => x.Id == titleId).OrderBy(x => x.Id);
+            query = db.Table<GameInfo>().Where(x => x.Id == titleId);
         }
         
         var result = await query.ToArrayAsync();
-        
-        return result;
+        return result.OrderBy(x => languageOrder.IndexOf(x.RegionLanguage)).ToArray();
     }
 
     public static void LookUpTitle(string titledbPath, string titleId, out string titleDbTitle, out bool fromTitleDb)
     {
-        var titleNames = GetTitleDbInfo(titledbPath, titleId, "en").Result;
+        var titleNames = GetTitleDbInfo(titledbPath, titleId).Result;
         
         if(titleNames.Length != 0)
         {

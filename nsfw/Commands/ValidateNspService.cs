@@ -63,13 +63,6 @@ public class ValidateNspService
         var phase = "[olive]Open RAW NSP file-system[/]";
         
         using var file = new LocalStorage(nspFullPath, FileAccess.Read);
-        
-        
-        // else if (!ResultFs.PartitionSignatureVerificationFailed.Includes(res))
-        // {
-        //     res.ThrowIfFailure();
-        // }
-        // 
 
         IFileSystem fs = null;
         using var pfs = new UniqueRef<PartitionFileSystem>();
@@ -341,60 +334,68 @@ public class ValidateNspService
             
             AnsiConsole.Write(new Padder(foundContentTree).PadRight(1));
             
-            phase = $"[olive]Validate NCAs[/]";
             var canExtract = true;
-            
-            AnsiConsole.Status()
-            .Start("Validating NCAs...", ctx =>
-            {
-                ctx.Spinner(Spinner.Known.Line);
-                ctx.SpinnerStyle(Style.Parse("green"));
-                
-                if (title.Value.Ncas.Count == 0)
-                {
-                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase}");
-                    return 1;
-                }
-                
-                var foundNcaTree = new Tree("NCAs:");
-                foundNcaTree.Expanded = true;
-            
-                foreach (var fsNca in title.Value.Ncas)
-                {
-                    Validity validity;
-                    var logger = new NsfwProgressLogger();
-                
-                    try
-                    {
-                        ctx.Status($"Validating: {fsNca.Filename}");
-                        validity = NsfwUtilities.VerifyNca(fsNca, logger);
-                    }
-                    catch (Exception e)
-                    {
-                        AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase} - {e.Message}");
-                        return 1;
-                    }
-                
-                    var node = new TreeNode(new Markup($"{fsNca.Filename} ({fsNca.Nca.Header.ContentType})"));
 
-                    if (validity != Validity.Valid)
+            if (!(_settings.Rename && _settings.SkipValidation))
+            {
+                phase = $"[olive]Validate NCAs[/]";
+                
+                AnsiConsole.Status()
+                    .Start("Validating NCAs...", ctx =>
                     {
-                        canExtract = false;
-                        node.AddNodes(logger.GetReport());
-                        foundNcaTree.AddNode(node);
-                    }
-                    else
-                    {
-                        node.AddNodes(logger.GetReport());
-                        foundNcaTree.AddNode(node);
-                    }
-                }
-            
-                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
-                AnsiConsole.Write(new Padder(foundNcaTree).PadRight(1));
-                return 0;
-            });
-            
+                        ctx.Spinner(Spinner.Known.Line);
+                        ctx.SpinnerStyle(Style.Parse("green"));
+
+                        if (title.Value.Ncas.Count == 0)
+                        {
+                            AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase}");
+                            return 1;
+                        }
+
+                        var foundNcaTree = new Tree("NCAs:");
+                        foundNcaTree.Expanded = true;
+
+                        foreach (var fsNca in title.Value.Ncas)
+                        {
+                            Validity validity;
+                            var logger = new NsfwProgressLogger();
+
+                            try
+                            {
+                                ctx.Status($"Validating: {fsNca.Filename}");
+                                validity = NsfwUtilities.VerifyNca(fsNca, logger);
+                            }
+                            catch (Exception e)
+                            {
+                                AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase} - {e.Message}");
+                                return 1;
+                            }
+
+                            var node = new TreeNode(new Markup($"{fsNca.Filename} ({fsNca.Nca.Header.ContentType})"));
+
+                            if (validity != Validity.Valid)
+                            {
+                                canExtract = false;
+                                node.AddNodes(logger.GetReport());
+                                foundNcaTree.AddNode(node);
+                            }
+                            else
+                            {
+                                node.AddNodes(logger.GetReport());
+                                foundNcaTree.AddNode(node);
+                            }
+                        }
+
+                        AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
+                        AnsiConsole.Write(new Padder(foundNcaTree).PadRight(1));
+                        return 0;
+                    });
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> Skipping NCA validation.");
+            }
+
             var type = _titleType switch
             {
                 "PATCH" => "Update",
@@ -403,19 +404,34 @@ public class ValidateNspService
                 "DELTA" => "DLC Update",
                 _ => "UNKNOWN"
             };
-
+            
+            var nspLanguageId = -1;
+            var titles = new List<TitleInfo>();
             if (title.Value.Control.Value.Title.Items != null)
             {
                 foreach (var titleItem in title.Value.Control.Value.Title.Items)
                 {
-                    if (!string.IsNullOrEmpty(titleItem.NameString.ToString()))
+                    nspLanguageId++;
+
+                    if (titleItem.NameString.IsEmpty())
                     {
-                        _title = titleItem.NameString.ToString() ?? "UNKNOWN";
-                        break;
+                        continue;
                     }
+                    
+                    titles.Add(new TitleInfo
+                    {
+                        Title = titleItem.NameString.ToString() ?? "UNKNOWN",
+                        RegionLanguage = (NacpLanguage) nspLanguageId,
+                        Publisher = titleItem.PublisherString.ToString() ?? "UNKNOWN",
+                    });
                 }
             }
 
+            if (titles.Count != 0)
+            {
+                _title = titles[0].Title;
+            }
+            
             if (!string.IsNullOrEmpty(title.Value.Control.Value.DisplayVersionString.ToString()))
             {
                 _version = title.Value.Control.Value.DisplayVersionString.ToString()!.Trim();
@@ -437,14 +453,14 @@ public class ValidateNspService
 
             if(_title == "UNKNOWN" && _fromTitleDb)
             {
-                table.AddRow("Display Title", _titleDbTitle + " [olive](From TitleDB)[/]");
+                table.AddRow("Display Title", _titleDbTitle.ReplaceLineEndings(string.Empty).EscapeMarkup() + " [olive](From TitleDB)[/]");
                 _title = _titleDbTitle;
             }
             else
             {
                 if (_fromTitleDb)
                 {
-                    table.AddRow("Display Title", _title + $" (TitleDB: [olive]{_titleDbTitle}[/])");
+                    table.AddRow("Display Title", _title + $" (TitleDB: [olive]{_titleDbTitle.EscapeMarkup()}[/])");
                 }
                 else
                 {
@@ -460,12 +476,12 @@ public class ValidateNspService
                             {
                                 _title += " - " + filenameParts[1].Replace("]",String.Empty).Trim();
                             }
-                            table.AddRow("Display Title", _title + " [olive](From Filename)[/]");
+                            table.AddRow("Display Title", _title.EscapeMarkup() + " [olive](From Filename)[/]");
                         }
                     }
                     else
                     {
-                        table.AddRow("Display Title", _title);
+                        table.AddRow("Display Title", _title.EscapeMarkup());
                     }
                 }
             }
@@ -479,7 +495,7 @@ public class ValidateNspService
                 if (!string.IsNullOrEmpty(parentResult))
                 {
                     _parentTitle = parentResult;
-                    table.AddRow("Parent Title", parentResult);
+                    table.AddRow("Parent Title", parentResult.EscapeMarkup());
                 }
             }
             
@@ -495,7 +511,7 @@ public class ValidateNspService
                     regionTable.AddEmptyRow();
                     foreach (var titleResult in titleResults.DistinctBy(x => x.RegionLanguage))
                     {
-                        regionTable.AddRow(new Markup($"{titleResult.Name}"), new Markup($"{titleResult.RegionLanguage.ToUpper()}"));
+                        regionTable.AddRow(new Markup($"{titleResult.Name.EscapeMarkup()}"), new Markup($"{titleResult.RegionLanguage.ToUpper()}"));
                     }
                     AnsiConsole.Write(new Padder(regionTable).PadRight(1));
                 }
@@ -512,12 +528,13 @@ public class ValidateNspService
                         relatedTable.AddEmptyRow();
                         foreach (var relatedResult in relatedResults.Distinct())
                         {
-                            relatedTable.AddRow(new Markup($"{relatedResult}"));
+                            relatedTable.AddRow(new Markup($"{relatedResult.EscapeMarkup()}"));
                         }
                         AnsiConsole.Write(new Padder(relatedTable).PadRight(1));
                     }
                 }
             }
+            table.AddRow("Languages", titles.Count == 0 ? "UNKNOWN" : string.Join(", ", titles.Select(x => x.RegionLanguage.ToString().ToUpper())));
             
             table.AddRow("Display Version", _version);
 
@@ -541,14 +558,14 @@ public class ValidateNspService
                 }
                 else
                 {
-                    table.AddRow("Ticket Signature?", _isTicketSignatureValid ? "Valid" : "Invalid");
+                    table.AddRow("Ticket Signature?", _isTicketSignatureValid ? "Valid" : "Invalid (Signature Mismatch) - Will generate new ticket.");
                 }
                 table.AddRow("MasterKey Revision", _masterKeyRevision.ToString());
             }
             
-            var formattedName = NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType, _parentTitle);
+            var formattedName = NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType, _parentTitle, titles);
             
-            if(_settings.Extract || _settings.Convert)
+            if(_settings.Extract || _settings.Convert || _settings.Rename)
             {
                 table.AddRow("Output Name", formattedName.EscapeMarkup());
             }
@@ -584,8 +601,41 @@ public class ValidateNspService
             
             AnsiConsole.Write(new Padder(table).PadRight(1));
 
-            if (!_settings.Extract && !_settings.Convert)
+            if (!_settings.Extract && !_settings.Convert && !_settings.Rename)
             {
+                return 0;
+            }
+
+            if (_settings.Rename)
+            {
+                fs.Dispose();
+                file.Dispose();
+                
+                if (_settings.DryRun)
+                {
+                    AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] -> Rename FROM: [olive]{inputFilename.EscapeMarkup()}[/]");
+                    AnsiConsole.MarkupLine($"[[[green]DRYRUN[/]]] ->   Rename TO: [olive]{formattedName.EscapeMarkup()}[/]");
+                    return 0;
+                }
+                
+                var targetDirectory = System.IO.Path.GetDirectoryName(nspFullPath);
+                
+                if(targetDirectory == null || !Directory.Exists(targetDirectory))
+                {
+                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> Failed to open directory.");
+                    return 1;
+                }
+
+                var targetName = System.IO.Path.Combine(targetDirectory, formattedName + ".nsp");
+
+                if (File.Exists(targetName))
+                {
+                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> File with the same name already exists. ({formattedName}.nsp)");
+                    return 1;
+                }
+
+                File.Move(nspFullPath, System.IO.Path.Combine(targetDirectory, formattedName + ".nsp"));
+                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> Renamed: [olive]{inputFilename.EscapeMarkup()}[/] -> [olive]{formattedName.EscapeMarkup()}[/]");
                 return 0;
             }
 
@@ -594,13 +644,11 @@ public class ValidateNspService
                 AnsiConsole.MarkupLine($"[[[red]WARN[/]]] - Exiting - NSP Validation failed.");
                 return 1;
             }
-
-            
             
             if (_hasTitleKeyCrypto && !_isTicketSignatureValid)
             {
                 _ticket = NsfwUtilities.CreateTicket(_masterKeyRevision, _ticket.RightsId, _titleKeyEnc);
-                AnsiConsole.WriteLine("[[[green]DONE[/]]] -> Generated new normalised ticket.");
+                AnsiConsole.MarkupLine("[green][[DONE]][/] -> Generated new normalised ticket.");
             }
             
             if(_settings.Extract)
@@ -692,7 +740,7 @@ public class ValidateNspService
                     }
                     else
                     {
-                        builder.AddFile($"{_ticket.RightsId.ToHexString().ToLower()}.tik", new MemoryStorage(_ticket.File).AsFile(OpenMode.Read));
+                        builder.AddFile($"{_ticket.RightsId.ToHexString().ToLower()}.tik", new MemoryStorage(_ticket.GetBytes()).AsFile(OpenMode.Read)); 
                         builder.AddFile($"{_ticket.RightsId.ToHexString().ToLower()}.cert", new LocalFile(_settings.CertFile, OpenMode.Read));
                     }
                 }
@@ -745,4 +793,32 @@ public class ValidateNspService
         }
     }
     
+}
+
+[Flags]
+public enum NacpLanguage : uint
+{
+    AmericanEnglish = 0,
+    BritishEnglish = 1,
+    Japanese = 2,
+    French = 3,
+    German = 4,
+    LatinAmericanSpanish = 5,
+    Spanish = 6,
+    Italian = 7,
+    Dutch = 8,
+    CanadianFrench = 9,
+    Portuguese = 10,
+    Russian = 11,
+    Korean = 12,
+    TraditionalChinese = 13,
+    SimplifiedChinese = 14,
+    BrazilianPortuguese = 15,
+}
+
+public record TitleInfo
+{
+    public string Title { get; init; }
+    public string Publisher { get; init; }
+    public NacpLanguage RegionLanguage { get; init; }
 }

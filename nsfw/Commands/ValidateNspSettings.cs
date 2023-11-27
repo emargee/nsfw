@@ -24,6 +24,10 @@ public class ValidateNspSettings : CommandSettings
     [Description("Convert to Standardised NSP")]
     public bool Convert { get; set; }
     
+    [CommandOption("-r|--rename")]
+    [Description("Rename NSP to match TitleDB. No other actions performed.")]
+    public bool Rename { get; set; }
+    
     [CommandOption("--nspdir <DIR>")]
     [Description("Path to standardised NSP output directory.")]
     [DefaultValue("./nsp")]
@@ -51,18 +55,46 @@ public class ValidateNspSettings : CommandSettings
     [Description("For DLC, print related titles.")]
     public bool RelatedTitles { get; set; }
     
+    [CommandOption("--skip-validation")]
+    [Description("When re-naming files, skip NCA validation.")]
+    public bool SkipValidation { get; set; }
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;
 
     public override ValidationResult Validate()
     {
-        KeysFile = KeysFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-        NspFile = NspFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-        CertFile = CertFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-        CdnDirectory = CdnDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-        NspDirectory= NspDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-        TitleDbFile= TitleDbFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        if (KeysFile.StartsWith('~'))
+        {
+            KeysFile = KeysFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        }
+        
+        if(NspFile.StartsWith('~'))
+        {
+            NspFile = NspFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        }
+        
+        if(CertFile.StartsWith('~'))
+        {
+            CertFile = CertFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        }
+        
+        if(CdnDirectory.StartsWith('~'))
+        {
+            CdnDirectory = CdnDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        }
+        
+        if(NspDirectory.StartsWith('~'))
+        {
+            NspDirectory = NspDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        }
+        
+        if(TitleDbFile.StartsWith('~'))
+        {
+            TitleDbFile = TitleDbFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        }
+        
         CdnDirectory = Path.GetFullPath(CdnDirectory);
         NspDirectory = Path.GetFullPath(NspDirectory);
         
