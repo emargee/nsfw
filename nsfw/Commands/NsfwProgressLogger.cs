@@ -65,4 +65,9 @@ public class NsfwProgressLogger : IProgressReport
 
         _sections[index] = $"Section {index} -> [green]VALID[/] " + $"[{_currentBlock}/{_totalBlocks} Blocks]".EscapeMarkup();
     }
+
+    public void CloseSection(int index, string exceptionMessage)
+    {
+        _sections[index] = $"Section {index} -> [red]ERROR[/] " + $"{exceptionMessage}".EscapeMarkup();
+    }
 }

@@ -42,7 +42,6 @@ public class ValidateNspService
     private bool _metaMissing;
     private bool _metaMissingNonDelta;
     private string _parentTitle;
-    private bool _metaSizeMismatch;
     private Validity _headerSignatureValidatity;
     private string _parentTitleId;
 
@@ -56,6 +55,9 @@ public class ValidateNspService
     public int Process(string nspFullPath)
     {
         var inputFilename = new DirectoryInfo(nspFullPath).Name;
+        var canExtract = true;
+        var warnings = new HashSet<string>();
+        var notices = new HashSet<string>();
 
         AnsiConsole.MarkupLine(_settings.Quiet
             ? $"Processing NSP (quiet) : [olive]{inputFilename.EscapeMarkup()}[/]"
@@ -216,11 +218,6 @@ public class ValidateNspService
             _titleId = mainNca.Nca.Header.TitleId.ToString("X16");
             _hasTitleKeyCrypto = mainNca.Nca.Header.HasRightsId;
             _headerSignatureValidatity = mainNca.Nca.VerifyHeaderSignature();
-            
-            if(_headerSignatureValidatity != Validity.Valid)
-            {
-                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Header signature invalid.");
-            }
 
             if (mainNca.Nca.Header.DistributionType != DistributionType.Download)
             {
@@ -232,6 +229,7 @@ public class ValidateNspService
             {
                 AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Has a ticket but no title key crypto.");
                 _possibleUnlocker = true;
+                canExtract = false;
             }
             
             if (tickets.Length == 0 && _hasTitleKeyCrypto)
@@ -348,14 +346,16 @@ public class ValidateNspService
                     if (contentEntry.Type != ContentType.DeltaFragment)
                     {
                         _metaMissingNonDelta = true;
+                        canExtract = false;
                     }
                 }
                 else
                 {
                     if (_rawContents[filename] != contentEntry.Size)
                     {
-                        _metaSizeMismatch = true;
+                        warnings.Add("NSP file-system contains files with sizes that do not match the CNMT. Conversion will fail.");
                         foundContentTree.AddNode("[red][[X]][/] " + filename + " -> " + contentEntry.Type + " (Size Mis-match)");
+                        canExtract = false;
                     }
                     else
                     {
@@ -367,8 +367,6 @@ public class ValidateNspService
             {
                 AnsiConsole.Write(new Padder(foundContentTree).PadRight(1));
             }
-            
-            var canExtract = true;
 
             if (!(_settings.Rename && _settings.SkipValidation))
             {
@@ -391,26 +389,17 @@ public class ValidateNspService
 
                         foreach (var fsNca in title.Value.Ncas)
                         {
-                            Validity validity;
-                            
                             var logger = new NsfwProgressLogger();
-
-                            try
-                            {
-                                ctx.Status($"Validating: {fsNca.Filename}");
-                                validity = NsfwUtilities.VerifyNca(fsNca, logger);
-                            }
-                            catch (Exception e)
-                            {
-                                AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase} - {e.Message}");
-                                return 1;
-                            }
+                            
+                            ctx.Status($"Validating: {fsNca.Filename}");
+                            var validity = NsfwUtilities.VerifyNca(fsNca, logger);
 
                             var node = new TreeNode(new Markup($"{fsNca.Filename} ({fsNca.Nca.Header.ContentType})"));
 
                             if (validity != Validity.Valid)
                             {
                                 canExtract = false;
+                                warnings.Add("NSP file-system contains corrupt NCA files. Conversion will fail.");
                                 node.AddNodes(logger.GetReport());
                                 foundNcaTree.AddNode(node);
                             }
@@ -433,6 +422,19 @@ public class ValidateNspService
             else
             {
                 AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> Skipping NCA validation.");
+            }
+            
+            phase = $"[olive]Validate Headers[/]";
+
+            foreach (var fsNca in title.Value.Ncas)
+            {
+                _headerSignatureValidatity = fsNca.Nca.VerifyHeaderSignature();
+
+                if (_headerSignatureValidatity == Validity.Valid) continue;
+                
+                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Header signature is invalid.");
+                canExtract = false;
+                break;
             }
 
             var type = _titleType switch
@@ -636,11 +638,6 @@ public class ValidateNspService
             table.AddRow("Rights ID", mainNca.Nca.Header.RightsId.IsZeros() ? "EMPTY" : mainNca.Nca.Header.RightsId.ToHexString());
             table.AddRow("Header Signature", _headerSignatureValidatity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
 
-            if (_headerSignatureValidatity != Validity.Valid)
-            {
-                canExtract = false;
-            }
-
             if (_titleKeyDec != null)
             {
                 table.AddRow("TitleKey (Enc)", _titleKeyEnc.ToHexString());
@@ -679,39 +676,37 @@ public class ValidateNspService
 
             if (_possibleUnlocker && type == "DLC")
             {
-                canExtract = false;
-                table.AddRow(string.Empty, string.Empty);
-                var message = "This appears to be a [olive]Homebrew DLC Unlocker[/]. Conversion will lose the ticket + cert.";
-                table.AddRow("[red]Warning[/]", message);
-                quietTable.AddRow("[red]Warning[/]", message);
+                warnings.Add("This appears to be a [olive]Homebrew DLC Unlocker[/]. Conversion will lose the ticket + cert.");
             }
 
             if (_metaMissing)
             {
-                table.AddRow(string.Empty, string.Empty);
                 if (_metaMissingNonDelta)
                 {
-                    var message = "NSP file-system is missing files listed in the CNMT. Conversion will fail.";
-                    table.AddRow("[red]Warning[/]", message);
-                    quietTable.AddRow("[red]Warning[/]", message);
-                    canExtract = false;
+                    warnings.Add("NSP file-system is missing files listed in the CNMT. Conversion will fail.");
                 }
                 else
                 {
-                    var message = "NSP file-system is missing delta fragments listed in CNMT. These errors can be ignored if you do not need them.";
-                    table.AddRow("[olive]Notice[/]",message);
-                    quietTable.AddRow("[olive]Notice[/]",message);
+                    notices.Add("NSP file-system is missing delta fragments listed in CNMT. These errors can be ignored if you do not need them.");
                 }
-                
             }
-
-            if (_metaSizeMismatch)
+            
+            if(warnings.Count > 0 || notices.Count > 0)
             {
                 table.AddRow(string.Empty, string.Empty);
-                var message = "NSP file-system contains files with sizes that do not match the CNMT. Conversion will fail.";
-                table.AddRow("[red]Warning[/]", message);
-                quietTable.AddRow("[red]Warning[/]", message);
-                canExtract = false;
+                quietTable.AddRow(string.Empty, string.Empty);
+            }
+
+            foreach (var warning in warnings)
+            {
+                table.AddRow("[red]Warning[/]", warning);
+                quietTable.AddRow("[red]Warning[/]", warning);
+            }
+
+            foreach (var notice in notices)
+            {
+                table.AddRow("[olive]Notice[/]", notice);
+                quietTable.AddRow("[olive]Notice[/]", notice);
             }
 
             AnsiConsole.Write(!_settings.Quiet ? new Padder(table).PadRight(1) : new Padder(quietTable).PadRight(1));

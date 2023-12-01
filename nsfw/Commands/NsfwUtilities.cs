@@ -241,24 +241,34 @@ public static partial class NsfwUtilities
 
     public static Validity VerifySection(this Nca nca, int index, NsfwProgressLogger logger)
     {
-        var sect = nca.GetFsHeader(index);
-        var hashType = sect.HashType;
-        if (hashType != NcaHashType.Sha256 && hashType != NcaHashType.Ivfc)
-        {
-            logger.CloseSection(index, Validity.Unchecked, hashType);
-            return Validity.Unchecked;
-        }
+        Validity validity;
 
-        if (nca.OpenStorage(index, IntegrityCheckLevel.IgnoreOnInvalid, true) is not HierarchicalIntegrityVerificationStorage stream)
+        try
         {
-            logger.CloseSection(index, Validity.Unchecked);
-            return Validity.Unchecked;
-        }
+            var sect = nca.GetFsHeader(index);
+            var hashType = sect.HashType;
+            if (hashType != NcaHashType.Sha256 && hashType != NcaHashType.Ivfc)
+            {
+                logger.CloseSection(index, Validity.Unchecked, hashType);
+                return Validity.Unchecked;
+            }
 
-        var validity = stream.Validate(true, logger);
+            if (nca.OpenStorage(index, IntegrityCheckLevel.IgnoreOnInvalid, true) is not HierarchicalIntegrityVerificationStorage stream)
+            {
+                logger.CloseSection(index, Validity.Unchecked);
+                return Validity.Unchecked;
+            }
+            
+            validity = stream.Validate(true, logger);
+        }
+        catch (Exception exception)
+        {
+            validity = Validity.Invalid;
+            logger.CloseSection(index, exception.Message);
+            return validity;
+        }
 
         logger.CloseSection(index, validity);
-
         return validity;
     }
 
