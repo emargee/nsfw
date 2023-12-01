@@ -68,6 +68,6 @@ public class NsfwProgressLogger : IProgressReport
 
     public void CloseSection(int index, string exceptionMessage)
     {
-        _sections[index] = $"Section {index} -> [red]ERROR[/] " + $"{exceptionMessage}".EscapeMarkup();
+        _sections[index] = $"Section {index} -> [red]ERROR[/] -> " + $"{exceptionMessage}".EscapeMarkup();
     }
 }
