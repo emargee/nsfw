@@ -55,9 +55,17 @@ public class ValidateNspSettings : CommandSettings
     [Description("For DLC, print related titles.")]
     public bool RelatedTitles { get; set; }
     
+    [CommandOption("--regional-titles")]
+    [Description("Print regional title variations.")]
+    public bool RegionalTitles { get; set; }
+    
     [CommandOption("--skip-validation")]
     [Description("When re-naming files, skip NCA validation.")]
     public bool SkipValidation { get; set; }
+
+    [CommandOption("-q|--quiet")]
+    [Description("Disable all non-essential output of the program.")]
+    public bool Quiet { get; set; }
     
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]

@@ -1,6 +1,4 @@
-﻿using System.IO.Compression;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices.ComTypes;
+﻿using System.Runtime.InteropServices.ComTypes;
 using LibHac.Common;
 using LibHac.Common.Keys;
 using LibHac.Fs;
@@ -45,6 +43,8 @@ public class ValidateNspService
     private bool _metaMissingNonDelta;
     private string _parentTitle;
     private bool _metaSizeMismatch;
+    private Validity _headerSignatureValidatity;
+    private string _parentTitleId;
 
     public ValidateNspService(ValidateNspSettings settings)
     {
@@ -56,8 +56,11 @@ public class ValidateNspService
     public int Process(string nspFullPath)
     {
         var inputFilename = new DirectoryInfo(nspFullPath).Name;
-        
-        AnsiConsole.MarkupLine($"Processing NSP  : [olive]{inputFilename.EscapeMarkup()}[/]");
+
+        AnsiConsole.MarkupLine(_settings.Quiet
+            ? $"Processing NSP (quiet) : [olive]{inputFilename.EscapeMarkup()}[/]"
+            : $"Processing NSP  : [olive]{inputFilename.EscapeMarkup()}[/]");
+
         AnsiConsole.WriteLine("----------------------------------------");
 
         var phase = "[olive]Open RAW NSP file-system[/]";
@@ -92,7 +95,6 @@ public class ValidateNspService
         
                 res.ThrowIfFailure();
             }
-            Console.WriteLine("Using HFS");
             fs = hfs.Get;
         }
 
@@ -126,8 +128,12 @@ public class ValidateNspService
                 
                 foundTree.AddNode(name + " - " + dirEntry.Size + " (" + dirEntry.Size.BytesToHumanReadable() + ")");
             }
-            AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
-            AnsiConsole.Write(new Padder(foundTree).PadRight(1));
+            
+            if(!_settings.Quiet)
+            {
+                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
+                AnsiConsole.Write(new Padder(foundTree).PadRight(1));
+            }
         }
         
         if (fs.EnumerateEntries("*.nca", SearchOptions.Default).Any())
@@ -138,7 +144,10 @@ public class ValidateNspService
             
             if(tickets.Length == 0)
             {
-                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase} - No valid tickets found.");
+                if (!_settings.Quiet)
+                {
+                    AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase} - No valid tickets found.");
+                }
             }
             else
             {
@@ -148,7 +157,10 @@ public class ValidateNspService
                 }
                 else
                 {
-                    AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase} (Ticket imported)");
+                    if (!_settings.Quiet)
+                    {
+                        AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase} (Ticket imported)");
+                    }
                 }
                 
                 _ticket = tickets[0];
@@ -163,8 +175,11 @@ public class ValidateNspService
                 AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase} - Failed to open NSP as SwitchFS.");
                 return 1;
             }
-            
-            AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
+
+            if (!_settings.Quiet)
+            {
+                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
+            }
 
             phase = "[olive]NSP structure validation[/]";
 
@@ -181,7 +196,7 @@ public class ValidateNspService
 
             var title = switchFs.Titles.First();
             
-            phase = $"[olive]Open Main[/]";
+            phase = $"[olive]Validate Main[/]";
 
             var mainNca = title.Value.MainNca;
 
@@ -190,12 +205,22 @@ public class ValidateNspService
                 AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase}");
                 return 1;
             }
-            AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase} ({mainNca.NcaId})");
-            
+
+            if (!_settings.Quiet)
+            {
+                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase} ({mainNca.NcaId})");
+            }
+
             // Get info from MainNca
             
             _titleId = mainNca.Nca.Header.TitleId.ToString("X16");
             _hasTitleKeyCrypto = mainNca.Nca.Header.HasRightsId;
+            _headerSignatureValidatity = mainNca.Nca.VerifyHeaderSignature();
+            
+            if(_headerSignatureValidatity != Validity.Valid)
+            {
+                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Header signature invalid.");
+            }
 
             if (mainNca.Nca.Header.DistributionType != DistributionType.Download)
             {
@@ -263,11 +288,14 @@ public class ValidateNspService
                 {
                     AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Invalid ticket signature");
                 }
-                
-                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
+
+                if (!_settings.Quiet)
+                {
+                    AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
+                }
             }
             
-            phase = $"[olive]Open Metadata (CNMT)[/]";
+            phase = $"[olive]Validate Metadata (CNMT)[/]";
 
             var cnmt = title.Value.Metadata;
             
@@ -276,8 +304,12 @@ public class ValidateNspService
                 AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase}");
                 return 1;
             }
-            AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
-            
+
+            if (!_settings.Quiet)
+            {
+                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
+            }
+
             phase = $"[olive]Validate Metadata[/]";
 
             if (cnmt.TitleId.ToString("X16") != _titleId && title.Value.Metadata.Type == ContentMetaType.Application)
@@ -331,8 +363,10 @@ public class ValidateNspService
                     }
                 }
             }
-            
-            AnsiConsole.Write(new Padder(foundContentTree).PadRight(1));
+            if (!_settings.Quiet)
+            {
+                AnsiConsole.Write(new Padder(foundContentTree).PadRight(1));
+            }
             
             var canExtract = true;
 
@@ -358,6 +392,7 @@ public class ValidateNspService
                         foreach (var fsNca in title.Value.Ncas)
                         {
                             Validity validity;
+                            
                             var logger = new NsfwProgressLogger();
 
                             try
@@ -386,8 +421,12 @@ public class ValidateNspService
                             }
                         }
 
-                        AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
-                        AnsiConsole.Write(new Padder(foundNcaTree).PadRight(1));
+                        if (!_settings.Quiet)
+                        {
+                            AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
+                            AnsiConsole.Write(new Padder(foundNcaTree).PadRight(1));
+                        }
+
                         return 0;
                     });
             }
@@ -450,6 +489,13 @@ public class ValidateNspService
             };
             table.AddColumn("Property");
             table.AddColumn("Value");
+            
+            var quietTable = new Table
+            {
+                ShowHeaders = false
+            };
+            quietTable.AddColumn("Property");
+            quietTable.AddColumn("Value");
 
             if(_title == "UNKNOWN" && _fromTitleDb)
             {
@@ -488,9 +534,9 @@ public class ValidateNspService
 
             if (type == "DLC" && File.Exists(titledbPath))
             {
-                var parentTitleId = (cnmt.TitleId & 0xFFFFFFFFFFFFF000 ^ 0x1000).ToString("X16");
+                _parentTitleId = (cnmt.TitleId & 0xFFFFFFFFFFFFF000 ^ 0x1000).ToString("X16");
                 
-                var parentResult = NsfwUtilities.LookUpTitle(_settings.TitleDbFile, parentTitleId);
+                var parentResult = NsfwUtilities.LookUpTitle(_settings.TitleDbFile, _parentTitleId);
 
                 if (!string.IsNullOrEmpty(parentResult))
                 {
@@ -499,24 +545,28 @@ public class ValidateNspService
                 }
             }
             
-            if(_settings.RelatedTitles && File.Exists(titledbPath))
+            if((_settings.RegionalTitles || _settings.RelatedTitles) && File.Exists(titledbPath) && !_settings.Quiet)
             {
-                var titleResults = NsfwUtilities.GetTitleDbInfo(_settings.TitleDbFile, _baseTitleId != _titleId ? _baseTitleId : _titleId).Result;
-
-                if (titleResults.Length > 0)
+                if (_settings.RegionalTitles)
                 {
-                    var regionTable = new Table() { ShowHeaders = false };
-                    regionTable.AddColumns("Region", "Title");
-                    regionTable.AddRow(new Text("Regional Titles"));
-                    regionTable.AddEmptyRow();
-                    foreach (var titleResult in titleResults.DistinctBy(x => x.RegionLanguage))
+                    var titleResults = NsfwUtilities.GetTitleDbInfo(_settings.TitleDbFile, _baseTitleId != _titleId ? _baseTitleId : _titleId).Result;
+
+                    if (titleResults.Length > 0)
                     {
-                        regionTable.AddRow(new Markup($"{titleResult.Name.EscapeMarkup()}"), new Markup($"{titleResult.RegionLanguage.ToUpper()}"));
+                        var regionTable = new Table() { ShowHeaders = false };
+                        regionTable.AddColumns("Region", "Title");
+                        regionTable.AddRow(new Text("Regional Titles"));
+                        regionTable.AddEmptyRow();
+                        foreach (var titleResult in titleResults.DistinctBy(x => x.RegionLanguage))
+                        {
+                            regionTable.AddRow(new Markup($"{titleResult.Name!.ReplaceLineEndings(string.Empty).EscapeMarkup()}"), new Markup($"{titleResult.RegionLanguage.ToUpper()}"));
+                        }
+                        
+                        AnsiConsole.Write(new Padder(regionTable).PadRight(1));
                     }
-                    AnsiConsole.Write(new Padder(regionTable).PadRight(1));
                 }
-                
-                if (type == "DLC")
+
+                if (_settings.RelatedTitles && type == "DLC")
                 {
                     var relatedResults = NsfwUtilities.LookUpRelatedTitles(_settings.TitleDbFile, _titleId).Result;
 
@@ -530,6 +580,7 @@ public class ValidateNspService
                         {
                             relatedTable.AddRow(new Markup($"{relatedResult.EscapeMarkup()}"));
                         }
+
                         AnsiConsole.Write(new Padder(relatedTable).PadRight(1));
                     }
                 }
@@ -562,6 +613,15 @@ public class ValidateNspService
             }
 
             table.AddRow("Languages", titles.Count == 0 ? "UNKNOWN" : languageList);
+
+            if (type == "DLC" && !string.IsNullOrEmpty(_parentTitle) && File.Exists(titledbPath))
+            {
+                var parentLanguages = NsfwUtilities.LookupLanguages(_settings.TitleDbFile, _parentTitleId);
+                if (parentLanguages.Length > 0)
+                {
+                    table.AddRow("Parent Languages", parentLanguages + " (TitleDB)");
+                }
+            }
             
             table.AddRow("Display Version", _version);
 
@@ -574,6 +634,12 @@ public class ValidateNspService
             table.AddRow("Title Type", type + " (" + _titleType + ")");
             table.AddRow("Title Version", _titleVersion);
             table.AddRow("Rights ID", mainNca.Nca.Header.RightsId.IsZeros() ? "EMPTY" : mainNca.Nca.Header.RightsId.ToHexString());
+            table.AddRow("Header Signature", _headerSignatureValidatity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
+
+            if (_headerSignatureValidatity != Validity.Valid)
+            {
+                canExtract = false;
+            }
 
             if (_titleKeyDec != null)
             {
@@ -581,11 +647,11 @@ public class ValidateNspService
                 table.AddRow("TitleKey (Dec)", _titleKeyDec.ToHexString());
                 if (_isFixedSignature)
                 {
-                    table.AddRow("Ticket Signature?", "Normalised");
+                    table.AddRow("Ticket Signature", "[olive]Normalised[/]");
                 }
                 else
                 {
-                    table.AddRow("Ticket Signature?", _isTicketSignatureValid ? "Valid" : "Invalid (Signature Mismatch) - Will generate new ticket.");
+                    table.AddRow("Ticket Signature", _isTicketSignatureValid ? "[green]Valid[/]" : "[red]Invalid[/] (Signature Mismatch) - Will generate new ticket.");
                 }
                 table.AddRow("MasterKey Revision", _masterKeyRevision.ToString());
             }
@@ -594,14 +660,30 @@ public class ValidateNspService
             
             if(_settings.Extract || _settings.Convert || _settings.Rename)
             {
-                table.AddRow("Output Name", formattedName.EscapeMarkup());
+                table.AddRow("Output Name", $"{formattedName.EscapeMarkup()}");
+                
+                if (_title.Contains('「'))
+                {
+                    table.AddRow("Trimmed Name", NsfwUtilities.BuildName(NsfwUtilities.TrimTitle(_title), _version, _titleId, _titleVersion, _titleType, _parentTitle, titles).EscapeMarkup()); 
+                }
+            }
+
+            var titleLength = (formattedName + ".nsp").Length;
+            
+            if ((_settings.Extract || _settings.Convert || _settings.Rename) && titleLength > 110)
+            {
+                var message = $"Output name length ({titleLength}) is greater than 110 chars which could cause path length issues on Windows.";
+                table.AddRow("[olive]Attention[/]", message);
+                quietTable.AddRow("[olive]Attention[/]", message);
             }
 
             if (_possibleUnlocker && type == "DLC")
             {
                 canExtract = false;
                 table.AddRow(string.Empty, string.Empty);
-                table.AddRow("[red]Warning[/]", "This appears to be a [olive]Homebrew DLC Unlocker[/]. Conversion will lose the ticket + cert.");
+                var message = "This appears to be a [olive]Homebrew DLC Unlocker[/]. Conversion will lose the ticket + cert.";
+                table.AddRow("[red]Warning[/]", message);
+                quietTable.AddRow("[red]Warning[/]", message);
             }
 
             if (_metaMissing)
@@ -609,12 +691,16 @@ public class ValidateNspService
                 table.AddRow(string.Empty, string.Empty);
                 if (_metaMissingNonDelta)
                 {
-                    table.AddRow("[red]Warning[/]", "NSP file-system is missing files listed in the CNMT. Conversion will fail.");
+                    var message = "NSP file-system is missing files listed in the CNMT. Conversion will fail.";
+                    table.AddRow("[red]Warning[/]", message);
+                    quietTable.AddRow("[red]Warning[/]", message);
                     canExtract = false;
                 }
                 else
                 {
-                    table.AddRow("[olive]Notice[/]", "NSP file-system is missing delta fragments listed in CNMT. These errors can be ignored if you do not need them.");
+                    var message = "NSP file-system is missing delta fragments listed in CNMT. These errors can be ignored if you do not need them.";
+                    table.AddRow("[olive]Notice[/]",message);
+                    quietTable.AddRow("[olive]Notice[/]",message);
                 }
                 
             }
@@ -622,15 +708,23 @@ public class ValidateNspService
             if (_metaSizeMismatch)
             {
                 table.AddRow(string.Empty, string.Empty);
-                table.AddRow("[red]Warning[/]", "NSP file-system entries have different sizes to those listed in CNMT. Conversion will fail.");
+                var message = "NSP file-system contains files with sizes that do not match the CNMT. Conversion will fail.";
+                table.AddRow("[red]Warning[/]", message);
+                quietTable.AddRow("[red]Warning[/]", message);
                 canExtract = false;
             }
-            
-            AnsiConsole.Write(new Padder(table).PadRight(1));
+
+            AnsiConsole.Write(!_settings.Quiet ? new Padder(table).PadRight(1) : new Padder(quietTable).PadRight(1));
 
             if (!_settings.Extract && !_settings.Convert && !_settings.Rename)
             {
                 return 0;
+            }
+            
+            if (!canExtract)
+            {
+                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] - Exiting - NSP Validation failed.");
+                return 1;
             }
 
             if (_settings.Rename)
@@ -676,12 +770,6 @@ public class ValidateNspService
                 File.Move(nspFullPath, System.IO.Path.Combine(targetDirectory, formattedName + ".nsp"));
                 AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> Renamed TO: [olive]{formattedName.EscapeMarkup()}[/]");
                 return 0;
-            }
-
-            if (!canExtract)
-            {
-                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] - Exiting - NSP Validation failed.");
-                return 1;
             }
             
             if (_hasTitleKeyCrypto && !_isTicketSignatureValid)
@@ -749,7 +837,10 @@ public class ValidateNspService
             if (_settings.Convert)
             {
                 phase = $"[olive]Converting[/]";
-                AnsiConsole.MarkupLine($"{phase}..");
+                if (!_settings.Quiet)
+                {
+                    AnsiConsole.MarkupLine($"{phase}..");
+                }
 
                 if (_settings.DryRun)
                 {
@@ -792,13 +883,19 @@ public class ValidateNspService
                     return 1;
                 }
 
+                if (targetName == nspFullPath)
+                {
+                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> Trying to save converted file to the same location as the input file.");
+                    return 1;
+                }
+
                 if (_settings.DryRun) return 0;
                 
                 using var outStream = new FileStream(targetName, FileMode.Create, FileAccess.ReadWrite);
                 var builtPfs = builder.Build(PartitionFileSystemType.Standard);
                 builtPfs.GetSize(out var pfsSize).ThrowIfFailure();
                 builtPfs.CopyToStream(outStream, pfsSize);
-                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> Converted: [olive]{formattedName.EscapeMarkup()}_conv.nsp[/]");
+                AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> Converted: [olive]{formattedName.EscapeMarkup()}.nsp[/]");
             }
         }
         else
@@ -869,3 +966,4 @@ public record TitleInfo
     public string Publisher { get; init; }
     public NacpLanguage RegionLanguage { get; init; }
 }
+

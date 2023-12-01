@@ -1,8 +1,7 @@
 ﻿using System.Globalization;
 using System.Numerics;
 using System.Security.Cryptography;
-using System.Text.Json;
-using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using LibHac.Common;
 using LibHac.Tools.Es;
 using LibHac.Tools.Fs;
@@ -13,7 +12,7 @@ using HierarchicalIntegrityVerificationStorage = LibHac.Tools.FsSystem.Hierarchi
 
 namespace Nsfw.Commands;
 
-public static class NsfwUtilities
+public static partial class NsfwUtilities
 {
     public static byte[] FixedSignature { get; } = Enumerable.Repeat((byte)0xFF, 0x100).ToArray();
 
@@ -172,6 +171,7 @@ public static class NsfwUtilities
         return title
             .ReplaceLineEndings("")
             .Replace("“", "'")
+            .Replace("*", "")
             .Replace("”", "'")
             .Replace('/', '-')
             .Replace(":||","-")
@@ -334,4 +334,37 @@ public static class NsfwUtilities
         
         return result.Select(x => x.Name ?? "UNKNOWN").ToArray();
     }
+    
+    public static string LookupLanguages(string titleDbPath, string titleId)
+    {
+        var db = new SQLiteAsyncConnection(titleDbPath);
+        var result = db.Table<GameInfo>().FirstOrDefaultAsync(x => x.Id == titleId).Result;
+        
+        return result.Languages ?? string.Empty;
+    }
+    
+    public static string TrimTitle(string title)
+    {
+        if (!title.Contains('「') || !title.Contains('」'))
+        {
+            return title;
+        }
+
+        var titleParts = new List<string>();
+
+        const string pattern = @"(?<=「).*?(?=」)";
+        var regex = JapaneseBracketRegex();
+
+        var matches = regex.Matches(title);
+
+        foreach (Match match in matches)
+        {
+            titleParts.Add(match.Value.Trim());
+        }
+        
+        return string.Join(" & ", titleParts);
+    }
+
+    [GeneratedRegex("(?<=「).*?(?=」)")]
+    private static partial Regex JapaneseBracketRegex();
 }

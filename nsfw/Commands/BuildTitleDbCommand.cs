@@ -47,7 +47,7 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
         
         foreach (var entry in entries)
         {
-            Console.Write("Ingesting: " + entry + "...");
+            AnsiConsole.Markup("Ingesting: [olive]" + entry + "[/]...");
             
             await using var fs = File.OpenRead(entry);
 
@@ -69,10 +69,9 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
                 
                 game.RegionLanguage = game.Region.Split(".")[1];
                 
-                if(db.Table<GameInfo>().Where(x => 
-                       x.NsuId == game.NsuId && x.Name == game.Name).CountAsync().Result != 0)
+                if(db.Table<GameInfo>().Where(x => x.NsuId == game.NsuId && x.Name == game.Name && x.Intro == game.Intro).CountAsync().Result != 0)
                 {
-                    //Console.WriteLine("DUPLICATE");
+                    //Console.WriteLine($"DUPLICATE - {game.Name}/{game.Region}");
                     continue;
                 }
                 
@@ -134,7 +133,7 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
                     AnsiConsole.MarkupLine($"[red]Error:[/] {path} does not exist.");
                 }
                     
-                Console.Write($"Converting [{fullLanguage}]...");
+                AnsiConsole.Markup($"Converting: [[[olive]{fullLanguage}[/]]]...");
             
                 var inputFile = Path.Combine(settings.TitleDbDirectory, $"{fullLanguage}.json");
                 var outputFile = Path.Combine(settings.TitleDbDirectory, $"converted.{fullLanguage}.json");
@@ -145,7 +144,7 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
             
                 await (input | Cli.Wrap("jq").WithArguments($"-r \"[values[]|. + {{\\\"region\\\":\\\"{fullLanguage}\\\"}}]\"") | output).ExecuteAsync();
                     
-                Console.WriteLine("[DONE]");
+                AnsiConsole.MarkupLine("[[[green]DONE[/]]]");
             }
         }
 
