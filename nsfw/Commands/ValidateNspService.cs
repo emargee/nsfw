@@ -59,6 +59,18 @@ public class ValidateNspService
         var warnings = new HashSet<string>();
         var notices = new HashSet<string>();
 
+        var languageMode = LanguageMode.Full;
+
+        if (_settings.NoLanguages)
+        {
+            languageMode = LanguageMode.None;
+        }
+        
+        if(_settings.ShortLanguages)
+        {
+            languageMode = LanguageMode.Short;
+        }
+
         AnsiConsole.MarkupLine(_settings.Quiet
             ? $"Processing NSP (quiet) : [olive]{inputFilename.EscapeMarkup()}[/]"
             : $"Processing NSP  : [olive]{inputFilename.EscapeMarkup()}[/]");
@@ -134,7 +146,7 @@ public class ValidateNspService
             if(!_settings.Quiet)
             {
                 AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
-                AnsiConsole.Write(new Padder(foundTree).PadRight(1));
+                AnsiConsole.Write(new Padder(foundTree).PadLeft(1));
             }
         }
         
@@ -365,7 +377,7 @@ public class ValidateNspService
             }
             if (!_settings.Quiet)
             {
-                AnsiConsole.Write(new Padder(foundContentTree).PadRight(1));
+                AnsiConsole.Write(new Padder(foundContentTree).PadLeft(1));
             }
 
             if (!(_settings.Rename && _settings.SkipValidation))
@@ -413,7 +425,7 @@ public class ValidateNspService
                         if (!_settings.Quiet)
                         {
                             AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
-                            AnsiConsole.Write(new Padder(foundNcaTree).PadRight(1));
+                            AnsiConsole.Write(new Padder(foundNcaTree).PadLeft(1).PadTop(0).PadBottom(0));
                         }
 
                         return 0;
@@ -564,7 +576,7 @@ public class ValidateNspService
                             regionTable.AddRow(new Markup($"{titleResult.Name!.ReplaceLineEndings(string.Empty).EscapeMarkup()}"), new Markup($"{titleResult.RegionLanguage.ToUpper()}"));
                         }
                         
-                        AnsiConsole.Write(new Padder(regionTable).PadRight(1));
+                        AnsiConsole.Write(new Padder(regionTable).PadLeft(1));
                     }
                 }
 
@@ -583,8 +595,48 @@ public class ValidateNspService
                             relatedTable.AddRow(new Markup($"{relatedResult.EscapeMarkup()}"));
                         }
 
-                        AnsiConsole.Write(new Padder(relatedTable).PadRight(1));
+                        AnsiConsole.Write(new Padder(relatedTable).PadLeft(1));
                     }
+                }
+            }
+            
+            if (_settings.Versions && type == "Game" && File.Exists(_settings.TitleDbFile))
+            {
+                var versions = NsfwUtilities.LookUpVersions(_settings.TitleDbFile, _titleId).Result;
+                
+                if (versions.Length > 0)
+                {
+                    var tree = new Tree("Versions:");
+                    tree.Expanded = true;
+                    tree.AddNodes(versions.Select(x => $"v{x.Version} ({x.ReleaseDate})"));
+                    AnsiConsole.Write(new Padder(tree).PadLeft(1).PadTop(1).PadBottom(0));
+                }
+            }
+
+            if (_settings.Versions && type == "Update" && File.Exists(_settings.TitleDbFile))
+            {
+                var versions = NsfwUtilities.LookUpVersions(_settings.TitleDbFile, _baseTitleId).Result;
+                
+                if (versions.Length > 0)
+                {
+                    var tree = new Tree("Versions:")
+                    {
+                        Expanded = true
+                    };
+
+                    foreach (var version in versions)
+                    {
+                        if ("v"+version.Version == _titleVersion)
+                        {
+                            tree.AddNode($"[green]v{version.Version}[/] ({version.ReleaseDate})");
+                        }
+                        else
+                        {
+                            tree.AddNode($"v{version.Version} ({version.ReleaseDate})");
+                        }
+                    }
+  
+                    AnsiConsole.Write(new Padder(tree).PadLeft(1).PadTop(1).PadBottom(0));
                 }
             }
 
@@ -653,7 +705,7 @@ public class ValidateNspService
                 table.AddRow("MasterKey Revision", _masterKeyRevision.ToString());
             }
             
-            var formattedName = NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType, _parentTitle, titles);
+            var formattedName = NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType, _parentTitle, titles, languageMode);
             
             if(_settings.Extract || _settings.Convert || _settings.Rename)
             {
@@ -709,7 +761,7 @@ public class ValidateNspService
                 quietTable.AddRow("[olive]Notice[/]", notice);
             }
 
-            AnsiConsole.Write(!_settings.Quiet ? new Padder(table).PadRight(1) : new Padder(quietTable).PadRight(1));
+            AnsiConsole.Write(!_settings.Quiet ? new Padder(table).PadLeft(1) : new Padder(quietTable).PadLeft(1));
 
             if (!_settings.Extract && !_settings.Convert && !_settings.Rename)
             {
@@ -932,6 +984,13 @@ public class ValidateNspService
         }
     }
     
+}
+
+public enum LanguageMode
+{
+    Full,
+    Short,
+    None
 }
 
 [Flags]

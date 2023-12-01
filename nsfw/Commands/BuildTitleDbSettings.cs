@@ -11,10 +11,6 @@ public class BuildTitleDbSettings : CommandSettings
     [DefaultValue("./titledb")]
     public string TitleDbDirectory { get; set; } = string.Empty;
     
-    [CommandOption("-r|--refresh")]
-    [Description("Refresh TitleDB files from source.")]
-    public bool Refresh { get; set; }
-    
     [CommandOption("-c|--clean")]
     [Description("Clean database before rebuilding.")]
     public bool CleanDatabase { get; set; }

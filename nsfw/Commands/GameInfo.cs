@@ -42,6 +42,23 @@ public class GameInfo
     public string RegionLanguage { get; set; } = "Unknown";
 }
 
+public class TitleRegion
+{
+    [Indexed]
+    public long NsuId { get; set; }
+    [Indexed]
+    public string Region { get; set; } = string.Empty;
+}
+
+public class TitleVersions
+{
+    [Indexed]
+    public string TitleId { get; set; } = string.Empty;
+    [Indexed]
+    public string Version { get; set; } = string.Empty;
+    public string ReleaseDate { get; set; } = string.Empty;
+}
+
 public class LongToStringConverter : JsonConverter<string>
 {
     public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

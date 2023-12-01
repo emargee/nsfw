@@ -59,6 +59,18 @@ public class ValidateNspSettings : CommandSettings
     [Description("Print regional title variations.")]
     public bool RegionalTitles { get; set; }
     
+    [CommandOption("--versions")]
+    [Description("Print title versions.")]
+    public bool Versions { get; set; }
+    
+    [CommandOption("--nl")]
+    [Description("Do not print languages in output filename.")]
+    public bool NoLanguages { get; set; }
+    
+    [CommandOption("--sl")]
+    [Description("Use short language codes in output filename.")]
+    public bool ShortLanguages { get; set; }
+    
     [CommandOption("--skip-validation")]
     [Description("When re-naming files, skip NCA validation.")]
     public bool SkipValidation { get; set; }

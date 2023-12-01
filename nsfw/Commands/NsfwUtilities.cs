@@ -52,7 +52,7 @@ public static partial class NsfwUtilities
         }
     }
 
-    public static string BuildName(string title, string version, string titleId, string titleVersion, string titleType, string parentTitle, IEnumerable<TitleInfo> titles)
+    public static string BuildName(string title, string version, string titleId, string titleVersion, string titleType, string parentTitle, IEnumerable<TitleInfo> titles, LanguageMode languageMode = LanguageMode.Full)
     {
         titleType = titleType switch
         {
@@ -64,29 +64,59 @@ public static partial class NsfwUtilities
         };
         
         var titleArray = titles.ToArray();
-        
-        var languageList = string.Join(",", titleArray.Select(titleInfo => titleInfo.RegionLanguage switch
-            {
-                NacpLanguage.AmericanEnglish => "En-US",
-                NacpLanguage.BritishEnglish => "En-GB",
-                NacpLanguage.Japanese => "Ja",
-                NacpLanguage.French => "Fr-FR",
-                NacpLanguage.CanadianFrench => "Fr-CA",
-                NacpLanguage.German => "De",
-                NacpLanguage.Italian => "It",
-                NacpLanguage.Spanish => "Es-ES",
-                NacpLanguage.LatinAmericanSpanish => "Es-XL",
-                NacpLanguage.SimplifiedChinese => "Zh-Hans",
-                NacpLanguage.TraditionalChinese => "Zh-Hant",
-                NacpLanguage.Korean => "Ko",
-                NacpLanguage.Dutch => "Nl",
-                NacpLanguage.Portuguese => "Pt-pt",
-                NacpLanguage.BrazilianPortuguese => "Pt-BR",
-                NacpLanguage.Russian => "Ru",
-                _ => "Unknown"
-            }).Distinct()
-            .ToList());
 
+        var languageList = string.Empty;
+
+        if (languageMode == LanguageMode.Full)
+        {
+            languageList = string.Join(",", titleArray.Select(titleInfo => titleInfo.RegionLanguage switch
+                {
+                    NacpLanguage.AmericanEnglish => "En-US",
+                    NacpLanguage.BritishEnglish => "En-GB",
+                    NacpLanguage.Japanese => "Ja",
+                    NacpLanguage.French => "Fr-FR",
+                    NacpLanguage.CanadianFrench => "Fr-CA",
+                    NacpLanguage.German => "De",
+                    NacpLanguage.Italian => "It",
+                    NacpLanguage.Spanish => "Es-ES",
+                    NacpLanguage.LatinAmericanSpanish => "Es-XL",
+                    NacpLanguage.SimplifiedChinese => "Zh-Hans",
+                    NacpLanguage.TraditionalChinese => "Zh-Hant",
+                    NacpLanguage.Korean => "Ko",
+                    NacpLanguage.Dutch => "Nl",
+                    NacpLanguage.Portuguese => "Pt-pt",
+                    NacpLanguage.BrazilianPortuguese => "Pt-BR",
+                    NacpLanguage.Russian => "Ru",
+                    _ => "Unknown"
+                }).Distinct()
+                .ToList());
+        }
+
+        if (languageMode == LanguageMode.Short)
+        {
+            languageList = string.Join(",", titleArray.Select(titleInfo => titleInfo.RegionLanguage switch
+                {
+                    NacpLanguage.AmericanEnglish => "En",
+                    NacpLanguage.BritishEnglish => "En",
+                    NacpLanguage.Japanese => "Ja",
+                    NacpLanguage.French => "Fr",
+                    NacpLanguage.CanadianFrench => "Fr",
+                    NacpLanguage.German => "De",
+                    NacpLanguage.Italian => "It",
+                    NacpLanguage.Spanish => "Es",
+                    NacpLanguage.LatinAmericanSpanish => "Es",
+                    NacpLanguage.SimplifiedChinese => "Zh",
+                    NacpLanguage.TraditionalChinese => "Zh",
+                    NacpLanguage.Korean => "Ko",
+                    NacpLanguage.Dutch => "Nl",
+                    NacpLanguage.Portuguese => "Pt",
+                    NacpLanguage.BrazilianPortuguese => "Pt",
+                    NacpLanguage.Russian => "Ru",
+                    _ => "Unknown"
+                }).Distinct()
+                .ToList());
+        }
+        
         if (!string.IsNullOrEmpty(languageList))
         {
             languageList = $"({languageList})";
@@ -147,6 +177,11 @@ public static partial class NsfwUtilities
         
         var textInfo = new CultureInfo("en-US", false).TextInfo;
         title = textInfo.ToTitleCase(title);
+
+        if (languageMode == LanguageMode.None)
+        {
+            region = string.Empty;
+        }
         
         if (titleType is "UPD" or "DLCUPD")
         {
@@ -354,7 +389,13 @@ public static partial class NsfwUtilities
         
         return result.Languages ?? string.Empty;
     }
-    
+
+    public static async Task<TitleVersions[]> LookUpVersions(string titleDbPath, string titleId)
+    {
+        var db = new SQLiteAsyncConnection(titleDbPath);
+        return await db.Table<TitleVersions>().Where(x => x.TitleId == titleId.ToLower()).ToArrayAsync();
+    }
+
     public static string TrimTitle(string title)
     {
         if (!title.Contains('「') || !title.Contains('」'))
