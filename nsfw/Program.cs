@@ -24,6 +24,10 @@ public static class Program
                 .WithDescription("Validates NSP.")
                 .WithAlias("v");
             
+            config.AddCommand<TicketPropertiesCommand>("ticket")
+                .WithDescription("Reads ticket from file.")
+                .WithAlias("t");
+            
             config.AddCommand<BuildTitleDbCommand>("build-titledb")
                 .WithDescription("Builds TitleDB from NSP files.")
                 .IsHidden()

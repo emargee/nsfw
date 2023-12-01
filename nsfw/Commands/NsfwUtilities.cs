@@ -7,6 +7,8 @@ using LibHac.Tools.Es;
 using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
+using LibHac.Util;
+using Spectre.Console;
 using SQLite;
 using HierarchicalIntegrityVerificationStorage = LibHac.Tools.FsSystem.HierarchicalIntegrityVerificationStorage;
 
@@ -377,4 +379,22 @@ public static partial class NsfwUtilities
 
     [GeneratedRegex("(?<=「).*?(?=」)")]
     private static partial Regex JapaneseBracketRegex();
+    
+    public static bool ValidateCommonCert(string certPath)
+    {
+        var commonCertSize = 0x700;
+        var commonCertSha256 = "3c4f20dca231655e90c75b3e9689e4dd38135401029ab1f2ea32d1c2573f1dfe";
+
+        var fileBytes = File.ReadAllBytes(certPath);
+        
+        if(fileBytes.Length != commonCertSize)
+        {
+            AnsiConsole.WriteLine("Common cert is invalid size");
+            return false;
+        }
+        
+        var certSha256 = SHA256.HashData(fileBytes).ToHexString();
+
+        return certSha256 == commonCertSha256.ToUpperInvariant();
+    }
 }
