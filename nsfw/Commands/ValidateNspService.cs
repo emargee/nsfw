@@ -795,15 +795,20 @@ public class ValidateNspService
             }
 
             AnsiConsole.Write(!_settings.Quiet ? new Padder(table).PadLeft(1).PadTop(0) : new Padder(quietTable).PadLeft(1).PadTop(0));
-
+            
             if (!_settings.Extract && !_settings.Convert && !_settings.Rename)
             {
+                if(warnings.Count > 0 || _headerSignatureValidatity != Validity.Valid || (_hasTitleKeyCrypto && !_isTicketSignatureValid) || _rebuildTicket)
+                {
+                    AnsiConsole.MarkupLine($"[[[red]WARN[/]]] - NSP Validation failed. Conversion or Extraction would fail.");
+                    return 1;
+                }
                 return 0;
             }
             
             if (!canExtract)
             {
-                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] - Exiting - NSP Validation failed.");
+                AnsiConsole.MarkupLine($"[[[red]WARN[/]]] - NSP Validation failed.");
                 return 1;
             }
 

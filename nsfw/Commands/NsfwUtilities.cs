@@ -192,7 +192,6 @@ public static partial class NsfwUtilities
         if (titleType is "DLC" && !string.IsNullOrEmpty(parentTitle))
         {
             var parentParts = parentTitle.Split(" - ", StringSplitOptions.TrimEntries);
-
             title = parentParts.Aggregate(title, (current, part) => current.Replace(part, string.Empty, StringComparison.InvariantCultureIgnoreCase));
 
             var formattedTitle = $"{parentTitle} - {title} {region}{languageList}[{titleId}][{titleVersion}][{titleType}]";
