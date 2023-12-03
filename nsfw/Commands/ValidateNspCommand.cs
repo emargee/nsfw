@@ -14,10 +14,10 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
             AnsiConsole.MarkupLine(@"       _______/\  _____/      /_____/     /_  /\______");
             AnsiConsole.MarkupLine(@"    __/   __    \/   __      /   __      / /[grey]\[/]/       /[grey]\[/]");
             AnsiConsole.MarkupLine(@"   /       /    /     /______\    /_____/ /\/       /[grey] /[/]");
-            AnsiConsole.MarkupLine(@"-=/       /    /______    \      ____/           __/[grey] /[/]=");
-            AnsiConsole.MarkupLine(@"=/       /    /      /     \    /        /      /[grey]\_\/[/]=-");
-            AnsiConsole.MarkupLine(@"/       /____/       ______/___/        /\_____/ [grey]/[/]  ");
-            AnsiConsole.MarkupLine(@"\______/[grey]\____[/]\______/[grey]\_____\___[/]\_______/ [grey][[nsfw]]\/[/]");
+            AnsiConsole.MarkupLine(@"[olive]==[/]/       /    /______    \      ____/           __/[grey] /[/][olive]=[/]");
+            AnsiConsole.MarkupLine(@"[olive]=[/]/       /    /      /     \    /        /      /[grey]\_\/[/][olive]==[/]");
+            AnsiConsole.MarkupLine(@"/       /____/       ______/___/        /\_____/ [grey]/[/][olive]=====[/]  ");
+            AnsiConsole.MarkupLine(@"\______/[grey]\____[/]\______/[grey]\_____\___[/]\_______/ [grey]/[[mRg]]\/[/]");
             AnsiConsole.MarkupLine(@"[grey] \_____\/     \_____\/          \______\/[/]");
             AnsiConsole.MarkupLine("----------------------------------------");
         }

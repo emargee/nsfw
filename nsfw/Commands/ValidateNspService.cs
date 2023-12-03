@@ -276,7 +276,19 @@ public class ValidateNspService
                 
                 if(_ticket.PropertyMask != 0)
                 {
-                    AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Ticket property mask set ({propertyMask})");
+                    AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Ticket has property mask set ({propertyMask})");
+                    _rebuildTicket = true;
+                }
+
+                if (_ticket.AccountId != 0)
+                {
+                    AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Ticket has account ID set ({_ticket.AccountId})");
+                    _rebuildTicket = true;
+                }
+                
+                if(_ticket.DeviceId != 0)
+                {
+                    AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Ticket has device ID set ({_ticket.DeviceId})");
                     _rebuildTicket = true;
                 }
                 

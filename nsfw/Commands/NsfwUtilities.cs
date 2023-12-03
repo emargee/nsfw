@@ -191,6 +191,11 @@ public static partial class NsfwUtilities
 
         if (titleType is "DLC" && !string.IsNullOrEmpty(parentTitle))
         {
+            if(title.Contains(parentTitle, StringComparison.InvariantCultureIgnoreCase))
+            {
+                return $"{title} {region}{languageList}[{titleId}][{titleVersion}][{titleType}]".CleanTitle();
+            }
+            
             var parentParts = parentTitle.Split(" - ", StringSplitOptions.TrimEntries);
             title = parentParts.Aggregate(title, (current, part) => current.Replace(part, string.Empty, StringComparison.InvariantCultureIgnoreCase));
 
