@@ -10,16 +10,16 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
     {
         if (!settings.Quiet)
         {
-            AnsiConsole.WriteLine(@"                        _______      ______");
-            AnsiConsole.WriteLine(@"       _______/\  _____/      /_____/     /_  /\______");
-            AnsiConsole.WriteLine(@"    __/   __    \/   __      /    _      / /\/       /\");
-            AnsiConsole.WriteLine(@"   /       /    /     /_____/     /_____/ /\/       / /");
-            AnsiConsole.WriteLine(@"-=/       /    /______    \      ____/           __/ /=");
-            AnsiConsole.WriteLine(@"=/       /    /      /    /     /        /      /\_\/=-");
-            AnsiConsole.WriteLine(@"/       /____/       ____/_____/        /\_____/ /  ");
-            AnsiConsole.WriteLine(@"\______/\____\______/\___\_____\_______/ [nsfw]\/");
-            AnsiConsole.WriteLine(@" \_____\/     \_____\/          \______\/");
-            AnsiConsole.WriteLine("----------------------------------------");
+            AnsiConsole.MarkupLine(@"                        _______      ______");
+            AnsiConsole.MarkupLine(@"       _______/\  _____/      /_____/     /_  /\______");
+            AnsiConsole.MarkupLine(@"    __/   __    \/   __      /   __      / /[grey]\[/]/       /[grey]\[/]");
+            AnsiConsole.MarkupLine(@"   /       /    /     /______\    /_____/ /\/       /[grey] /[/]");
+            AnsiConsole.MarkupLine(@"-=/       /    /______    \      ____/           __/[grey] /[/]=");
+            AnsiConsole.MarkupLine(@"=/       /    /      /     \    /        /      /[grey]\_\/[/]=-");
+            AnsiConsole.MarkupLine(@"/       /____/       ______/___/        /\_____/ [grey]/[/]  ");
+            AnsiConsole.MarkupLine(@"\______/[grey]\____[/]\______/[grey]\_____\___[/]\_______/ [grey][[nsfw]]\/[/]");
+            AnsiConsole.MarkupLine(@"[grey] \_____\/     \_____\/          \______\/[/]");
+            AnsiConsole.MarkupLine("----------------------------------------");
         }
 
         var service = new ValidateNspService(settings);

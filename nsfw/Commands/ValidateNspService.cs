@@ -73,8 +73,8 @@ public class ValidateNspService
         }
 
         AnsiConsole.MarkupLine(_settings.Quiet
-            ? $"Processing NSP (quiet) : [olive]{inputFilename.EscapeMarkup()}[/]"
-            : $"Processing NSP  : [olive]{inputFilename.EscapeMarkup()}[/]");
+            ? $"Validating NSP (quiet) : [olive]{inputFilename.EscapeMarkup()}[/]"
+            : $"Validating NSP  : [olive]{inputFilename.EscapeMarkup()}[/]");
 
         AnsiConsole.WriteLine("----------------------------------------");
 
@@ -710,7 +710,7 @@ public class ValidateNspService
 
             table.AddRow("Title ID", _titleId);
             table.AddRow("Title Type", type + " (" + _titleType + ")");
-            table.AddRow("Title Version", _titleVersion);
+            table.AddRow("Title Version", _titleVersion == "v0" ? "BASE (v0)" : _titleVersion);
             table.AddRow("Rights ID", mainNca.Nca.Header.RightsId.IsZeros() ? "EMPTY" : mainNca.Nca.Header.RightsId.ToHexString());
             table.AddRow("Header Signature", _headerSignatureValidatity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
 
