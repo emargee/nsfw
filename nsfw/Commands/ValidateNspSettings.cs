@@ -42,7 +42,7 @@ public class ValidateNspSettings : CommandSettings
     [Description("Print files but do not generate NSP.")]
     public bool DryRun { get; set; }
     
-    [CommandOption("-t|--titledb <FILE>")]
+    [CommandOption("--titledb <FILE>")]
     [Description("Path to titledb.db file.")]
     [DefaultValue("./titledb/titledb.db")]
     public string TitleDbFile { get; set; } = string.Empty;
@@ -59,9 +59,9 @@ public class ValidateNspSettings : CommandSettings
     [Description("Print regional title variations.")]
     public bool RegionalTitles { get; set; }
     
-    [CommandOption("--versions")]
-    [Description("Print title versions.")]
-    public bool Versions { get; set; }
+    [CommandOption("--updates")]
+    [Description("Print title update versions.")]
+    public bool Updates { get; set; }
     
     [CommandOption("--nl")]
     [Description("Do not print languages in output filename.")]
@@ -78,6 +78,10 @@ public class ValidateNspSettings : CommandSettings
     [CommandOption("-q|--quiet")]
     [Description("Disable all non-essential output of the program.")]
     public bool Quiet { get; set; }
+    
+    [CommandOption("-t|--ticketinfo")]
+    [Description("Print ticket info.")]
+    public bool TicketInfo { get; set; }
     
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]

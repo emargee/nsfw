@@ -44,6 +44,7 @@ public class ValidateNspService
     private string _parentTitle;
     private Validity _headerSignatureValidatity;
     private string _parentTitleId;
+    private bool _rebuildTicket;
 
     public ValidateNspService(ValidateNspSettings settings)
     {
@@ -257,7 +258,7 @@ public class ValidateNspService
                     return 1; 
                 }
                 
-                phase = $"[olive]Validate TitleKey Crypto[/]";
+                phase = $"[olive]Validate Ticket[/]";
                 
                 if (_ticket.SignatureType != TicketSigType.Rsa2048Sha256)
                 {
@@ -267,8 +268,16 @@ public class ValidateNspService
 
                 if (_ticket.TitleKeyType != TitleKeyType.Common)
                 {
-                    AnsiConsole.MarkupLine($"[[[red]ERROR[/]]] -> {phase} - Unsupported ticket titleKey type {_ticket.TitleKeyType}");
-                    return 1;
+                    AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Personal ticket type.");
+                    _rebuildTicket = true;
+                }
+                
+                var propertyMask = (FixedPropertyFlags)_ticket.PropertyMask;
+                
+                if(_ticket.PropertyMask != 0)
+                {
+                    AnsiConsole.MarkupLine($"[[[red]WARN[/]]] -> {phase} - Ticket property mask set ({propertyMask})");
+                    _rebuildTicket = true;
                 }
                 
                 _titleKeyEnc = _ticket.GetTitleKey(_keySet);
@@ -425,7 +434,7 @@ public class ValidateNspService
                         if (!_settings.Quiet)
                         {
                             AnsiConsole.MarkupLine($"[[[green]DONE[/]]] -> {phase}");
-                            AnsiConsole.Write(new Padder(foundNcaTree).PadLeft(1).PadTop(0).PadBottom(0));
+                            AnsiConsole.Write(new Padder(foundNcaTree).PadLeft(1).PadTop(0).PadBottom(1));
                         }
 
                         return 0;
@@ -489,6 +498,20 @@ public class ValidateNspService
             {
                 _version = title.Value.Control.Value.DisplayVersionString.ToString()!.Trim();
             }
+
+            if (_hasTitleKeyCrypto && _settings.TicketInfo)
+            {
+                var tikTable = new Table
+                {
+                    ShowHeaders = false
+                };
+                tikTable.AddColumn("Property");
+                tikTable.AddColumn("Value");
+                
+                NsfwUtilities.FormatTicket(tikTable, _ticket);
+                
+                AnsiConsole.Write(new Padder(tikTable).PadLeft(1).PadRight(0).PadBottom(0).PadTop(0));
+            }
             
             var titledbPath = System.IO.Path.GetFullPath(_settings.TitleDbFile);
             
@@ -513,7 +536,7 @@ public class ValidateNspService
 
             if(_title == "UNKNOWN" && _fromTitleDb)
             {
-                table.AddRow("Display Title", _titleDbTitle.ReplaceLineEndings(string.Empty).EscapeMarkup() + " [olive](From TitleDB)[/]");
+                table.AddRow("Display Title", _titleDbTitle.ReplaceLineEndings(string.Empty).EscapeMarkup() + " ([olive]TitleDB[/])");
                 _title = _titleDbTitle;
             }
             else
@@ -536,7 +559,7 @@ public class ValidateNspService
                             {
                                 _title += " - " + filenameParts[1].Replace("]",String.Empty).Trim();
                             }
-                            table.AddRow("Display Title", _title.EscapeMarkup() + " [olive](From Filename)[/]");
+                            table.AddRow("Display Title", _title.EscapeMarkup() + " ([olive]From Filename[/])");
                         }
                     }
                     else
@@ -600,26 +623,26 @@ public class ValidateNspService
                 }
             }
             
-            if (_settings.Versions && type == "Game" && File.Exists(_settings.TitleDbFile))
+            if (_settings.Updates && type == "Game" && File.Exists(_settings.TitleDbFile))
             {
-                var versions = NsfwUtilities.LookUpVersions(_settings.TitleDbFile, _titleId).Result;
+                var versions = NsfwUtilities.LookUpUpdates(_settings.TitleDbFile, _titleId).Result;
                 
                 if (versions.Length > 0)
                 {
-                    var tree = new Tree("Versions:");
+                    var tree = new Tree("Updates:");
                     tree.Expanded = true;
                     tree.AddNodes(versions.Select(x => $"v{x.Version} ({x.ReleaseDate})"));
-                    AnsiConsole.Write(new Padder(tree).PadLeft(1).PadTop(1).PadBottom(0));
+                    AnsiConsole.Write(new Padder(tree).PadLeft(1).PadTop(0).PadBottom(1));
                 }
             }
 
-            if (_settings.Versions && type == "Update" && File.Exists(_settings.TitleDbFile))
+            if (_settings.Updates && type == "Update" && File.Exists(_settings.TitleDbFile))
             {
-                var versions = NsfwUtilities.LookUpVersions(_settings.TitleDbFile, _baseTitleId).Result;
+                var versions = NsfwUtilities.LookUpUpdates(_settings.TitleDbFile, _baseTitleId).Result;
                 
                 if (versions.Length > 0)
                 {
-                    var tree = new Tree("Versions:")
+                    var tree = new Tree("Updates:")
                     {
                         Expanded = true
                     };
@@ -673,7 +696,8 @@ public class ValidateNspService
                 var parentLanguages = NsfwUtilities.LookupLanguages(_settings.TitleDbFile, _parentTitleId);
                 if (parentLanguages.Length > 0)
                 {
-                    table.AddRow("Parent Languages", parentLanguages + " (TitleDB)");
+                    parentLanguages = string.Join(',',parentLanguages.Split(',').Select(x => string.Concat(x[0].ToString().ToUpper(), x.AsSpan(1))));
+                    table.AddRow("Parent Languages", parentLanguages + " ([olive]TitleDB[/])");
                 }
             }
             
@@ -701,6 +725,15 @@ public class ValidateNspService
                 else
                 {
                     table.AddRow("Ticket Signature", _isTicketSignatureValid ? "[green]Valid[/]" : "[red]Invalid[/] (Signature Mismatch) - Will generate new ticket.");
+                }
+
+                if (_rebuildTicket)
+                {
+                    table.AddRow("Ticket Validation", "[red]Failed[/] - Will generate new ticket.");
+                }
+                else
+                {
+                    table.AddRow("Ticket Validation", "[green]Passed[/]");
                 }
                 table.AddRow("MasterKey Revision", _masterKeyRevision.ToString());
             }
@@ -761,7 +794,7 @@ public class ValidateNspService
                 quietTable.AddRow("[olive]Notice[/]", notice);
             }
 
-            AnsiConsole.Write(!_settings.Quiet ? new Padder(table).PadLeft(1) : new Padder(quietTable).PadLeft(1));
+            AnsiConsole.Write(!_settings.Quiet ? new Padder(table).PadLeft(1).PadTop(0) : new Padder(quietTable).PadLeft(1).PadTop(0));
 
             if (!_settings.Extract && !_settings.Convert && !_settings.Rename)
             {
@@ -819,10 +852,10 @@ public class ValidateNspService
                 return 0;
             }
             
-            if (_hasTitleKeyCrypto && !_isTicketSignatureValid)
+            if (_hasTitleKeyCrypto && (!_isTicketSignatureValid || _rebuildTicket))
             {
                 _ticket = NsfwUtilities.CreateTicket(_masterKeyRevision, _ticket.RightsId, _titleKeyEnc);
-                AnsiConsole.MarkupLine("[green][[DONE]][/] -> Generated new normalised ticket.");
+                AnsiConsole.MarkupLine("[[[green]DONE[/]]] -> Generated new normalised ticket.");
             }
             
             if(_settings.Extract)

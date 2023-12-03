@@ -177,6 +177,7 @@ public static partial class NsfwUtilities
         
         var textInfo = new CultureInfo("en-US", false).TextInfo;
         title = textInfo.ToTitleCase(title);
+        parentTitle = textInfo.ToTitleCase(parentTitle);
 
         if (languageMode == LanguageMode.None)
         {
@@ -228,10 +229,11 @@ public static partial class NsfwUtilities
             .Replace("!?", string.Empty)
             .Replace("?", string.Empty)
             .Replace(" - - ", " - ")
-            .Replace("（", "(")
-            .Replace("）", ")")
+            .Replace("（", " (")
+            .Replace("）", ") ")
             .Replace("） (", ") (")
             .Replace(" dlc", " DLC")
+            .Replace(" Of ", " of ")
             .Replace("Digital Edition", "(Digital Edition)");
     }
 
@@ -390,7 +392,7 @@ public static partial class NsfwUtilities
         return result.Languages ?? string.Empty;
     }
 
-    public static async Task<TitleVersions[]> LookUpVersions(string titleDbPath, string titleId)
+    public static async Task<TitleVersions[]> LookUpUpdates(string titleDbPath, string titleId)
     {
         var db = new SQLiteAsyncConnection(titleDbPath);
         return await db.Table<TitleVersions>().Where(x => x.TitleId == titleId.ToLower()).ToArrayAsync();
@@ -437,5 +439,36 @@ public static partial class NsfwUtilities
         var certSha256 = SHA256.HashData(fileBytes).ToHexString();
 
         return certSha256 == commonCertSha256.ToUpperInvariant();
+    }
+
+    public static void FormatTicket(Table table, Ticket ticket)
+    {
+        table.AddRow("Issuer", ticket.Issuer);
+        table.AddRow("Format Version", "0x" + ticket.FormatVersion.ToString("X"));
+        table.AddRow("TitleKey Type", ticket.TitleKeyType.ToString());
+        table.AddRow("Ticket Id", "0x" +ticket.TicketId.ToString("X"));
+        table.AddRow("Ticket Version", "0x" +ticket.TicketVersion.ToString("X"));
+        table.AddRow("License Type", ticket.LicenseType.ToString());
+        table.AddRow("Crypto Type", "0x" +ticket.CryptoType.ToString("X"));
+        table.AddRow("Device Id", "0x" +ticket.DeviceId.ToString("X"));
+        table.AddRow("Account Id", "0x" +ticket.AccountId.ToString("X"));
+        table.AddRow("Rights Id", ticket.RightsId.ToHexString());
+        table.AddRow("Signature Type", ticket.SignatureType.ToString());
+        
+        var propertyTable = new Table{
+            ShowHeaders = false
+        };
+        propertyTable.AddColumn("Property");
+        propertyTable.AddColumn("Value");
+        
+        var myTikFlags = (FixedPropertyFlags)ticket.PropertyMask;
+        propertyTable.AddRow("Pre-Install ?", myTikFlags.HasFlag(FixedPropertyFlags.PreInstall) ? "[red]True[/]" : "[green]False[/]");
+        propertyTable.AddRow("Allow All Content ?", myTikFlags.HasFlag(FixedPropertyFlags.AllowAllContent) ? "[red]True[/]" : "[green]False[/]");
+        propertyTable.AddRow("Shared Title ?", myTikFlags.HasFlag(FixedPropertyFlags.SharedTitle) ? "[red]True[/]" : "[green]False[/]");
+        propertyTable.AddRow("DeviceLink Independent ?", myTikFlags.HasFlag(FixedPropertyFlags.DeviceLinkIndependent) ? "[red]True[/]" : "[green]False[/]");
+        propertyTable.AddRow("Volatile ?", myTikFlags.HasFlag(FixedPropertyFlags.Volatile) ? "[red]True[/]" : "[green]False[/]");
+        propertyTable.AddRow("E-License Required ?", myTikFlags.HasFlag(FixedPropertyFlags.ELicenseRequired) ? "[red]True[/]" : "[green]False[/]");
+
+        table.AddRow(new Text("Properties"), propertyTable);
     }
 }
