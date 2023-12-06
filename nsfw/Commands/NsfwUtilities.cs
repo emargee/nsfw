@@ -381,7 +381,7 @@ public static partial class NsfwUtilities
     {
         var db = new SQLiteAsyncConnection(titleDbPath);
         var trimmedTitleId = titleId[..^3];
-        var query = db.Table<GameInfo>().Where(x => x.Id.StartsWith(trimmedTitleId));
+        var query = db.Table<GameInfo>().Where(x => x.Id!.StartsWith(trimmedTitleId));
         
         var result = await query.ToArrayAsync();
         
@@ -410,8 +410,7 @@ public static partial class NsfwUtilities
         }
 
         var titleParts = new List<string>();
-
-        const string pattern = @"(?<=「).*?(?=」)";
+        
         var regex = JapaneseBracketRegex();
 
         var matches = regex.Matches(title);

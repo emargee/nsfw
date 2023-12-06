@@ -1,4 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using Serilog;
+using Serilog.Events;
+using Serilog.Sinks.Spectre;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -8,6 +11,18 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
 {
     public override int Execute([NotNull] CommandContext context, [NotNull] ValidateNspSettings settings)
     {
+        var logLevel = LogEventLevel.Verbose;
+        
+        if (settings.Quiet)
+        {
+            logLevel = LogEventLevel.Information;
+        }
+        
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Is(logLevel)
+            .WriteTo.Spectre(outputTemplate: "[{Level:u3}] {Message:lj} {NewLine}{Exception}{Elapsed}")
+            .CreateLogger();
+        
         if (!settings.Quiet)
         {
             AnsiConsole.MarkupLine(@"                        _______      ______");
@@ -21,7 +36,11 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
             AnsiConsole.MarkupLine(@"[grey] \_____\/     \_____\/          \______\/[/]");
             AnsiConsole.MarkupLine("----------------------------------------");
         }
-
+        else
+        {
+            AnsiConsole.WriteLine("----------------------------------------");
+        }
+        
         var service = new ValidateNspService(settings);
         var result = service.Process(settings.NspFile);
         AnsiConsole.WriteLine("----------------------------------------");

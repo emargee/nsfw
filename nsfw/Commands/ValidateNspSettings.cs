@@ -83,6 +83,10 @@ public class ValidateNspSettings : CommandSettings
     [Description("Print ticket info.")]
     public bool TicketInfo { get; set; }
     
+    [CommandOption("--force-hash")]
+    [Description("Force hash verification of NCA files.")]
+    public bool ForceHash { get; set; }
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;

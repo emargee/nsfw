@@ -39,7 +39,7 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
         
         var versionEntries = JsonSerializer.Deserialize<Dictionary<string,Dictionary<string, string>>>(versionFs, jsonOptions);
 
-        foreach (var versionInfo in versionEntries
+        foreach (var versionInfo in versionEntries!
                      .SelectMany(version => version.Value.Select(titleVersion => new TitleVersions
                  {
                      TitleId = version.Key,
