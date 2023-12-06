@@ -34,7 +34,7 @@ public class TicketPropertiesCommand : Command<TicketPropertiesSettings>
             table.AddRow("Ticket Signature", isTicketSignatureValid ? "[green]Valid[/]" : "[red]Invalid[/]");
         }
         
-        NsfwUtilities.FormatTicket(table, ticket);
+        NsfwUtilities.RenderTicket(table, ticket);
         
         AnsiConsole.Write(new Padder(table).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
 

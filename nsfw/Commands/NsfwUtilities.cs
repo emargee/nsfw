@@ -52,163 +52,7 @@ public static partial class NsfwUtilities
         }
     }
 
-    public static string BuildName(string title, string version, string titleId, string titleVersion, string titleType, string parentTitle, IEnumerable<TitleInfo> titles, LanguageMode languageMode = LanguageMode.Full)
-    {
-        titleType = titleType switch
-        {
-            "PATCH" => "UPD",
-            "APPLICATION" => "BASE",
-            "ADDONCONTENT" => "DLC",
-            "DELTA" => "DLCUPD",
-            _ => "UNKNOWN"
-        };
-        
-        var titleArray = titles.ToArray();
-
-        var languageList = string.Empty;
-
-        if (languageMode == LanguageMode.Full)
-        {
-            languageList = string.Join(",", titleArray.Select(titleInfo => titleInfo.RegionLanguage switch
-                {
-                    NacpLanguage.AmericanEnglish => "En-US",
-                    NacpLanguage.BritishEnglish => "En-GB",
-                    NacpLanguage.Japanese => "Ja",
-                    NacpLanguage.French => "Fr-FR",
-                    NacpLanguage.CanadianFrench => "Fr-CA",
-                    NacpLanguage.German => "De",
-                    NacpLanguage.Italian => "It",
-                    NacpLanguage.Spanish => "Es-ES",
-                    NacpLanguage.LatinAmericanSpanish => "Es-XL",
-                    NacpLanguage.SimplifiedChinese => "Zh-Hans",
-                    NacpLanguage.TraditionalChinese => "Zh-Hant",
-                    NacpLanguage.Korean => "Ko",
-                    NacpLanguage.Dutch => "Nl",
-                    NacpLanguage.Portuguese => "Pt-pt",
-                    NacpLanguage.BrazilianPortuguese => "Pt-BR",
-                    NacpLanguage.Russian => "Ru",
-                    _ => "Unknown"
-                }).Distinct()
-                .ToList());
-        }
-
-        if (languageMode == LanguageMode.Short)
-        {
-            languageList = string.Join(",", titleArray.Select(titleInfo => titleInfo.RegionLanguage switch
-                {
-                    NacpLanguage.AmericanEnglish => "En",
-                    NacpLanguage.BritishEnglish => "En",
-                    NacpLanguage.Japanese => "Ja",
-                    NacpLanguage.French => "Fr",
-                    NacpLanguage.CanadianFrench => "Fr",
-                    NacpLanguage.German => "De",
-                    NacpLanguage.Italian => "It",
-                    NacpLanguage.Spanish => "Es",
-                    NacpLanguage.LatinAmericanSpanish => "Es",
-                    NacpLanguage.SimplifiedChinese => "Zh",
-                    NacpLanguage.TraditionalChinese => "Zh",
-                    NacpLanguage.Korean => "Ko",
-                    NacpLanguage.Dutch => "Nl",
-                    NacpLanguage.Portuguese => "Pt",
-                    NacpLanguage.BrazilianPortuguese => "Pt",
-                    NacpLanguage.Russian => "Ru",
-                    _ => "Unknown"
-                }).Distinct()
-                .ToList());
-        }
-        
-        if (!string.IsNullOrEmpty(languageList))
-        {
-            languageList = $"({languageList})";
-        }
-
-        var region = string.Empty;
-
-        if (titleArray is [{ RegionLanguage: NacpLanguage.AmericanEnglish }])
-        {
-            region = "(USA)";
-            languageList = string.Empty;
-        }
-        
-        if (titleArray is [{ RegionLanguage: NacpLanguage.Japanese }])
-        {
-            region = "(Japan)";
-            languageList = string.Empty;
-        }
-        
-        if (titleArray is [{ RegionLanguage: NacpLanguage.Korean }])
-        {
-            region = "(Korea)";
-            languageList = string.Empty;
-        }
-        
-        if (titleArray is [{ RegionLanguage: NacpLanguage.Russian }])
-        {
-            region = "(Russia)";
-            languageList = string.Empty;
-        }
-        
-        if (titleArray.Any(x => x.RegionLanguage is NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese))
-        {
-            region = "(China)";
-            
-            if(titleArray.Any(x => x.RegionLanguage is NacpLanguage.Japanese or NacpLanguage.Korean))
-            {
-                region = "(Asia)";
-                if (titleArray.Any(x => x.RegionLanguage == NacpLanguage.AmericanEnglish))
-                {
-                    region = "(World)";
-                }
-            }
-        }
-        
-        if (titleArray.Any(x => x.RegionLanguage is NacpLanguage.BritishEnglish or NacpLanguage.French or NacpLanguage.German or NacpLanguage.Italian or NacpLanguage.Spanish or NacpLanguage.Dutch or NacpLanguage.Portuguese))
-        {
-            region = "(Europe)";
-            
-            if(titleArray.Any(x => x.RegionLanguage is NacpLanguage.AmericanEnglish or NacpLanguage.Japanese or NacpLanguage.Korean or NacpLanguage.Russian or NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese or NacpLanguage.LatinAmericanSpanish or NacpLanguage.BrazilianPortuguese or NacpLanguage.CanadianFrench))
-            {
-                region = "(World)";
-            }
-        }
-
-        title = title.CleanTitle();
-        parentTitle = parentTitle.CleanTitle();
-        
-        var textInfo = new CultureInfo("en-US", false).TextInfo;
-        title = textInfo.ToTitleCase(title);
-        parentTitle = textInfo.ToTitleCase(parentTitle);
-
-        if (languageMode == LanguageMode.None)
-        {
-            region = string.Empty;
-        }
-        
-        if (titleType is "UPD" or "DLCUPD")
-        {
-            return $"{title} {region}{languageList}[{version}][{titleId}][{titleVersion}][{titleType}]".CleanTitle();
-        }
-
-        if (titleType is "DLC" && !string.IsNullOrEmpty(parentTitle))
-        {
-            if(title.Contains(parentTitle, StringComparison.InvariantCultureIgnoreCase))
-            {
-                return $"{title} {region}{languageList}[{titleId}][{titleVersion}][{titleType}]".CleanTitle();
-            }
-            
-            var parentParts = parentTitle.Split(" - ", StringSplitOptions.TrimEntries);
-            title = parentParts.Aggregate(title, (current, part) => current.Replace(part, string.Empty, StringComparison.InvariantCultureIgnoreCase));
-
-            var formattedTitle = $"{parentTitle} - {title} {region}{languageList}[{titleId}][{titleVersion}][{titleType}]";
-               
-            return formattedTitle.CleanTitle();
-        }
-        
-        return $"{title} {region}{languageList}[{titleId}][{titleVersion}][{titleType}]".CleanTitle();
-        
-    }
-
-    private static string CleanTitle(this string title)
+    public static string CleanTitle(this string title)
     {
         return title
             .ReplaceLineEndings("")
@@ -327,10 +171,10 @@ public static partial class NsfwUtilities
     {
         return bytes switch
         {
-            (< OneKb) => $"{bytes}B",
-            (>= OneKb) and (< OneMb) => $"{bytes / OneKb:N0}KB",
-            (>= OneMb) and (< OneGb) => $"{bytes / OneMb:N0}MB",
-            (>= OneGb) and (< OneTb) => $"{bytes / OneMb:N0}GB",
+            (< OneKb) => $"{bytes} B",
+            (>= OneKb) and (< OneMb) => $"{bytes / OneKb:N0} KB",
+            (>= OneMb) and (< OneGb) => $"{bytes / OneMb:N0} MB",
+            (>= OneGb) and (< OneTb) => $"{bytes / OneMb:N0} GB",
             (>= OneTb) => $"{bytes / OneTb}"
         };
     }
@@ -357,24 +201,16 @@ public static partial class NsfwUtilities
         return result.OrderBy(x => languageOrder.IndexOf(x.RegionLanguage)).ToArray();
     }
 
-    public static void LookUpTitle(string titledbPath, string titleId, out string titleDbTitle, out bool fromTitleDb)
+    public static string? LookUpTitle(string titledbPath, string titleId)
     {
         var titleNames = GetTitleDbInfo(titledbPath, titleId).Result;
         
         if(titleNames.Length != 0)
         {
-            titleDbTitle = titleNames.First().Name ?? "UNKNOWN";
-            fromTitleDb = true;
-            return;
+            return titleNames.First().Name?.ReplaceLineEndings(string.Empty) ?? "UNKNOWN";
         }
 
-        titleDbTitle = string.Empty;
-        fromTitleDb = false;
-    }
-
-    public static string? LookUpTitle(string titleDbPath, string titleId)
-    {
-        return GetTitleDbInfo(titleDbPath, titleId).Result.FirstOrDefault()?.Name;
+        return null;
     }
     
     public static async Task<string[]> LookUpRelatedTitles(string titleDbPath, string titleId)
@@ -444,7 +280,7 @@ public static partial class NsfwUtilities
         return certSha256 == commonCertSha256.ToUpperInvariant();
     }
 
-    public static void FormatTicket(Table table, Ticket ticket)
+    public static void RenderTicket(Table table, Ticket ticket)
     {
         table.AddRow("Issuer", ticket.Issuer);
         table.AddRow("Format Version", "0x" + ticket.FormatVersion.ToString("X"));
