@@ -1,4 +1,5 @@
-﻿using LibHac.Fs;
+﻿using System.Diagnostics.CodeAnalysis;
+using LibHac.Fs;
 using LibHac.FsSystem;
 using LibHac.Tools.Es;
 using LibHac.Tools.FsSystem;
@@ -10,7 +11,7 @@ namespace Nsfw.Commands;
 
 public class TicketPropertiesCommand : Command<TicketPropertiesSettings>
 {
-    public override int Execute(CommandContext context, TicketPropertiesSettings settings)
+    public override int Execute([NotNull] CommandContext context, [NotNull] TicketPropertiesSettings settings)
     {
         var ticket = new Ticket(new LocalFile(settings.TicketFile, OpenMode.Read).AsStream());
         var fixedSignature = Enumerable.Repeat((byte)0xFF, 0x100).ToArray();
@@ -33,7 +34,7 @@ public class TicketPropertiesCommand : Command<TicketPropertiesSettings>
             table.AddRow("Ticket Signature", isTicketSignatureValid ? "[green]Valid[/]" : "[red]Invalid[/]");
         }
         
-        NsfwUtilities.FormatTicket(table, ticket);
+        NsfwUtilities.RenderTicket(table, ticket);
         
         AnsiConsole.Write(new Padder(table).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
 

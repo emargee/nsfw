@@ -1,6 +1,9 @@
 ﻿using System.Reflection;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using Nsfw.Commands;
+using Serilog;
+using Serilog.Sinks.Spectre;
 using Spectre.Console;
 using Spectre.Console.Cli;
 

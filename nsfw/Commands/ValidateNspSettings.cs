@@ -71,17 +71,26 @@ public class ValidateNspSettings : CommandSettings
     [Description("Use short language codes in output filename.")]
     public bool ShortLanguages { get; set; }
     
-    [CommandOption("--skip-validation")]
-    [Description("When re-naming files, skip NCA validation.")]
-    public bool SkipValidation { get; set; }
-
-    [CommandOption("-q|--quiet")]
-    [Description("Disable all non-essential output of the program.")]
-    public bool Quiet { get; set; }
+    [CommandOption("--skip-hash")]
+    [Description("When re-naming files, skip NCA hash validation.")]
+    public bool SkipHash { get; set; }
+    
+    [CommandOption("-l|--log-level <LEVEL>")]
+    [Description("Set log level. Options : compact | quiet | full")]
+    [DefaultValue(LogLevel.Compact)]
+    public LogLevel LogLevel { get; set; }
     
     [CommandOption("-t|--ticketinfo")]
     [Description("Print ticket info.")]
     public bool TicketInfo { get; set; }
+    
+    [CommandOption("--force-hash")]
+    [Description("Force hash verification of bad NCA files.")]
+    public bool ForceHash { get; set; }
+    
+    [CommandOption("--extract-all")]
+    [Description("Extract all files from NSP.")]
+    public bool ExtractAll { get; set; }
     
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
@@ -149,4 +158,11 @@ public class ValidateNspSettings : CommandSettings
         
         return base.Validate();
     }
+}
+
+public enum LogLevel
+{
+    Compact,
+    Quiet,
+    Full
 }

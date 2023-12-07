@@ -92,7 +92,7 @@ public class ArrayToStringConverter : JsonConverter<string>
         
         while (reader.TokenType != JsonTokenType.EndArray)
         {
-            list.Add(reader.GetString());
+            list.Add(reader.GetString() ?? string.Empty);
 
             reader.Read();
         }
