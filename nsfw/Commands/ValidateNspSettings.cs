@@ -96,6 +96,8 @@ public class ValidateNspSettings : CommandSettings
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;
 
+    public string[] NspCollection { get; set; } = [];
+
     public override ValidationResult Validate()
     {
         if (KeysFile.StartsWith('~'))
@@ -131,9 +133,18 @@ public class ValidateNspSettings : CommandSettings
         CdnDirectory = Path.GetFullPath(CdnDirectory);
         NspDirectory = Path.GetFullPath(NspDirectory);
         
-        if (!File.Exists(NspFile))
+        var attr = File.GetAttributes(NspFile);
+        
+        if(attr.HasFlag(FileAttributes.Directory))
         {
-            return ValidationResult.Error($"NSP file '{NspFile}' does not exist.");
+            NspCollection = Directory.EnumerateFiles(NspFile, "*.nsp").ToArray();
+        }
+        else
+        {
+            if (!File.Exists(NspFile))
+            {
+                return ValidationResult.Error($"NSP file '{NspFile}' does not exist.");
+            }
         }
         
         if (!File.Exists(KeysFile))

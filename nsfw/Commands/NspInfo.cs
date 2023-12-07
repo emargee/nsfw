@@ -136,7 +136,7 @@ public class NspInfo
     public string MinimumApplicationVersion { get; set; } = string.Empty;
     public string MinimumSystemVersion { get; set; } = string.Empty;
     public Dictionary<NacpLanguage, TitleInfo> Titles { get; set; } = [];
-    public string ControlTitle => Titles.Count > 0 ? Titles[0].Title : Unknown;
+    public string ControlTitle => Titles.Count > 0 ? Titles.Values.First().Title : Unknown;
     public string DisplayTitle { get; set; } = Unknown;
     public Source DisplayTitleSource { get; set; } = Source.Unknown;
     public string DisplayVersion { get; set; } = Unknown;
@@ -149,6 +149,7 @@ public class NspInfo
     public string OutputName => BuildOutputName();
     public string DisplayParentLanguages { get; set; } = Unknown;
     public IEnumerable<NacpLanguage> ParentLanguages { get; set; } = [];
+    public int DeltaCount { get; set; }
 
     public NspInfo(string filePath)
     {
@@ -296,13 +297,13 @@ public class NspInfo
                 }
             }
             
-            if(cleanTitle.Contains(cleanParentTitle, StringComparison.InvariantCultureIgnoreCase))
-            {
-                return $"{cleanTitle} {displayRegion}{languageList}[{TitleId}][{TitleVersion}][{DisplayTypeShort}]".CleanTitle();
-            }
+            // if(cleanTitle.Contains(cleanParentTitle, StringComparison.InvariantCultureIgnoreCase))
+            // {
+            //     return $"{cleanTitle} {displayRegion}{languageList}[{TitleId}][{TitleVersion}][{DisplayTypeShort}]".CleanTitle();
+            // }
             
             var parentParts = cleanParentTitle.Split(" - ", StringSplitOptions.TrimEntries);
-            cleanTitle = parentParts.Aggregate(cleanTitle, (current, part) => current.Replace(part, string.Empty, StringComparison.InvariantCultureIgnoreCase));
+            cleanTitle = parentParts.Aggregate(cleanTitle, (current, part) => current.Replace(part, string.Empty, StringComparison.InvariantCultureIgnoreCase)).CleanTitle();
         
             var formattedTitle = $"{cleanParentTitle} - {cleanTitle} {displayRegion}{languageList}[{TitleId}][{TitleVersion}][{DisplayTypeShort}]";
                

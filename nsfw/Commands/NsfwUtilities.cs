@@ -53,7 +53,7 @@ public static partial class NsfwUtilities
 
     public static string CleanTitle(this string title)
     {
-        return title
+        var cleanTitle = title
             .ReplaceLineEndings("")
             .Replace("“", "'")
             .Replace("*", "")
@@ -82,6 +82,13 @@ public static partial class NsfwUtilities
             .Replace(" dlc", " DLC")
             .Replace(" Of ", " of ")
             .Replace("Digital Edition", "(Digital Edition)");
+
+        if (cleanTitle.EndsWith(" - "))
+        {
+            cleanTitle = cleanTitle.TrimEnd(" - ".ToCharArray());
+        }
+        
+        return cleanTitle;
     }
 
     public static Ticket CreateTicket(int masterKeyRevision, byte[] rightsId, byte[] titleKeyEnc)

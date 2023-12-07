@@ -208,6 +208,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 }
                 else
                 {
+                    nspInfo.DeltaCount++;
                     nspInfo.Warnings.Add($"{phase} - NSP file-system is missing delta fragments listed in CNMT.");
                 }
             }
@@ -572,8 +573,8 @@ public class ValidateNspService(ValidateNspSettings settings)
             {
                 var parentLanguagesList = parentLanguages.Distinct()
                         .Select(x => x switch
-                            { 
-                                "en" => NacpLanguage.AmericanEnglish,
+                        { 
+                            "en" => NacpLanguage.AmericanEnglish,
                             "ja" => NacpLanguage.Japanese,
                             "fr" => NacpLanguage.French,
                             "de" => NacpLanguage.German,
@@ -624,8 +625,11 @@ public class ValidateNspService(ValidateNspSettings settings)
             Log.Error(error);
         }
 
-        AnsiConsole.WriteLine("----------------------------------------");
-
+        if(settings.LogLevel != LogLevel.Quiet)
+        {
+            AnsiConsole.MarkupLine("[grey]----------------------------------------[/]");
+        }
+        
         // -- DISPLAY SECTION --
 
         // RAW FILE TREE
@@ -845,7 +849,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             propertiesTable.AddRow("Header Validity", nspInfo.HeaderSignatureValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
             propertiesTable.AddRow("NCA Validity", nspInfo.NcaValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
             propertiesTable.AddRow("Meta Validity", nspInfo.ContentValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
-            propertiesTable.AddRow("Raw File Count", nspInfo.RawFileEntries.Count + $" ({nspInfo.RawFileEntries.Keys.Count(x => x.EndsWith(".nca"))} NCAs) ");
+            propertiesTable.AddRow("Raw File Count", nspInfo.RawFileEntries.Count + $" ({nspInfo.RawFileEntries.Keys.Count(x => x.EndsWith(".nca"))} NCAs" + (nspInfo.DeltaCount > 0 ? $" + {nspInfo.DeltaCount} Missing Deltas" : "") + ") ");
             if (nspInfo.TitleKeyDecrypted.Length > 0)
             {
                 propertiesTable.AddRow("TitleKey (Enc)", nspInfo.TitleKeyEncrypted.ToHexString());
@@ -881,19 +885,27 @@ public class ValidateNspService(ValidateNspSettings settings)
             propertiesTable.AddRow("[olive]Validation[/]", nspInfo.CanProceed ? "[green]Passed[/]" : "[red]Failed[/]");
 
             AnsiConsole.Write(new Padder(propertiesTable).PadLeft(1).PadTop(1).PadBottom(1));
-            AnsiConsole.WriteLine("----------------------------------------");
         }
+        
+        if (outputName.Length + 4 > 100)
+        {
+            Log.Warning($"Output name is looong ({outputName.Length + 4}). This may cause issues saving on Windows.");
+        }
+            
+        AnsiConsole.WriteLine("----------------------------------------");
         
         if(!nspInfo.CanProceed)
         {
             Log.Fatal("NSP Validation failed.");
             return 1;
         }
-
-        if (outputName.Length + 4 > 100)
+        
+        if(settings is { Rename: false, Extract: false, Convert: false })
         {
-            Log.Warning($"Output name is long ({outputName.Length + 4}). This may cause issues saving on Windows.");
+            return 0;
         }
+        
+        // RENAME
         
         if (settings.Rename)
         {
@@ -954,6 +966,8 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.Ticket = NsfwUtilities.CreateTicket(nspInfo.MasterKeyRevision, nspInfo.Ticket!.RightsId, nspInfo.TitleKeyEncrypted);
             Log.Information("Generated new normalised ticket.");
         }
+        
+        // EXTRACT
      
         if(settings.Extract)
         {
@@ -962,6 +976,12 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (outDir.Length > 254)
             {
                 Log.Error($"Path too long for Windows ({outDir.Length})");
+                return 1;
+            }
+
+            if (Directory.Exists(outDir))
+            {
+                Log.Error($"Directory with the same name already exists. ({outDir.EscapeMarkup()})");
                 return 1;
             }
             
@@ -986,6 +1006,12 @@ public class ValidateNspService(ValidateNspSettings settings)
                 {
                     var stream = nca.Nca.BaseStorage.AsStream();
                     var outFile = System.IO.Path.Combine(outDir, nca.Filename);
+
+                    if (File.Exists(outFile))
+                    {
+                        Log.Error($"Skipping. File already exists. ({outFile.EscapeMarkup()})");
+                        continue;
+                    }
 
                     using var outStream = new FileStream(outFile, FileMode.Create, FileAccess.ReadWrite);
                     stream.CopyStream(outStream, stream.Length);
@@ -1053,6 +1079,8 @@ public class ValidateNspService(ValidateNspSettings settings)
             
             Log.Information($"[[[green]DONE[/]]] -> Extracted to: [olive]{outDir.EscapeMarkup()}[/]");
         }
+        
+        // CONVERT
 
         if (settings.Convert)
         {
