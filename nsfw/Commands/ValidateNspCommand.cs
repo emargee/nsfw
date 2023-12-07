@@ -38,7 +38,7 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
         }
         else
         {
-            AnsiConsole.MarkupLine("---------------------------------[[[blue]N$FW[/]]]-");
+            AnsiConsole.MarkupLine("---------------------------------[[[blue]N$FW[/]]]--");
         }
         
         var service = new ValidateNspService(settings);
