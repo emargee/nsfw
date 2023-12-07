@@ -223,12 +223,22 @@ public static partial class NsfwUtilities
         return result.Select(x => x.Name ?? "UNKNOWN").ToArray();
     }
     
-    public static string LookupLanguages(string titleDbPath, string titleId)
+    public static string[] LookupLanguages(string titleDbPath, string titleId)
     {
         var db = new SQLiteAsyncConnection(titleDbPath);
         var result = db.Table<GameInfo>().FirstOrDefaultAsync(x => x.Id == titleId).Result;
         
-        return result.Languages ?? string.Empty;
+        var languageOrder = new List<string>()
+        {
+            "en", "ja", "de", "fr", "es", "it", "nl", "pt", "kr", "zh", "ru"
+        };
+        
+        if (result?.Languages == null)
+        {
+            return Array.Empty<string>();
+        }
+        
+        return result.Languages.Split(",").OrderBy(x => languageOrder.IndexOf(x)).ToArray();
     }
 
     public static async Task<TitleVersions[]> LookUpUpdates(string titleDbPath, string titleId)

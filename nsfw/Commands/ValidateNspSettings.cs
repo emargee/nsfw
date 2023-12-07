@@ -88,6 +88,10 @@ public class ValidateNspSettings : CommandSettings
     [Description("Force hash verification of bad NCA files.")]
     public bool ForceHash { get; set; }
     
+    [CommandOption("--extract-all")]
+    [Description("Extract all files from NSP.")]
+    public bool ExtractAll { get; set; }
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;

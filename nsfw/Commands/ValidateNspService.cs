@@ -58,8 +58,8 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (settings.Extract)
         {
             Log.Information(settings.DryRun
-                ? "Output Mode <- [green]EXTRACT[/] ([olive]Dry Run[/])"
-                : "Output Mode <- [green]EXTRACT[/]");
+                ? settings.ExtractAll ? "Output Mode <- [green]EXTRACT (ALL)[/] ([olive]Dry Run[/])" : "Output Mode <- [green]EXTRACT[/] ([olive]Dry Run[/])"
+                : settings.ExtractAll ? "Output Mode <- [green]EXTRACT (ALL)[/]" : "Output Mode <- [green]EXTRACT[/]");
         }
 
         if (settings.Rename)
@@ -565,6 +565,32 @@ public class ValidateNspService(ValidateNspSettings settings)
             }
         }
 
+        if (nspInfo.TitleType == ContentMetaType.AddOnContent && nspInfo.OutputOptions.IsTitleDbAvailable)
+        {
+            var parentLanguages = NsfwUtilities.LookupLanguages(settings.TitleDbFile, nspInfo.BaseTitleId);
+            if (parentLanguages.Length > 0)
+            {
+                var parentLanguagesList = parentLanguages.Distinct()
+                        .Select(x => x switch
+                            { 
+                                "en" => NacpLanguage.AmericanEnglish,
+                            "ja" => NacpLanguage.Japanese,
+                            "fr" => NacpLanguage.French,
+                            "de" => NacpLanguage.German,
+                            "it" => NacpLanguage.Italian,
+                            "es" => NacpLanguage.Spanish,
+                            "zh" => NacpLanguage.SimplifiedChinese,
+                            "ko" => NacpLanguage.Korean,
+                            "nl" => NacpLanguage.Dutch,
+                            "pt" => NacpLanguage.Portuguese,
+                            "ru" => NacpLanguage.Russian,
+                            _ => NacpLanguage.AmericanEnglish
+                        });
+                nspInfo.DisplayParentLanguages = string.Join(',', parentLanguages.Select(x => string.Concat(x[0].ToString().ToUpper(), x.AsSpan(1))));
+                nspInfo.ParentLanguages = parentLanguagesList;
+            }
+        }
+
         if (!string.IsNullOrEmpty(control.DisplayVersionString.ToString()))
         {
             nspInfo.DisplayVersion = control.DisplayVersionString.ToString()!.Trim();
@@ -801,16 +827,9 @@ public class ValidateNspService(ValidateNspSettings settings)
                 }
             }
 
-            if (nspInfo.TitleType == ContentMetaType.AddOnContent && nspInfo.OutputOptions.IsTitleDbAvailable)
+            if (nspInfo.TitleType == ContentMetaType.AddOnContent && nspInfo.DisplayParentLanguages != NspInfo.Unknown)
             {
-                var parentLanguages = NsfwUtilities.LookupLanguages(settings.TitleDbFile, nspInfo.BaseTitleId);
-                if (parentLanguages.Length > 0)
-                {
-                    parentLanguages = string.Join(',',
-                        parentLanguages.Split(',').Distinct()
-                            .Select(x => string.Concat(x[0].ToString().ToUpper(), x.AsSpan(1))));
-                    propertiesTable.AddRow("Parent Languages", parentLanguages + " ([olive]TitleDB[/])");
-                }
+                propertiesTable.AddRow("Parent Languages", nspInfo.DisplayParentLanguages);
             }
 
             propertiesTable.AddRow("Title ID", nspInfo.TitleId);
@@ -826,6 +845,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             propertiesTable.AddRow("Header Validity", nspInfo.HeaderSignatureValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
             propertiesTable.AddRow("NCA Validity", nspInfo.NcaValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
             propertiesTable.AddRow("Meta Validity", nspInfo.ContentValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
+            propertiesTable.AddRow("Raw File Count", nspInfo.RawFileEntries.Count + $" ({nspInfo.RawFileEntries.Keys.Count(x => x.EndsWith(".nca"))} NCAs) ");
             if (nspInfo.TitleKeyDecrypted.Length > 0)
             {
                 propertiesTable.AddRow("TitleKey (Enc)", nspInfo.TitleKeyEncrypted.ToHexString());
@@ -958,7 +978,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             {
                 if(settings.DryRun)
                 {
-                    Log.Information($"[[[green]DRYRUN[/]]] -> Would export: [olive]{nca.Filename}[/]");
+                    Log.Information($"[[[green]DRYRUN[/]]] -> Would extract: [olive]{nca.Filename}[/]");
                     continue;
                 }
 
@@ -972,8 +992,36 @@ public class ValidateNspService(ValidateNspSettings settings)
                 }
                 catch (Exception exception)
                 {
-                    Log.Error($"Failed to export file. {exception.Message}");
+                    Log.Error($"Failed to extract file. {exception.Message}");
                     return 1;
+                }
+            }
+
+            if (settings.ExtractAll)
+            {
+                foreach (var miscFile in nspInfo.RawFileEntries.Values.Where(x => !x.FullPath.EndsWith(".nca") && !x.FullPath.EndsWith(".tik")))
+                {
+                    if(settings.DryRun)
+                    {
+                        Log.Information($"[[[green]DRYRUN[/]]] -> Would extract: [olive]{miscFile.Name}[/]");
+                        continue;
+                    }
+                    
+                    using var miscFileRef = new UniqueRef<IFile>();
+                    fileSystem.OpenFile(ref miscFileRef.Ref, miscFile.FullPath.ToU8Span(), OpenMode.Read).ThrowIfFailure();
+                    
+                    try
+                    {
+                        var outFile = System.IO.Path.Combine(outDir, miscFile.Name);
+                        using var outStream = new FileStream(outFile, FileMode.Create, FileAccess.ReadWrite);
+                        miscFileRef.Get.GetSize(out var fileSize);
+                        miscFileRef.Get.AsStream().CopyStream(outStream, fileSize);
+                    }
+                    catch (Exception exception)
+                    {
+                        Log.Error($"Failed to extract file. {exception.Message}");
+                        return 1;
+                    }
                 }
             }
         
@@ -984,9 +1032,9 @@ public class ValidateNspService(ValidateNspSettings settings)
                  
                  if(settings.DryRun)
                  {
-                     Log.Information($"[[[green]DRYRUN[/]]] -> Would export: [olive]{decFile.EscapeMarkup()}[/]");
-                     Log.Information($"[[[green]DRYRUN[/]]] -> Would export: [olive]{encFile.EscapeMarkup()}[/]");
-                     Log.Information($"[[[green]DRYRUN[/]]] -> Would export: [olive]{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.tik[/]");
+                     Log.Information($"[[[green]DRYRUN[/]]] -> Would extract: [olive]{decFile.EscapeMarkup()}[/]");
+                     Log.Information($"[[[green]DRYRUN[/]]] -> Would extract: [olive]{encFile.EscapeMarkup()}[/]");
+                     Log.Information($"[[[green]DRYRUN[/]]] -> Would extract: [olive]{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.tik[/]");
                      return 0;
                  }
 
@@ -998,12 +1046,12 @@ public class ValidateNspService(ValidateNspSettings settings)
                  }
                  catch (Exception exception)
                  {
-                     Log.Error($"Failed to export ticket files. {exception.Message}");
+                     Log.Error($"Failed to extract ticket files. {exception.Message}");
                      return 1;
                  }
             }
             
-            Log.Information($"[[[green]DONE[/]]] -> Exported: [olive]{outDir.EscapeMarkup()}[/]");
+            Log.Information($"[[[green]DONE[/]]] -> Extracted to: [olive]{outDir.EscapeMarkup()}[/]");
         }
 
         if (settings.Convert)

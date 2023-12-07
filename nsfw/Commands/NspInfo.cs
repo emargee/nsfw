@@ -12,8 +12,8 @@ namespace Nsfw.Commands;
 public class NspInfo
 {
     private const string NspHeaderMagic = "50465330";
-    private const string Unknown = "UNKNOWN";
-    private const string Empty = "EMPTY";
+    public static readonly string Unknown = "UNKNOWN";
+    public static readonly string Empty = "EMPTY";
     public readonly byte[] NormalisedSignature = Enumerable.Repeat((byte)0xFF, 0x100).ToArray();
     public readonly int DefaultBlockSize = 0x4000;
     public Ticket? Ticket { get; set; }
@@ -77,8 +77,8 @@ public class NspInfo
         NacpLanguage.Italian => "It",
         NacpLanguage.Spanish => "Es",
         NacpLanguage.LatinAmericanSpanish => "Es",
-        NacpLanguage.SimplifiedChinese => "Zh",
-        NacpLanguage.TraditionalChinese => "Zh",
+        NacpLanguage.SimplifiedChinese => "Zh-Hans",
+        NacpLanguage.TraditionalChinese => "Zh-Hant",
         NacpLanguage.Korean => "Ko",
         NacpLanguage.Dutch => "Nl",
         NacpLanguage.Portuguese => "Pt",
@@ -147,6 +147,8 @@ public class NspInfo
     public bool IsLogQuiet => LogLevel == LogLevel.Quiet;
     public string RightsId { get; set; } = Empty;
     public string OutputName => BuildOutputName();
+    public string DisplayParentLanguages { get; set; } = Unknown;
+    public IEnumerable<NacpLanguage> ParentLanguages { get; set; } = [];
 
     public NspInfo(string filePath)
     {
@@ -158,71 +160,81 @@ public class NspInfo
         FileSystemType = FileSystemType.Unknown;
     }
 
-    private Region GetRegion(ref string languageList)
+    private Region GetRegion(NacpLanguage[] titles, ref string languageList)
     {
         var region = Region.Unknown;
 
-        if (Titles.Count == 0)
+        if (titles.Length == 0)
         {
             return region;
         }
         
-        if(Titles.Count == 1 && Titles.ContainsKey(NacpLanguage.AmericanEnglish))
+        if(titles is [NacpLanguage.AmericanEnglish])
         {
             region = Region.USA;
             languageList = string.Empty;
         }
         
-        if(Titles.Count == 1 && Titles.ContainsKey(NacpLanguage.Japanese))
+        if(titles is [NacpLanguage.Japanese])
         {
             region = Region.Japan;
             languageList = string.Empty;
         }
         
-        if(Titles.Count == 1 && Titles.ContainsKey(NacpLanguage.Korean))
+        if(titles is [NacpLanguage.Korean])
         {
             region = Region.Korea;
             languageList = string.Empty;
         }
         
-        if(Titles.Count == 1 && Titles.ContainsKey(NacpLanguage.Russian))
+        if(titles is [NacpLanguage.Russian])
         {
             region = Region.Russia;
             languageList = string.Empty;
         }
         
-        if(Titles.Count == 1 && Titles.ContainsKey(NacpLanguage.TraditionalChinese))
+        if(titles is [NacpLanguage.TraditionalChinese])
         {
             region = Region.China;
             languageList = string.Empty;
         }
         
-        if(Titles.Count == 1 && Titles.ContainsKey(NacpLanguage.SimplifiedChinese))
+        if(titles is [NacpLanguage.SimplifiedChinese])
         {
             region = Region.China;
             languageList = string.Empty;
         }
         
-        if (Titles.Keys.Any(x => x is NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese))
+        if (titles.Any(x => x is NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese))
         {
             region = Region.China;
             
-            if(Titles.Keys.Any(x => x is NacpLanguage.Japanese or NacpLanguage.Korean))
+            if(titles.Any(x => x is NacpLanguage.Japanese or NacpLanguage.Korean))
             {
                 region = Region.Asia;
                 
-                if (Titles.ContainsKey(NacpLanguage.AmericanEnglish) || Titles.ContainsKey(NacpLanguage.BritishEnglish))
+                if (titles.Contains(NacpLanguage.AmericanEnglish) || Titles.ContainsKey(NacpLanguage.BritishEnglish))
                 {
                     region = Region.World;
                 }
             }
         }
         
-        if (Titles.Keys.Any(x => x is NacpLanguage.BritishEnglish or NacpLanguage.French or NacpLanguage.German or NacpLanguage.Italian or NacpLanguage.Spanish or NacpLanguage.Dutch or NacpLanguage.Portuguese))
+        if (titles.Any(x => x is NacpLanguage.BritishEnglish or NacpLanguage.French or NacpLanguage.German or NacpLanguage.Italian or NacpLanguage.Spanish or NacpLanguage.Dutch or NacpLanguage.Portuguese))
         {
             region = Region.Europe;
             
-            if(Titles.Keys.Any(x => x is NacpLanguage.AmericanEnglish or NacpLanguage.Japanese or NacpLanguage.Korean or NacpLanguage.Russian or NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese or NacpLanguage.LatinAmericanSpanish or NacpLanguage.BrazilianPortuguese or NacpLanguage.CanadianFrench))
+            if(titles.Any(x => x is NacpLanguage.AmericanEnglish or NacpLanguage.Japanese or NacpLanguage.Korean or NacpLanguage.Russian or NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese or NacpLanguage.LatinAmericanSpanish or NacpLanguage.BrazilianPortuguese or NacpLanguage.CanadianFrench))
+            {
+                region = Region.World;
+            }
+        }
+        
+        if(titles.Any(x => x is NacpLanguage.AmericanEnglish))
+        {
+            region = Region.USA;
+            
+            if(titles.Any(x => x is NacpLanguage.Japanese or NacpLanguage.Korean or NacpLanguage.Russian or NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese or NacpLanguage.LatinAmericanSpanish or NacpLanguage.BrazilianPortuguese or NacpLanguage.CanadianFrench))
             {
                 region = Region.World;
             }
@@ -255,7 +267,7 @@ public class NspInfo
             languageList = $"({languageList})";
         }
         
-        var region = GetRegion(ref languageList);
+        var region = GetRegion(Titles.Keys.ToArray(), ref languageList);
         var displayRegion = OutputOptions.LanguageMode != LanguageMode.None ? $"({region})" : string.Empty;
         
         var cleanTitle = DisplayTitle.CleanTitle();
@@ -272,6 +284,18 @@ public class NspInfo
         
         if (TitleType is ContentMetaType.AddOnContent  && !string.IsNullOrEmpty(DisplayParentTitle))
         {
+            if (ParentLanguages.Any())
+            {
+                languageList = DisplayParentLanguages;
+                region = GetRegion(ParentLanguages.ToArray(), ref languageList);
+                displayRegion = OutputOptions.LanguageMode != LanguageMode.None ? $"({region})" : string.Empty;
+                
+                if (!string.IsNullOrEmpty(languageList))
+                {
+                    languageList = $"({languageList})";
+                }
+            }
+            
             if(cleanTitle.Contains(cleanParentTitle, StringComparison.InvariantCultureIgnoreCase))
             {
                 return $"{cleanTitle} {displayRegion}{languageList}[{TitleId}][{TitleVersion}][{DisplayTypeShort}]".CleanTitle();
