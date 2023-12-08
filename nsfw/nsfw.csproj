@@ -25,10 +25,10 @@
 
     <ItemGroup>
       <None Update="sqlite3.def">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToOutputDirectory>Never</CopyToOutputDirectory>
       </None>
       <None Update="sqlite3.dll">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToOutputDirectory>Never</CopyToOutputDirectory>
       </None>
     </ItemGroup>
 

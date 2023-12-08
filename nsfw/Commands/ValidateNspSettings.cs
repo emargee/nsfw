@@ -75,10 +75,13 @@ public class ValidateNspSettings : CommandSettings
     [Description("When re-naming files, skip NCA hash validation.")]
     public bool SkipHash { get; set; }
     
-    [CommandOption("-l|--log-level <LEVEL>")]
-    [Description("Set log level. Options : compact | quiet | full")]
-    [DefaultValue(LogLevel.Compact)]
-    public LogLevel LogLevel { get; set; }
+    [CommandOption("--quiet")]
+    [Description("Set output level to 'quiet'. Minimal display for details.")]
+    public bool IsQuiet { get; set; }
+    
+    [CommandOption("--full")]
+    [Description("Set output level to 'full'. Full break-down on NSP structure.")]
+    public bool IsFull { get; set; }
     
     [CommandOption("-t|--ticketinfo")]
     [Description("Print ticket info.")]
@@ -96,6 +99,24 @@ public class ValidateNspSettings : CommandSettings
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;
 
+    public LogLevel LogLevel
+    {
+        get
+        {
+            if (IsQuiet)
+            {
+                return LogLevel.Quiet;
+            }
+
+            if (IsFull)
+            {
+                return LogLevel.Full;
+            }
+
+            return LogLevel.Compact;
+        }
+    }
+    
     public string[] NspCollection { get; set; } = [];
 
     public override ValidationResult Validate()
@@ -159,12 +180,12 @@ public class ValidateNspSettings : CommandSettings
         
         if(Extract && !Directory.Exists(CdnDirectory))
         {
-            return ValidationResult.Error($"CDN Output directory '{CdnDirectory}' does not exist.");
+            Directory.CreateDirectory(CdnDirectory);
         }
         
         if(Convert && !Directory.Exists(NspDirectory))
         {
-            return ValidationResult.Error($"NSP Output directory '{NspDirectory}' does not exist.");
+            Directory.CreateDirectory(NspDirectory);
         }
         
         return base.Validate();

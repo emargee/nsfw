@@ -16,7 +16,7 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
 
         if (settings.NspCollection.Length != 0)
         {
-            settings.LogLevel = LogLevel.Quiet;
+            settings.IsQuiet = true;
         }
         
         if (settings.LogLevel == LogLevel.Quiet)
@@ -32,13 +32,13 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
         if (settings.NspCollection.Length != 0)
         {
             DrawLogo();
-            AnsiConsole.MarkupLine($"-[[ Processing {settings.NspCollection.Length:000} NSPs ]]----------------");
-            AnsiConsole.MarkupLine("----------------------------------------");
+            AnsiConsole.MarkupLine($"-[[ Processing {settings.NspCollection.Length} NSPs");
+            AnsiConsole.Write(new Rule());
             foreach (var nsp in settings.NspCollection)
             {
                 var service = new ValidateNspService(settings);
-                result = service.Process(nsp);
-                AnsiConsole.MarkupLine("----------------------------------------");
+                result = service.Process(nsp,true);
+                AnsiConsole.Write(new Rule());
             }
         }
         else
@@ -50,11 +50,12 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
             }
             else
             {
-                AnsiConsole.MarkupLine("---------------------------------[[[blue]N$FW[/]]]--");
+                AnsiConsole.Write(new Rule("[[[blue]N$FW[/]]]").LeftJustified());
             }
         
             var service = new ValidateNspService(settings);
-            result = service.Process(settings.NspFile);
+            result = service.Process(settings.NspFile, false);
+            AnsiConsole.Write(new Rule());
         }
 
         return result;
@@ -71,6 +72,6 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
         AnsiConsole.MarkupLine(@"/       /____/       ______/___/        /\_____/ [grey]/[/][olive]=====[/]  ");
         AnsiConsole.MarkupLine(@"\______/[grey]\____[/]\______/[grey]\_____\___[/]\_______/ [grey]/_____\/[/]");
         AnsiConsole.MarkupLine(@"[grey] \_____\/     \_____\/          \______\/[/]");
-        AnsiConsole.MarkupLine("----------------------------------------");
+        AnsiConsole.Write(new Rule());
     }
 }

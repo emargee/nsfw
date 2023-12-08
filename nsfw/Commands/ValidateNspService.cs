@@ -21,9 +21,12 @@ namespace Nsfw.Commands;
 public class ValidateNspService(ValidateNspSettings settings)
 {
     private readonly KeySet _keySet = ExternalKeyReader.ReadKeyFile(settings.KeysFile);
+    private bool _batchMode;
 
-    public int Process(string nspFullPath)
+    public int Process(string nspFullPath, bool batchMode)
     {
+        _batchMode = batchMode;
+        
         var nspInfo = new NspInfo(nspFullPath);
 
         if (settings.NoLanguages)
@@ -402,8 +405,8 @@ public class ValidateNspService(ValidateNspSettings settings)
                     {
                         sectionInfo.IsErrored = true;
                         sectionInfo.ErrorMessage = $"Error opening file-system - {exception.Message}";
-                        nspInfo.Errors.Add(
-                            $"{phase} - {ncaInfo.FileName} (Section {sectionInfo.SectionId}) <- Error opening file-system");
+                        nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} (Section {sectionInfo.SectionId}) <- Error opening file-system");
+                        nspInfo.CanProceed = false;
                     }
                 }
 
@@ -627,10 +630,19 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if(settings.LogLevel != LogLevel.Quiet)
         {
-            AnsiConsole.MarkupLine("[grey]----------------------------------------[/]");
+            AnsiConsole.Write(new Rule().RuleStyle("grey"));
         }
         
         // -- DISPLAY SECTION --
+
+        const string validationFail = "[red][[X]][/]";
+        const string validationPass = "[green][[V]][/]";
+        const string headerPass = "[green][[H]][/]";
+        const string headerFail = "[red][[H]][/]";
+        const string validationSkipped = "[olive][[-]][/]";
+        const string hashPass = "[green][[PASS]][/]";
+        const string hashFail = "[red][[FAIL]][/]";
+        const string hashSkip = "[olive][[SKIP]][/]";
 
         // RAW FILE TREE
 
@@ -660,10 +672,10 @@ public class ValidateNspService(ValidateNspSettings settings)
             };
             foreach (var contentFile in nspInfo.ContentFiles.Values)
             {
-                var status = contentFile.IsMissing || contentFile.SizeMismatch ? "[red][[X]][/]" : "[green][[V]][/]";
+                var status = contentFile.IsMissing || contentFile.SizeMismatch ? validationFail : validationPass;
                 var error = contentFile.IsMissing ? "<- Missing" :
                     contentFile.SizeMismatch ? "<- Size Mismatch" : string.Empty;
-                metaTree.AddNode($"{status} - {contentFile.FileName} [[{contentFile.Type}]] {error}");
+                metaTree.AddNode($"{status} {contentFile.FileName} [[{contentFile.Type}]] {error}");
             }
 
             AnsiConsole.Write(new Padder(metaTree).PadLeft(1).PadTop(1).PadBottom(0));
@@ -681,20 +693,20 @@ public class ValidateNspService(ValidateNspSettings settings)
             };
             foreach (var ncaFile in nspInfo.NcaFiles.Values)
             {
-                var status = !ncaFile.IsHeaderValid ? "[[[red]H[/]]]" : "[[[green]H[/]]]";
+                var status = !ncaFile.IsHeaderValid ? headerFail : headerPass;
                 var hashStatus = ncaFile.HashMatch switch
                 {
-                    HashMatchType.Match => "[[[green]V[/]]]",
-                    HashMatchType.Mismatch => "[[[red]X[/]]]",
-                    _ => "[[[olive]-[/]]]"
+                    HashMatchType.Match => hashPass,
+                    HashMatchType.Mismatch => hashFail,
+                    _ => hashSkip
                 };
                 var ncaNode = new TreeNode(new Markup($"{status}{hashStatus} {ncaFile.FileName} ({ncaFile.Type})"));
                 ncaNode.Expanded = true;
 
                 foreach (var section in ncaFile.Sections.Values)
                 {
-                    var sectionStatus = section.IsErrored ? "[[[red]X[/]]]" :
-                        section.IsPatchSection ? "[[[olive]P[/]]]" : "[[[green]V[/]]]";
+                    var sectionStatus = section.IsErrored ? validationFail :
+                        section.IsPatchSection ? validationSkipped : validationPass;
 
                     if (section.IsErrored)
                     {
@@ -820,15 +832,9 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             if (nspInfo.HasLanguages)
             {
-                if (nspInfo.OutputOptions.LanguageMode == LanguageMode.Full)
-                {
-                    propertiesTable.AddRow("Languages", string.Join(",", nspInfo.LanguagesFull));
-                }
-
-                if (nspInfo.OutputOptions.LanguageMode == LanguageMode.Short)
-                {
-                    propertiesTable.AddRow("Languages", string.Join(",", nspInfo.LanguagesShort));
-                }
+                propertiesTable.AddRow("Languages", string.Join(",", nspInfo.LanguagesFull));
+                propertiesTable.AddRow("Languages (Short)", string.Join(",", nspInfo.LanguagesShort));
+                propertiesTable.AddRow("Languages Output", nspInfo.OutputOptions.LanguageMode.ToString());
             }
 
             if (nspInfo.TitleType == ContentMetaType.AddOnContent && nspInfo.DisplayParentLanguages != NspInfo.Unknown)
@@ -887,16 +893,22 @@ public class ValidateNspService(ValidateNspSettings settings)
             AnsiConsole.Write(new Padder(propertiesTable).PadLeft(1).PadTop(1).PadBottom(1));
         }
         
-        if (outputName.Length + 4 > 100)
+        if ((settings.Extract || settings.Convert || settings.Rename))
         {
-            Log.Warning($"Output name is looong ({outputName.Length + 4}). This may cause issues saving on Windows.");
+            if (outputName.Length + 4 > 100)
+            {
+                Log.Warning($"Output name is looong ({outputName.Length + 4}). This may cause issues saving on Windows.");
+            }
         }
             
-        AnsiConsole.WriteLine("----------------------------------------");
+        //AnsiConsole.WriteLine("----------------------------------------");
         
         if(!nspInfo.CanProceed)
         {
-            Log.Fatal("NSP Validation failed.");
+            Log.Fatal(!_batchMode && settings.LogLevel != LogLevel.Full
+                ? "NSP Validation failed. Use [grey]--full[/] to see more details."
+                : "NSP Validation failed.");
+
             return 1;
         }
         

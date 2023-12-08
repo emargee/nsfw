@@ -21,6 +21,7 @@ public static class Program
 
             config.AddCommand<Cdn2NspCommand>("cdn2nsp")
                 .WithDescription("Deterministically recreates NSP files from extracted CDN data following nxdumptool NSP generation guidelines.")
+                .IsHidden()
                 .WithAlias("c2n");
             
             config.AddCommand<ValidateNspCommand>("validate")
@@ -33,7 +34,6 @@ public static class Program
             
             config.AddCommand<BuildTitleDbCommand>("build-titledb")
                 .WithDescription("Builds TitleDB from NSP files.")
-                .IsHidden()
                 .WithAlias("btdb");
         });
 
