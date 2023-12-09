@@ -1,4 +1,5 @@
 ﻿using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using LibHac.Common;
 using LibHac.Common.Keys;
 using LibHac.Fs;
@@ -242,7 +243,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             Log.Error($"{phase} - Failed to open Main NCA.");
             return 1;
         }
-
+        
         if (!mainNca.Nca.Header.RightsId.IsZeros())
         {
             nspInfo.RightsId = mainNca.Nca.Header.RightsId.ToHexString();
@@ -416,6 +417,8 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (settings.SkipHash)
             {
                 nspInfo.Warnings.Add($"{phase} - Skipped hash check on : {ncaInfo.FileName}.");
+                ncaInfo.HashMatch = HashMatchType.Missing;
+                nspInfo.NcaFiles.Add(fsNca.Filename, ncaInfo);
                 continue;
             }
 
@@ -554,7 +557,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (nspInfo.DisplayTitleSource == Source.FileName && nspInfo.TitleType == ContentMetaType.AddOnContent &&
             nspInfo.FileName.Contains('['))
         {
-            var filenameParts = nspInfo.FileName.Split('[', StringSplitOptions.TrimEntries);
+            var filenameParts = nspInfo.FileName.Split('[', StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
 
             if (filenameParts.Length > 1)
             {
@@ -565,6 +568,18 @@ public class ValidateNspService(ValidateNspSettings settings)
                     nspInfo.DisplayTitle += " - " + filenameParts[1]
                         .Replace("]", String.Empty)
                         .Replace("dlc", "DLC").Trim();
+                }
+            }
+            
+            if(nspInfo.DisplayTitle.Contains('(') && nspInfo.DisplayTitle.Contains(')'))
+            {
+                var match = Regex.Match(nspInfo.DisplayTitle, @"\((.*?)\)");
+            
+                if (match.Success)
+                { 
+                    nspInfo.DisplayTitle = nspInfo.DisplayTitle
+                        .Replace(match.Value, string.Empty)
+                        .Replace("  "," ").Trim();
                 }
             }
         }
@@ -606,9 +621,9 @@ public class ValidateNspService(ValidateNspSettings settings)
         }
         else
         {
-            if (nspInfo is { HasErrors: false, HeaderSignatureValidity: Validity.Valid } &&
-                nspInfo.NcaFiles.Values.Any(x => !x.IsErrored) &&
-                nspInfo.NcaFiles.Values.Any(x => x.HashMatch == HashMatchType.Match))
+            if (nspInfo is { HasErrors: false, HeaderSignatureValidity: Validity.Valid } 
+                && nspInfo.NcaFiles.Values.All(x => !x.IsErrored) 
+                && nspInfo.NcaFiles.Values.All(x => x.HashMatch != HashMatchType.Mismatch))
             {
                 Log.Information("[olive]Validation Complete[/] <- [green]No problems found[/]");
             }
@@ -685,7 +700,6 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (settings.LogLevel == LogLevel.Full)
         {
-
             var ncaTree = new Tree("NCAs:")
             {
                 Expanded = true,
@@ -834,13 +848,14 @@ public class ValidateNspService(ValidateNspSettings settings)
             {
                 propertiesTable.AddRow("Languages", string.Join(",", nspInfo.LanguagesFull));
                 propertiesTable.AddRow("Languages (Short)", string.Join(",", nspInfo.LanguagesShort));
-                propertiesTable.AddRow("Languages Output", nspInfo.OutputOptions.LanguageMode.ToString());
             }
 
             if (nspInfo.TitleType == ContentMetaType.AddOnContent && nspInfo.DisplayParentLanguages != NspInfo.Unknown)
             {
                 propertiesTable.AddRow("Parent Languages", nspInfo.DisplayParentLanguages);
             }
+            
+            propertiesTable.AddRow("Languages Output", nspInfo.OutputOptions.LanguageMode.ToString());
 
             propertiesTable.AddRow("Title ID", nspInfo.TitleId);
             if (nspInfo.UseBaseTitleId)

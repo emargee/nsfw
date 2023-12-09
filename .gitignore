@@ -404,4 +404,5 @@ FodyWeavers.xsd
 .idea/
 out/
 cdn/
+.archive/
 

@@ -81,11 +81,17 @@ public static partial class NsfwUtilities
             .Replace("） (", ") (")
             .Replace(" dlc", " DLC")
             .Replace(" Of ", " of ")
-            .Replace("Digital Edition", "(Digital Edition)");
-
-        if (cleanTitle.EndsWith(" - "))
+            .Replace("Digital Edition", "(Digital Edition)")
+            .TrimEnd();
+        
+        if(cleanTitle.EndsWith(" -"))
         {
-            cleanTitle = cleanTitle.TrimEnd(" - ".ToCharArray());
+            cleanTitle = cleanTitle[..^2];
+        }
+
+        if (cleanTitle.EndsWith('-'))
+        {
+            cleanTitle = cleanTitle[..^1];
         }
         
         return cleanTitle;
@@ -203,6 +209,11 @@ public static partial class NsfwUtilities
             query = db.Table<GameInfo>().Where(x => x.Id == titleId);
         }
         
+        if(await query.CountAsync() == 0)
+        {
+            query = db.Table<GameInfo>().Where(x => x.Ids!.Contains(titleId));
+        }
+        
         var result = await query.ToArrayAsync();
         return result.OrderBy(x => languageOrder.IndexOf(x.RegionLanguage)).ToArray();
     }
@@ -245,7 +256,7 @@ public static partial class NsfwUtilities
             return Array.Empty<string>();
         }
         
-        return result.Languages.Split(",").OrderBy(x => languageOrder.IndexOf(x)).ToArray();
+        return result.Languages.Split(",",StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).OrderBy(x => languageOrder.IndexOf(x)).ToArray();
     }
 
     public static async Task<TitleVersions[]> LookUpUpdates(string titleDbPath, string titleId)

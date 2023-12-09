@@ -291,21 +291,33 @@ public class NspInfo
                 region = GetRegion(ParentLanguages.ToArray(), ref languageList);
                 displayRegion = OutputOptions.LanguageMode != LanguageMode.None ? $"({region})" : string.Empty;
                 
+                if(OutputOptions.LanguageMode == LanguageMode.None)
+                {
+                    languageList = string.Empty;
+                }
+                
                 if (!string.IsNullOrEmpty(languageList))
                 {
                     languageList = $"({languageList})";
                 }
             }
             
-            // if(cleanTitle.Contains(cleanParentTitle, StringComparison.InvariantCultureIgnoreCase))
-            // {
-            //     return $"{cleanTitle} {displayRegion}{languageList}[{TitleId}][{TitleVersion}][{DisplayTypeShort}]".CleanTitle();
-            // }
-            
-            var parentParts = cleanParentTitle.Split(" - ", StringSplitOptions.TrimEntries);
+            var parentParts = cleanParentTitle.Split(" - ", StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
             cleanTitle = parentParts.Aggregate(cleanTitle, (current, part) => current.Replace(part, string.Empty, StringComparison.InvariantCultureIgnoreCase)).CleanTitle();
         
-            var formattedTitle = $"{cleanParentTitle} - {cleanTitle} {displayRegion}{languageList}[{TitleId}][{TitleVersion}][{DisplayTypeShort}]";
+            var titleParts = cleanTitle.Split(" - ", StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
+            
+            foreach (var titlePart in titleParts)
+            {
+                if(cleanParentTitle.Contains(titlePart, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    cleanTitle = cleanTitle.Replace(titlePart, string.Empty, StringComparison.InvariantCultureIgnoreCase).CleanTitle();
+                }
+            }
+
+            var finalTitle = $"{cleanParentTitle} - {cleanTitle} {displayRegion}{languageList}".CleanTitle();
+            
+            var formattedTitle = $"{finalTitle} [{TitleId}][{TitleVersion}][{DisplayTypeShort}]";
                
             return formattedTitle.CleanTitle();
         }

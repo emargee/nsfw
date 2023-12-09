@@ -20,6 +20,9 @@ public class GameInfo
     public string? IconUrl { get; set; }
     [Indexed]
     public string? Id { get; set; }
+    [Indexed]
+    [JsonConverter(typeof(ArrayToStringConverter))]
+    public string? Ids { get; set; }
     public string? Intro { get; set; }
     public bool IsDemo { get; set; }
     public string? Key { get; set; }
