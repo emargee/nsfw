@@ -1,6 +1,7 @@
 ﻿using LibHac.Tools.FsSystem.NcaUtils;
+using Nsfw.Commands;
 
-namespace Nsfw.Commands;
+namespace Nsfw.Nsp;
 
 public class NcaInfo(string ncaFilename)
 {

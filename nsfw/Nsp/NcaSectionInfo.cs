@@ -1,6 +1,6 @@
 ﻿using LibHac.Tools.FsSystem.NcaUtils;
 
-namespace Nsfw.Commands;
+namespace Nsfw.Nsp;
 
 public class NcaSectionInfo(int sectionId)
 {

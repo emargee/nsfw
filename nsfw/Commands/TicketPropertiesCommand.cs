@@ -30,11 +30,11 @@ public class TicketPropertiesCommand : Command<TicketPropertiesSettings>
         }
         else
         {
-            var isTicketSignatureValid = NsfwUtilities.ValidateTicket(ticket, settings.CertFile);
+            var isTicketSignatureValid = Nsp.NsfwUtilities.ValidateTicket(ticket, settings.CertFile);
             table.AddRow("Ticket Signature", isTicketSignatureValid ? "[green]Valid[/]" : "[red]Invalid[/]");
         }
         
-        NsfwUtilities.RenderTicket(table, ticket);
+        Nsp.NsfwUtilities.RenderTicket(table, ticket);
         
         AnsiConsole.Write(new Padder(table).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
 

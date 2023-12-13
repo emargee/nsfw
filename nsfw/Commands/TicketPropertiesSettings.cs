@@ -32,7 +32,7 @@ public class TicketPropertiesSettings : CommandSettings
             return ValidationResult.Error($"Ticket file '{TicketFile}' does not exist.");
         }
         
-        if(!NsfwUtilities.ValidateCommonCert(CertFile))
+        if(!Nsp.NsfwUtilities.ValidateCommonCert(CertFile))
         {
             return ValidationResult.Error($"Common cert '{CertFile}' is invalid.");
         }

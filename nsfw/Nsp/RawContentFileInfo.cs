@@ -1,6 +1,6 @@
 ﻿using LibHac.Fs;
 
-namespace Nsfw.Commands;
+namespace Nsfw.Nsp;
 
 public class RawContentFileInfo
 {

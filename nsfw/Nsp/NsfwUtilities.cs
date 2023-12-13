@@ -7,11 +7,12 @@ using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
 using LibHac.Util;
+using Nsfw.Commands;
 using Spectre.Console;
 using SQLite;
 using HierarchicalIntegrityVerificationStorage = LibHac.Tools.FsSystem.HierarchicalIntegrityVerificationStorage;
 
-namespace Nsfw.Commands;
+namespace Nsfw.Nsp;
 
 public static partial class NsfwUtilities
 {

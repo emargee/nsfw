@@ -12,11 +12,11 @@ using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
 using LibHac.Util;
+using Nsfw.Nsp;
 using Serilog;
 using Spectre.Console;
 using ContentType = LibHac.Ncm.ContentType;
 using NcaFsHeader = LibHac.Tools.FsSystem.NcaUtils.NcaFsHeader;
-using NcaHeader = LibHac.FsSystem.NcaHeader;
 
 namespace Nsfw.Commands;
 
@@ -334,7 +334,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             }
             else
             {
-                nspInfo.IsTicketSignatureValid = NsfwUtilities.ValidateTicket(nspInfo.Ticket!, settings.CertFile);
+                nspInfo.IsTicketSignatureValid = Nsp.NsfwUtilities.ValidateTicket(nspInfo.Ticket!, settings.CertFile);
             }
 
             nspInfo.MasterKeyRevision = Utilities.GetMasterKeyRevision(mainNca.Nca.Header.KeyGeneration);
@@ -551,12 +551,12 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                 if (nspInfo.IsDLC)
                 {
-                    titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.TitleId)?.CleanTitle();
-                    nspInfo.DisplayParentTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.BaseTitleId)?.CleanTitle();
+                    titleDbTitle = Nsp.NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.TitleId)?.CleanTitle();
+                    nspInfo.DisplayParentTitle = Nsp.NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.BaseTitleId)?.CleanTitle();
                 }
                 else
                 {
-                    titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
+                    titleDbTitle = Nsp.NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
                 }
 
                 if (!string.IsNullOrEmpty(titleDbTitle))
@@ -599,7 +599,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (nspInfo is { IsDLC: true, OutputOptions.IsTitleDbAvailable: true })
         {
-            var parentLanguages = NsfwUtilities.LookupLanguages(settings.TitleDbFile, nspInfo.BaseTitleId);
+            var parentLanguages = Nsp.NsfwUtilities.LookupLanguages(settings.TitleDbFile, nspInfo.BaseTitleId);
             if (parentLanguages.Length > 0)
             {
                 var parentLanguagesList = parentLanguages.Distinct()
@@ -764,7 +764,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             tikTable.AddColumn("Property");
             tikTable.AddColumn("Value");
             
-            NsfwUtilities.RenderTicket(tikTable, nspInfo.Ticket);
+            Nsp.NsfwUtilities.RenderTicket(tikTable, nspInfo.Ticket);
             
             AnsiConsole.Write(new Padder(tikTable).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
         }
@@ -773,7 +773,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.RegionalTitles)
         {
-            var titleResults = NsfwUtilities.GetTitleDbInfo(settings.TitleDbFile, nspInfo.UseBaseTitleId && nspInfo.IsDLC ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
+            var titleResults = Nsp.NsfwUtilities.GetTitleDbInfo(settings.TitleDbFile, nspInfo.UseBaseTitleId && nspInfo.IsDLC ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
         
             if (titleResults.Length > 0)
             {
@@ -794,7 +794,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.RelatedTitles && nspInfo.IsDLC)
         {
-            var relatedResults = NsfwUtilities.LookUpRelatedTitles(settings.TitleDbFile, nspInfo.TitleId).Result;
+            var relatedResults = Nsp.NsfwUtilities.LookUpRelatedTitles(settings.TitleDbFile, nspInfo.TitleId).Result;
         
             if (relatedResults.Length > 0)
             {
@@ -815,7 +815,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.Updates && nspInfo.TitleType is FixedContentMetaType.Application or FixedContentMetaType.Patch)
         {
-            var versions = NsfwUtilities.LookUpUpdates(settings.TitleDbFile, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
+            var versions = Nsp.NsfwUtilities.LookUpUpdates(settings.TitleDbFile, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
             
             if (versions.Length > 0)
             {
@@ -1004,7 +1004,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.HasTitleKeyCrypto && (!nspInfo.IsTicketSignatureValid || nspInfo.GenerateNewTicket))
         {
-            nspInfo.Ticket = NsfwUtilities.CreateTicket(nspInfo.MasterKeyRevision, nspInfo.Ticket!.RightsId, nspInfo.TitleKeyEncrypted);
+            nspInfo.Ticket = Nsp.NsfwUtilities.CreateTicket(nspInfo.MasterKeyRevision, nspInfo.Ticket!.RightsId, nspInfo.TitleKeyEncrypted);
             Log.Information("Generated new normalised ticket.");
         }
         

@@ -2,7 +2,7 @@
 using LibHac.Tools.FsSystem.NcaUtils;
 using Spectre.Console;
 
-namespace Nsfw.Commands;
+namespace Nsfw.Nsp;
 
 public class NsfwProgressLogger : IProgressReport
 {

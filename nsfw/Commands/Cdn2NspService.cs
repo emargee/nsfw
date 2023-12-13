@@ -151,14 +151,14 @@ public class Cdn2NspService
                 
                 _titleKeyDec = contentNca.GetDecryptedTitleKey();
 
-                if (NsfwUtilities.FixedSignature.ToHexString() == ticket.Signature.ToHexString())
+                if (Nsp.NsfwUtilities.FixedSignature.ToHexString() == ticket.Signature.ToHexString())
                 {
                     _isTicketSignatureValid = true;
                     _isFixedSignature = true;
                 }
                 else
                 {
-                    _isTicketSignatureValid = NsfwUtilities.ValidateTicket(ticket, _settings.CertFile);
+                    _isTicketSignatureValid = Nsp.NsfwUtilities.ValidateTicket(ticket, _settings.CertFile);
                 }
                 
                 _masterKeyRevision = Utilities.GetMasterKeyRevision(contentNca.Header.KeyGeneration);
@@ -237,7 +237,7 @@ public class Cdn2NspService
         {
             if (!_isTicketSignatureValid)
             {
-                _newTicket = NsfwUtilities.CreateTicket(_masterKeyRevision, _rightsId, _titleKeyEnc).GetBytes();
+                _newTicket = Nsp.NsfwUtilities.CreateTicket(_masterKeyRevision, _rightsId, _titleKeyEnc).GetBytes();
                 File.WriteAllBytes(_ticketFile, _newTicket);
             }
             _contentFiles.Add(_ticketFile, new FileInfo(_ticketFile).Length);

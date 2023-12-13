@@ -67,7 +67,7 @@ public sealed class Cdn2NspSettings : CommandSettings
             return ValidationResult.Error($"Output directory '{OutDirectory}' does not exist.");
         }
         
-        if(!NsfwUtilities.ValidateCommonCert(CertFile))
+        if(!Nsp.NsfwUtilities.ValidateCommonCert(CertFile))
         {
             return ValidationResult.Error($"Common cert '{CertFile}' is invalid.");
         }

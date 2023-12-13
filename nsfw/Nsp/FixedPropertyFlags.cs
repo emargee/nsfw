@@ -1,4 +1,4 @@
-﻿namespace Nsfw.Commands;
+﻿namespace Nsfw.Nsp;
 
 [Flags]
 public enum FixedPropertyFlags

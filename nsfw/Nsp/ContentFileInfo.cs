@@ -1,6 +1,6 @@
 ﻿using LibHac.Ncm;
 
-namespace Nsfw.Commands;
+namespace Nsfw.Nsp;
 
 public class ContentFileInfo
 {

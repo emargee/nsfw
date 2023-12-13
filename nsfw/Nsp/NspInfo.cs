@@ -1,11 +1,9 @@
-﻿using System.Globalization;
-using LibHac.Common;
-using LibHac.Ncm;
+﻿using LibHac.Common;
 using LibHac.Tools.Es;
-using Microsoft.VisualBasic;
+using Nsfw.Commands;
 using Path = System.IO.Path;
 
-namespace Nsfw.Commands;
+namespace Nsfw.Nsp;
 
 public class NspInfo
 {
