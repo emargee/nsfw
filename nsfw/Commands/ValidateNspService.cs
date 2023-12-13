@@ -16,6 +16,7 @@ using Serilog;
 using Spectre.Console;
 using ContentType = LibHac.Ncm.ContentType;
 using NcaFsHeader = LibHac.Tools.FsSystem.NcaUtils.NcaFsHeader;
+using NcaHeader = LibHac.FsSystem.NcaHeader;
 
 namespace Nsfw.Commands;
 
@@ -39,8 +40,6 @@ public class ValidateNspService(ValidateNspSettings settings)
         {
             nspInfo.OutputOptions.LanguageMode = LanguageMode.Short;
         }
-
-        nspInfo.LogLevel = settings.LogLevel;
 
         var titleDbPath = System.IO.Path.GetFullPath(settings.TitleDbFile);
 
@@ -100,7 +99,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             }
 
             nspInfo.RawFileEntries.Add(rawFile.Name,
-                new RawContentFile
+                new RawContentFileInfo
                 {
                     Name = rawFile.Name, Size = rawFile.Size, FullPath = rawFile.FullPath, Type = rawFile.Type,
                     BlockCount = (int)BitUtil.DivideUp(rawFile.Size, nspInfo.DefaultBlockSize)
@@ -160,21 +159,21 @@ public class ValidateNspService(ValidateNspSettings settings)
         }
 
         nspInfo.TitleVersion = $"v{cnmt.TitleVersion.Version}";
-        nspInfo.TitleType = cnmt.Type;
+        nspInfo.TitleType = (FixedContentMetaType)cnmt.Type;
         nspInfo.MinimumApplicationVersion = cnmt.MinimumApplicationVersion != null
             ? cnmt.MinimumApplicationVersion.ToString()
             : "0.0.0";
         nspInfo.MinimumSystemVersion =
             cnmt.MinimumSystemVersion != null ? cnmt.MinimumSystemVersion.ToString() : "0.0.0";
 
-        if (nspInfo.TitleType != ContentMetaType.Patch && nspInfo.TitleType != ContentMetaType.Application &&
-            nspInfo.TitleType != ContentMetaType.Delta && nspInfo.TitleType != ContentMetaType.AddOnContent)
+        if (nspInfo.TitleType != FixedContentMetaType.Patch && nspInfo.TitleType != FixedContentMetaType.Application &&
+            nspInfo.TitleType != FixedContentMetaType.Delta && nspInfo.TitleType != FixedContentMetaType.AddOnContent && nspInfo.TitleType != FixedContentMetaType.DataPatch)
         {
-            Log.Error($"{phase} - Unsupported type {nspInfo.TitleType}");
+            Log.Error($"{phase} - Unsupported content type {nspInfo.TitleType}");
             return 1;
         }
 
-        var metaContent = new ContentFile
+        var metaContent = new ContentFileInfo
         {
             FileName = title.MetaNca.Filename,
             NcaId = title.MetaNca.NcaId,
@@ -187,7 +186,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         foreach (var contentEntry in cnmt.ContentEntries)
         {
-            var contentFile = new ContentFile
+            var contentFile = new ContentFileInfo
             {
                 FileName = $"{contentEntry.NcaId.ToHexString().ToLower()}.nca",
                 NcaId = contentEntry.NcaId.ToHexString(),
@@ -230,7 +229,12 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.ContentFiles.Add(contentFile.FileName, contentFile);
         }
 
-        Log.Verbose($"[olive]NSP Type[/] <- {nspInfo.DisplayType}" + (nspInfo.TitleType == ContentMetaType.Patch
+        if (nspInfo.TitleType == FixedContentMetaType.AddOnContent && nspInfo.TitleVersion != "v0")
+        {
+            nspInfo.TitleType = FixedContentMetaType.DataPatch; // Set to DLC UPDATE
+        }
+
+        Log.Verbose($"[olive]NSP Type[/] <- {nspInfo.DisplayType}" + (nspInfo.TitleType is FixedContentMetaType.Patch or FixedContentMetaType.DataPatch
             ? $" ({nspInfo.TitleVersion})"
             : string.Empty));
 
@@ -249,6 +253,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.RightsId = mainNca.Nca.Header.RightsId.ToHexString();
         }
 
+        nspInfo.KeyGeneration = (KeyGeneration)mainNca.Nca.Header.KeyGeneration;
         nspInfo.HasTitleKeyCrypto = mainNca.Nca.Header.HasRightsId;
 
         if (mainNca.Nca.Header.DistributionType != DistributionType.Download)
@@ -257,7 +262,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             return -1;
         }
 
-        if (nspInfo is { HasTicket: true, HasTitleKeyCrypto: false, TitleType: ContentMetaType.AddOnContent })
+        if (nspInfo is { HasTicket: true, HasTitleKeyCrypto: false, IsDLC: true })
         {
             nspInfo.Errors.Add(
                 $"{phase} - NSP has ticket but no title key crypto. This is possibly a Homebrew DLC unlocker. Conversion would lose the ticket + cert.");
@@ -311,6 +316,12 @@ public class ValidateNspService(ValidateNspSettings settings)
             {
                 nspInfo.Warnings.Add($"{phase} - Ticket has device ID set ({nspInfo.Ticket!.DeviceId})");
                 nspInfo.GenerateNewTicket = true;
+            }
+
+            if (nspInfo.Ticket.CryptoType != nspInfo.Ticket.RightsId.Last())
+            {
+                nspInfo.Warnings.Add($"{phase} - Ticket has mis-matched crypto settings ({nspInfo.Ticket.CryptoType} vs {nspInfo.Ticket.RightsId.Last()})");
+                nspInfo.GenerateNewTicket = true;    
             }
 
             nspInfo.TitleKeyEncrypted = nspInfo.Ticket.GetTitleKey(_keySet);
@@ -481,7 +492,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                             if (ncaInfo.HashMatch == HashMatchType.Mismatch)
                             {
-                                nspInfo.Errors.Add($"{phase} - Hash mismatch for NCA {ncaInfo.FileName}");
+                                nspInfo.Errors.Add($"{phase} - Hash mismatch for NCA {ncaInfo.FileName} - Expected {expectedHash}, got {ncaHash}");
                                 nspInfo.CanProceed = false;
                             }
                         }
@@ -515,28 +526,30 @@ public class ValidateNspService(ValidateNspSettings settings)
                     Publisher = titleItem.PublisherString.ToString() ?? "UNKNOWN",
                 });
 
-                nspInfo.DisplayTitleSource = Source.Control;
+                nspInfo.DisplayTitleLookupSource = LookupSource.Control;
             }
         }
 
-        if (nspInfo.DisplayTitleSource == Source.Control)
+        if (nspInfo.DisplayTitleLookupSource == LookupSource.Control)
         {
             nspInfo.DisplayTitle = nspInfo.ControlTitle;
         }
 
-        if (nspInfo.DisplayTitleSource == Source.Unknown)
+        if (nspInfo.DisplayTitleLookupSource == LookupSource.Unknown)
         {
-            nspInfo.DisplayTitle = nspInfo.FileName.Replace(".nsp", string.Empty);
-            nspInfo.DisplayTitleSource = Source.FileName;
+            nspInfo.DisplayTitle = nspInfo.FileName
+                .Replace("_", " ")
+                .Replace(".nsp", string.Empty);
+            nspInfo.DisplayTitleLookupSource = LookupSource.FileName;
         }
 
         if (nspInfo.OutputOptions.IsTitleDbAvailable)
         {
-            if (settings.VerifyTitle || nspInfo.DisplayTitleSource == Source.FileName)
+            if (settings.VerifyTitle || nspInfo.DisplayTitleLookupSource == LookupSource.FileName)
             {
                 var titleDbTitle = string.Empty;
 
-                if (nspInfo.TitleType == ContentMetaType.AddOnContent)
+                if (nspInfo.IsDLC)
                 {
                     titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.TitleId)?.CleanTitle();
                     nspInfo.DisplayParentTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.BaseTitleId)?.CleanTitle();
@@ -549,12 +562,12 @@ public class ValidateNspService(ValidateNspSettings settings)
                 if (!string.IsNullOrEmpty(titleDbTitle))
                 {
                     nspInfo.DisplayTitle = titleDbTitle;
-                    nspInfo.DisplayTitleSource = Source.TitleDb;
+                    nspInfo.DisplayTitleLookupSource = LookupSource.TitleDb;
                 }
             }
         }
 
-        if (nspInfo.DisplayTitleSource == Source.FileName && nspInfo.TitleType == ContentMetaType.AddOnContent &&
+        if (nspInfo.DisplayTitleLookupSource == LookupSource.FileName && nspInfo.IsDLC &&
             nspInfo.FileName.Contains('['))
         {
             var filenameParts = nspInfo.FileName.Split('[', StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
@@ -584,7 +597,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             }
         }
 
-        if (nspInfo.TitleType == ContentMetaType.AddOnContent && nspInfo.OutputOptions.IsTitleDbAvailable)
+        if (nspInfo is { IsDLC: true, OutputOptions.IsTitleDbAvailable: true })
         {
             var parentLanguages = NsfwUtilities.LookupLanguages(settings.TitleDbFile, nspInfo.BaseTitleId);
             if (parentLanguages.Length > 0)
@@ -760,7 +773,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.RegionalTitles)
         {
-            var titleResults = NsfwUtilities.GetTitleDbInfo(settings.TitleDbFile, nspInfo.UseBaseTitleId && nspInfo.TitleType != ContentMetaType.AddOnContent ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
+            var titleResults = NsfwUtilities.GetTitleDbInfo(settings.TitleDbFile, nspInfo.UseBaseTitleId && nspInfo.IsDLC ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
         
             if (titleResults.Length > 0)
             {
@@ -779,7 +792,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         // TITLEDB - DLC RELATED TITLES 
         
-        if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.RelatedTitles && nspInfo.TitleType == ContentMetaType.AddOnContent)
+        if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.RelatedTitles && nspInfo.IsDLC)
         {
             var relatedResults = NsfwUtilities.LookUpRelatedTitles(settings.TitleDbFile, nspInfo.TitleId).Result;
         
@@ -800,7 +813,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         // TITLEDB - UPDATES
         
-        if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.Updates && nspInfo.TitleType is ContentMetaType.Application or ContentMetaType.Patch)
+        if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.Updates && nspInfo.TitleType is FixedContentMetaType.Application or FixedContentMetaType.Patch)
         {
             var versions = NsfwUtilities.LookUpUpdates(settings.TitleDbFile, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
             
@@ -836,12 +849,12 @@ public class ValidateNspService(ValidateNspSettings settings)
             propertiesTable.AddColumns("Name", "Value");
 
             propertiesTable.AddRow("Title",
-                $"[olive]{nspInfo.DisplayTitle.EscapeMarkup()}[/]" + " (From " + nspInfo.DisplayTitleSource + ")");
+                $"[olive]{nspInfo.DisplayTitle.EscapeMarkup()}[/]" + " (From " + nspInfo.DisplayTitleLookupSource + ")");
 
-            if (nspInfo.TitleType == ContentMetaType.AddOnContent && !string.IsNullOrEmpty(nspInfo.DisplayParentTitle))
+            if (nspInfo.IsDLC && !string.IsNullOrEmpty(nspInfo.DisplayParentTitle))
             {
                 propertiesTable.AddRow("Parent Title",
-                    $"[olive]{nspInfo.DisplayParentTitle.EscapeMarkup()}[/]" + " (From " + nspInfo.DisplayTitleSource + ")");
+                    $"[olive]{nspInfo.DisplayParentTitle.EscapeMarkup()}[/]" + " (From " + nspInfo.DisplayTitleLookupSource + ")");
             }
 
             if (nspInfo.HasLanguages)
@@ -850,7 +863,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 propertiesTable.AddRow("Languages (Short)", string.Join(",", nspInfo.LanguagesShort));
             }
 
-            if (nspInfo.TitleType == ContentMetaType.AddOnContent && nspInfo.DisplayParentLanguages != NspInfo.Unknown)
+            if (nspInfo.IsDLC && nspInfo.DisplayParentLanguages != NspInfo.Unknown)
             {
                 propertiesTable.AddRow("Parent Languages", nspInfo.DisplayParentLanguages);
             }
@@ -865,6 +878,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             propertiesTable.AddRow("Title Type", nspInfo.DisplayType);
             propertiesTable.AddRow("Title Version", nspInfo.TitleVersion == "v0" ? "BASE (v0)" : nspInfo.TitleVersion);
+            propertiesTable.AddRow("Key Generation", nspInfo.DisplayKeyGeneration);
             propertiesTable.AddRow("NSP Version", nspInfo.DisplayVersion);
             propertiesTable.AddRow("Rights ID", nspInfo.RightsId);
             propertiesTable.AddRow("Header Validity", nspInfo.HeaderSignatureValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
@@ -1209,11 +1223,3 @@ public class ValidateNspService(ValidateNspSettings settings)
     }
     
 }
-
-public enum LanguageMode
-{
-    Full,
-    Short,
-    None
-}
-

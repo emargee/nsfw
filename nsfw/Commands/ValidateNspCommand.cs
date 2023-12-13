@@ -32,7 +32,7 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
         if (settings.NspCollection.Length != 0)
         {
             DrawLogo();
-            AnsiConsole.MarkupLine($"-[[ Processing {settings.NspCollection.Length} NSPs");
+            AnsiConsole.MarkupLine($"-[[ Processing {settings.NspCollection.Length} NSPs ..");
             AnsiConsole.Write(new Rule());
             foreach (var nsp in settings.NspCollection)
             {

@@ -191,10 +191,3 @@ public class ValidateNspSettings : CommandSettings
         return base.Validate();
     }
 }
-
-public enum LogLevel
-{
-    Compact,
-    Quiet,
-    Full
-}

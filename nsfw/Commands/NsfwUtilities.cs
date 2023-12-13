@@ -82,6 +82,8 @@ public static partial class NsfwUtilities
             .Replace(" dlc", " DLC")
             .Replace(" Of ", " of ")
             .Replace("Digital Edition", "(Digital Edition)")
+            .Replace("((((", "(")
+            .Replace("))))", ")")
             .TrimEnd();
         
         if(cleanTitle.EndsWith(" -"))
@@ -92,6 +94,11 @@ public static partial class NsfwUtilities
         if (cleanTitle.EndsWith('-'))
         {
             cleanTitle = cleanTitle[..^1];
+        }
+
+        if (cleanTitle.StartsWith('-'))
+        {
+            cleanTitle = cleanTitle[1..];
         }
         
         return cleanTitle;
@@ -315,7 +322,7 @@ public static partial class NsfwUtilities
         table.AddRow("Ticket Id", "0x" +ticket.TicketId.ToString("X"));
         table.AddRow("Ticket Version", "0x" +ticket.TicketVersion.ToString("X"));
         table.AddRow("License Type", ticket.LicenseType.ToString());
-        table.AddRow("Crypto Type", "0x" +ticket.CryptoType.ToString("X"));
+        table.AddRow("Crypto Revision", "0x" +ticket.CryptoType.ToString("X"));
         table.AddRow("Device Id", "0x" +ticket.DeviceId.ToString("X"));
         table.AddRow("Account Id", "0x" +ticket.AccountId.ToString("X"));
         table.AddRow("Rights Id", ticket.RightsId.ToHexString());
