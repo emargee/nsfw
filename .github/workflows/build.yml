@@ -1,6 +1,12 @@
 name: NSFW Build
 run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
-on: [push]
+on:
+    push:
+        branches:
+        - main
+    pull_request:
+        branches:
+        - main
 jobs:
   Build:
     runs-on: ubuntu-latest
@@ -18,7 +24,19 @@ jobs:
         with:
           useConfigFile: true
           additionalArguments: '/updateprojectfiles'
-      - name: Display GitVersion outputs (step output)
-        run: |
-          echo "Version: ${{ steps.gitversion.outputs.informationalVersion }}"
+      - name: Setup .NET Core
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore Dependencies
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+      - name: Publish WIN-X64
+        run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true --no-restore -o ./publish
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: NSFW
+          path: ./publish
 
