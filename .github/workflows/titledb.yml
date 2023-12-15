@@ -8,6 +8,11 @@ jobs:
       actions: read
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: blawar/titledb
+          fetch-depth: 1
       - name: Download Artifacts
         uses: dawidd6/action-download-artifact@v2
         with:
@@ -15,11 +20,6 @@ jobs:
           workflow: build.yml
           name: .*linux-x64
           name_is_regexp: true
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          repository: blawar/titledb
-          fetch-depth: 1
       - name: "List"
         run: ls -la
       - name: "Run NSFW"
