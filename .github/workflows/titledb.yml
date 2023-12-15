@@ -12,7 +12,7 @@ jobs:
       id: download-artifact
       uses: dawidd6/action-download-artifact@v3
       with:
-        workflow_conclusion: success
+        workflow_conclusion: ""
         branch: master
         path: extracted
         workflow: "build.yml"
