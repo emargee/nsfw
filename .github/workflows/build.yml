@@ -89,13 +89,14 @@ jobs:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64
           path: ./artifacts-osx-arm
       - run: zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip artifacts-osx-arm
+      - run: ls -laR
       - name: Do Release (v${{ env.GitVersion_MajorMinorPatch }})
         uses: ncipollo/release-action@v1
         with:
           name: "NSFW v${{ env.GitVersion_MajorMinorPatch }}"
           artifactErrorsFailBuild: true
           omitBody: true
-          commit: true
-          tag: "tags/v${{ env.GitVersion_MajorMinorPatch }}"
+          commit: "main"
+          tag: "v${{ env.GitVersion_MajorMinorPatch }}"
           artifacts: "*.zip"
 
