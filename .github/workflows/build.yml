@@ -8,7 +8,7 @@ on:
         branches:
         - main
 jobs:
-  Build:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -53,5 +53,39 @@ jobs:
         with:
           name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64"
           path: ./publish-osx-arm
-
+  release:
+    permissions:
+      contents: write
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v0
+        with:
+          versionSpec: '5.x'
+      - name: Determine Version
+        uses: gittools/actions/gitversion/execute@v0
+        with:
+          useConfigFile: true
+      - name: Download WIN64 artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64
+          path: ./artifacts
+      - name: Download LINUX64 artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64
+          path: ./artifacts
+      - name: Download OSX-ARM64 artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64
+          path: ./artifacts
+      - name: List artifacts
+        run: ls -laR ./artifacts
 
