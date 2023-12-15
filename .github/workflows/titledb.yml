@@ -15,6 +15,6 @@ jobs:
         workflow_conclusion: success
         branch: master
         path: extracted
-        name: "NSFW Build"
+        workflow: "build.yml"
     - name: List files
       run: ls -la extracted
