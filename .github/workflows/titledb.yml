@@ -12,19 +12,10 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v0
-        with:
-          versionSpec: '5.x'
-      - name: Determine Version
-        uses: gittools/actions/gitversion/execute@v0
-        with:
-          useConfigFile: true
       - name: Download Artifacts
         uses: dawidd6/action-download-artifact@v2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: build.yml
-          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64"
       - name: "Run NSFW"
         run: ./nsfw -v
