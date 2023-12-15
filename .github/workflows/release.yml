@@ -1,9 +1,7 @@
 ﻿name: NSFW Release
 run-name: Releasing NSFW! 🚀
-on:
-  push:
-    tags:
-      - "v*.*.*"
+on: workflow_dispatch
+
 jobs:
   Release:
     runs-on: ubuntu-latest

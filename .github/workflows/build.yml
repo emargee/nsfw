@@ -41,17 +41,17 @@ jobs:
       - name: Upload WIN64 Artifact
         uses: actions/upload-artifact@v2
         with:
-          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64.zip"
+          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64"
           path: ./publish-win
       - name: Upload LINUX64 Artifact
         uses: actions/upload-artifact@v2
         with:
-          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64.zip"
+          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64"
           path: ./publish-linux
       - name: Upload OSX-ARM64 Artifact
         uses: actions/upload-artifact@v2
         with:
-          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip"
+          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64"
           path: ./publish-osx-arm
 
 
