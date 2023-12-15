@@ -76,20 +76,22 @@ jobs:
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64
           path: ./artifacts-win
-      - run: zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-win-x64.zip artifacts-win
+      - name: Compress WIN64 artifacts
+        run: zip -r -j nsfw-v${{ env.GitVersion_MajorMinorPatch }}-win-x64.zip artifacts-win
       - name: Download LINUX64 artifacts
         uses: actions/download-artifact@v3
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64
           path: ./artifacts-linux
-      - run: zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64.zip artifacts-linux
+      - name: Compress LINUX64 artifacts
+        run: zip -r -j nsfw-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64.zip artifacts-linux
       - name: Download OSX-ARM64 artifacts
         uses: actions/download-artifact@v3
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64
           path: ./artifacts-osx-arm
-      - run: zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip artifacts-osx-arm
-      - run: ls -laR
+      - name: Compress OSX-ARM64 artifacts
+        run: zip -r -j nsfw-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip artifacts-osx-arm
       - name: Do Release (v${{ env.GitVersion_MajorMinorPatch }})
         uses: ncipollo/release-action@v1
         with:

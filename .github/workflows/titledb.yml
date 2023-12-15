@@ -1,0 +1,16 @@
+﻿name: Build TitleDB
+run-name: Building TitleDB! 🚀
+on: workflow_dispatch
+jobs:
+  build_titledb:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download artifact
+      id: download-artifact
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow_conclusion: success
+        branch: master
+        path: extracted
+    - name: List files
+      run: ls -la extracted
