@@ -33,7 +33,7 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore
       - name: Publish WIN-X64
-        run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true --no-restore -o ./publish
+        run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true --no-restore -o ./publish ./src/nsfw/nsfw.csproj
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:

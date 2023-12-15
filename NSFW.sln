@@ -1,7 +1,5 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "nsfw", "nsfw\nsfw.csproj", "{D5191345-7FAB-4A09-80E2-130C6FA5AF27}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_", "_", "{7AE86D66-0F12-441B-BE7E-2AA8A33B1F25}"
 	ProjectSection(SolutionItems) = preProject
 		README.md = README.md
@@ -9,9 +7,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_", "_", "{7AE86D66-0F12-44
 		GitVersion.yml = GitVersion.yml
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{D73EE369-AD18-48E8-9A3A-41D5E6084211}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{3265F2D2-0292-4931-92D7-1FA2B907CE3A}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{0A8AB0C6-01FB-4753-80F5-8221D14B5736}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "nsfw", "src\nsfw\nsfw.csproj", "{0BAA559C-CFCE-4B8A-A035-BC735CFDC1E9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{648697C8-950D-491D-99DE-576A0CAFAEA9}"
 	ProjectSection(SolutionItems) = preProject
 		.github\workflows\build.yml = .github\workflows\build.yml
 	EndProjectSection
@@ -22,12 +22,12 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{D5191345-7FAB-4A09-80E2-130C6FA5AF27}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D5191345-7FAB-4A09-80E2-130C6FA5AF27}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D5191345-7FAB-4A09-80E2-130C6FA5AF27}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D5191345-7FAB-4A09-80E2-130C6FA5AF27}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0BAA559C-CFCE-4B8A-A035-BC735CFDC1E9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0BAA559C-CFCE-4B8A-A035-BC735CFDC1E9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0BAA559C-CFCE-4B8A-A035-BC735CFDC1E9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0BAA559C-CFCE-4B8A-A035-BC735CFDC1E9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{0A8AB0C6-01FB-4753-80F5-8221D14B5736} = {D73EE369-AD18-48E8-9A3A-41D5E6084211}
+		{0BAA559C-CFCE-4B8A-A035-BC735CFDC1E9} = {3265F2D2-0292-4931-92D7-1FA2B907CE3A}
 	EndGlobalSection
 EndGlobal
