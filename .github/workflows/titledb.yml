@@ -3,6 +3,9 @@ run-name: Building TitleDB! 🚀
 on: workflow_dispatch
 jobs:
   build_titledb:
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-latest
     steps:
     - name: Download artifact
