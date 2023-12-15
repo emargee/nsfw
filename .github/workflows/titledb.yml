@@ -8,13 +8,7 @@ jobs:
       actions: read
     runs-on: ubuntu-latest
     steps:
-    - name: Download artifact
-      id: download-artifact
-      uses: dawidd6/action-download-artifact@v3
-      with:
-        workflow_conclusion: ""
-        branch: master
-        path: extracted
-        workflow: "build.yml"
-    - name: List files
-      run: ls -la extracted
+    - name: "Download"
+      uses: actions/download-artifact@v4
+    - name: "List"
+      run: ls -al
