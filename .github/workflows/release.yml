@@ -1,0 +1,32 @@
+﻿name: NSFW Release
+run-name: Releasing NSFW! 🚀
+on:
+  push:
+    tags:
+      - "v*.*.*"
+jobs:
+  Release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v0
+        with:
+          versionSpec: '5.x'
+      - name: Determine Version
+        uses: gittools/actions/gitversion/execute@v0
+        with:
+          useConfigFile: true
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+      - name: Publish archives and packages
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.GitVersion_MajorMinorPatch }}
+          files: |
+            *.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

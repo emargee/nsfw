@@ -17,7 +17,7 @@ public static class Program
         app.Configure(config =>
         {
             var pv = Assembly.GetEntryAssembly()?.GetName().Version;
-            config.SetApplicationVersion(pv != null ? $"{pv.Major}.{pv.Minor}.{pv.Build}" : "0.0.0");
+            config.SetApplicationVersion(pv != null ? $"v{pv.Major}.{pv.Minor}.{pv.Build}" : "0.0.0");
             config.SetApplicationName("nsfw");
             config.ValidateExamples();
 

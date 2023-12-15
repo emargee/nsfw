@@ -32,18 +32,26 @@ jobs:
         run: dotnet restore
       - name: Build
         run: dotnet build --configuration Release --no-restore
-      - name: Publish WIN
+      - name: Publish WIN64
         run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true --no-restore -o ./publish-win ./src/nsfw/nsfw.csproj
-      - name: Publish LINUX
+      - name: Publish LINUX64
         run: dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true --no-restore -o ./publish-linux ./src/nsfw/nsfw.csproj
-      - name: Upload WIN Artifact
+      - name: Publish OSX-ARM64
+        run: dotnet publish -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true --no-restore -o ./publish-osx-arm ./src/nsfw/nsfw.csproj
+      - name: Upload WIN64 Artifact
         uses: actions/upload-artifact@v2
         with:
-          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64"
+          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64.zip"
           path: ./publish-win
-      - name: Upload LINUX Artifact
+      - name: Upload LINUX64 Artifact
         uses: actions/upload-artifact@v2
         with:
-          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64"
+          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64.zip"
           path: ./publish-linux
+      - name: Upload OSX-ARM64 Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip"
+          path: ./publish-osx-arm
+
 
