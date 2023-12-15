@@ -16,8 +16,8 @@ public static class Program
         var app = new CommandApp();
         app.Configure(config =>
         {
-            var pv = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
-            config.SetApplicationVersion($"{pv.FileMajorPart}.{pv.FileMinorPart}.{pv.FileBuildPart}");
+            var pv = Assembly.GetEntryAssembly()?.GetName().Version;
+            config.SetApplicationVersion(pv != null ? $"{pv.Major}.{pv.Minor}.{pv.Build}" : "0.0.0");
             config.SetApplicationName("nsfw");
             config.ValidateExamples();
 
