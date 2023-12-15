@@ -98,11 +98,22 @@ public class ValidateNspService(ValidateNspSettings settings)
                 Log.Verbose($"{phase} <- Ticket ({rawFile.Name}) imported.");
             }
 
+            var isLooseFile = !(rawFile.Name.EndsWith(".nca") || rawFile.Name.EndsWith(".tik") || rawFile.Name.EndsWith(".cert"));
+
+            if (isLooseFile)
+            {
+                nspInfo.HasLooseFiles = true;
+            }
+
             nspInfo.RawFileEntries.Add(rawFile.Name,
                 new RawContentFileInfo
                 {
-                    Name = rawFile.Name, Size = rawFile.Size, FullPath = rawFile.FullPath, Type = rawFile.Type,
-                    BlockCount = (int)BitUtil.DivideUp(rawFile.Size, nspInfo.DefaultBlockSize)
+                    Name = rawFile.Name,
+                    Size = rawFile.Size,
+                    FullPath = rawFile.FullPath,
+                    Type = rawFile.Type,
+                    BlockCount = (int)BitUtil.DivideUp(rawFile.Size, nspInfo.DefaultBlockSize),
+                    IsLooseFile = isLooseFile
                 });
         }
 
@@ -164,7 +175,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             ? cnmt.MinimumApplicationVersion.ToString()
             : "0.0.0";
         nspInfo.MinimumSystemVersion =
-            cnmt.MinimumSystemVersion != null ? cnmt.MinimumSystemVersion.ToString() : "0.0.0";
+            cnmt.MinimumSystemVersion != null ? cnmt.MinimumSystemVersion : new TitleVersion(0);
 
         if (nspInfo.TitleType != FixedContentMetaType.Patch && nspInfo.TitleType != FixedContentMetaType.Application &&
             nspInfo.TitleType != FixedContentMetaType.Delta && nspInfo.TitleType != FixedContentMetaType.AddOnContent && nspInfo.TitleType != FixedContentMetaType.DataPatch)
@@ -299,6 +310,12 @@ public class ValidateNspService(ValidateNspSettings settings)
             }
 
             var propertyMask = (FixedPropertyFlags)nspInfo.Ticket!.PropertyMask;
+            
+            if (nspInfo.Ticket!.TicketId != 0)
+            {
+                nspInfo.Warnings.Add($"{phase} - Ticket has ticket ID set ({nspInfo.Ticket!.TicketId}).");
+                nspInfo.GenerateNewTicket = true;
+            }
 
             if (nspInfo.Ticket!.PropertyMask != 0)
             {
@@ -683,7 +700,16 @@ public class ValidateNspService(ValidateNspSettings settings)
             };
             foreach (var rawFile in nspInfo.RawFileEntries.Values)
             {
-                rawFileTree.AddNode($"{rawFile.Name} - {rawFile.DisplaySize}");
+                var displayLine = $"{rawFile.Name} - {rawFile.DisplaySize}";
+                
+                if (rawFile.IsLooseFile)
+                {
+                    rawFileTree.AddNode($"[grey]{displayLine}[/]");
+                }
+                else
+                {
+                    rawFileTree.AddNode($"{displayLine}");
+                }
             }
 
             AnsiConsole.Write(new Padder(rawFileTree).PadLeft(1).PadTop(0).PadBottom(0));
@@ -865,7 +891,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             if (nspInfo.IsDLC && nspInfo.DisplayParentLanguages != NspInfo.Unknown)
             {
-                propertiesTable.AddRow("Parent Languages", nspInfo.DisplayParentLanguages);
+                propertiesTable.AddRow("Parent Languages", nspInfo.DisplayParentLanguages + " (From TitleDb)");
             }
             
             propertiesTable.AddRow("Languages Output", nspInfo.OutputOptions.LanguageMode.ToString());
@@ -885,6 +911,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             propertiesTable.AddRow("NCA Validity", nspInfo.NcaValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
             propertiesTable.AddRow("Meta Validity", nspInfo.ContentValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
             propertiesTable.AddRow("Raw File Count", nspInfo.RawFileEntries.Count + $" ({nspInfo.RawFileEntries.Keys.Count(x => x.EndsWith(".nca"))} NCAs" + (nspInfo.DeltaCount > 0 ? $" + {nspInfo.DeltaCount} Missing Deltas" : "") + ") ");
+            propertiesTable.AddRow("Has loose files ?", nspInfo.HasLooseFiles ? "[red]Yes[/]" : "[green]No[/]");
             if (nspInfo.TitleKeyDecrypted.Length > 0)
             {
                 propertiesTable.AddRow("TitleKey (Enc)", nspInfo.TitleKeyEncrypted.ToHexString());
@@ -912,12 +939,16 @@ public class ValidateNspService(ValidateNspSettings settings)
                 }
 
                 propertiesTable.AddRow("MasterKey Revision", nspInfo.MasterKeyRevision.ToString());
-                propertiesTable.AddRow("Minimum Application Version", nspInfo.MinimumApplicationVersion == "0.0.0" ? "None" : nspInfo.MinimumApplicationVersion);
-                propertiesTable.AddRow("Minimum System Version", nspInfo.MinimumSystemVersion == "0.0.0" ? "None" : nspInfo.MinimumSystemVersion);
+                propertiesTable.AddRow("Minimum Application Version", nspInfo.MinimumApplicationVersion == "0.0.0.0" ? "None" : nspInfo.MinimumApplicationVersion);
+                propertiesTable.AddRow("Minimum System Version", nspInfo.MinimumSystemVersion.Version == 0 ? "None" : nspInfo.MinimumSystemVersion.ToString());
             }
 
             propertiesTable.AddRow("Output Name", $"[olive]{outputName.EscapeMarkup()}[/]");
             propertiesTable.AddRow("[olive]Validation[/]", nspInfo.CanProceed ? "[green]Passed[/]" : "[red]Failed[/]");
+
+            var isStandard = nspInfo.CanProceed && !nspInfo.GenerateNewTicket && !nspInfo.HasLooseFiles;
+
+            propertiesTable.AddRow("[olive]Standard NSP?[/]", isStandard ? "[green]Passed[/]" : "[red]Failed[/]");
 
             AnsiConsole.Write(new Padder(propertiesTable).PadLeft(1).PadTop(1).PadBottom(1));
         }

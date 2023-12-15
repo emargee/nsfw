@@ -1,5 +1,6 @@
 ﻿using LibHac.Common;
 using LibHac.Tools.Es;
+using LibHac.Tools.FsSystem.NcaUtils;
 using Nsfw.Commands;
 using Path = System.IO.Path;
 
@@ -163,7 +164,7 @@ public class NspInfo
     public Dictionary<string, ContentFileInfo> ContentFiles { get; set; } = [];
     public Dictionary<string, NcaInfo> NcaFiles { get; set; } = [];
     public string MinimumApplicationVersion { get; set; } = string.Empty;
-    public string MinimumSystemVersion { get; set; } = string.Empty;
+    public TitleVersion MinimumSystemVersion { get; set; } = new TitleVersion(0);
     public Dictionary<NacpLanguage, TitleInfo> Titles { get; set; } = [];
     public string ControlTitle => Titles.Count > 0 ? Titles.Values.First().Title : Unknown;
     public string DisplayTitle { get; set; } = Unknown;
@@ -176,6 +177,7 @@ public class NspInfo
     public IEnumerable<NacpLanguage> ParentLanguages { get; set; } = [];
     public int DeltaCount { get; set; }
     public KeyGeneration KeyGeneration { get; set; }
+    public bool HasLooseFiles { get; set; }
 
     public NspInfo(string filePath)
     {
@@ -386,7 +388,7 @@ public class NspInfo
                 finalTitle = $"{cleanParentTitle} - DLC Unlocker (Homebrew){displayRegion}{languageList}".CleanTitle();
             }
 
-            var formattedTitle = $"{finalTitle} [{TitleId}][{TitleVersion}][{DisplayTypeShort}]";
+            var formattedTitle = $"{finalTitle}[{TitleId}][{TitleVersion}][{DisplayTypeShort}]";
 
             return formattedTitle.CleanTitle();
         }

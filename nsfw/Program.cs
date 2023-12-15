@@ -15,7 +15,11 @@ public static class Program
         var app = new CommandApp();
         app.Configure(config =>
         {
-            config.SetApplicationVersion("0.1");
+            var assembly = Assembly.GetExecutingAssembly();
+            var fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
+            var version = fvi.FileVersion;
+            
+            config.SetApplicationVersion(version ?? "UNKNOWN");
             config.SetApplicationName("nsfw");
             config.ValidateExamples();
 
@@ -29,8 +33,12 @@ public static class Program
                 .WithAlias("v");
             
             config.AddCommand<TicketPropertiesCommand>("ticket")
-                .WithDescription("Reads ticket from file.")
+                .WithDescription("Read & print ticket properties from Ticket file.")
                 .WithAlias("t");
+            
+            config.AddCommand<MetaPropertiesCommand>("cnmt")
+                .WithDescription("Reads & print properties from CNMT NCA file.")
+                .WithAlias("m");
             
             config.AddCommand<BuildTitleDbCommand>("build-titledb")
                 .WithDescription("Builds TitleDB from NSP files.")

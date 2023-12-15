@@ -317,15 +317,15 @@ public static partial class NsfwUtilities
 
     public static void RenderTicket(Table table, Ticket ticket)
     {
-        table.AddRow("Issuer", ticket.Issuer);
+        table.AddRow("Issuer", ticket.Issuer == "Root-CA00000003-XS00000020" ? $"[green]{ticket.Issuer}[/]" : $"[red]{ticket.Issuer}[/]");
         table.AddRow("Format Version", "0x" + ticket.FormatVersion.ToString("X"));
-        table.AddRow("TitleKey Type", ticket.TitleKeyType.ToString());
-        table.AddRow("Ticket Id", "0x" +ticket.TicketId.ToString("X"));
-        table.AddRow("Ticket Version", "0x" +ticket.TicketVersion.ToString("X"));
+        table.AddRow("TitleKey Type", ticket.TitleKeyType == TitleKeyType.Common ? $"[green]{ticket.TitleKeyType}[/]" : $"[red]{ticket.TitleKeyType}[/]");
+        table.AddRow("Ticket Id", ticket.TicketId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.TicketId:X})[/]");
+        table.AddRow("Ticket Version", ticket.TicketVersion == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.TicketVersion:X})[/]");
         table.AddRow("License Type", ticket.LicenseType.ToString());
         table.AddRow("Crypto Revision", "0x" +ticket.CryptoType.ToString("X"));
-        table.AddRow("Device Id", "0x" +ticket.DeviceId.ToString("X"));
-        table.AddRow("Account Id", "0x" +ticket.AccountId.ToString("X"));
+        table.AddRow("Device Id", ticket.DeviceId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.DeviceId:X})[/]");
+        table.AddRow("Account Id", ticket.AccountId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.AccountId:X})[/]");
         table.AddRow("Rights Id", ticket.RightsId.ToHexString());
         table.AddRow("Signature Type", ticket.SignatureType.ToString());
         

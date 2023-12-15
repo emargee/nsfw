@@ -10,4 +10,5 @@ public class RawContentFileInfo
     public DirectoryEntryType Type { get; set; }
     public string DisplaySize => Size.BytesToHumanReadable();
     public int BlockCount { get; set; }
+    public bool IsLooseFile { get; set; }
 }
