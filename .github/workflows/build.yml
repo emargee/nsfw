@@ -71,7 +71,7 @@ jobs:
         uses: gittools/actions/gitversion/execute@v0
         with:
           useConfigFile: true
-      - name: Download Artifacts
+      - name: Download TitleDb
         uses: dawidd6/action-download-artifact@v2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -81,6 +81,7 @@ jobs:
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64
           path: ./artifacts-win
+      - run: mkdir ./artifacts-win/titledb
       - name: Compress WIN64 artifacts
         run: zip -r -j nsfw-v${{ env.GitVersion_MajorMinorPatch }}-win-x64.zip artifacts-win
       - name: Download LINUX64 artifacts
@@ -88,6 +89,7 @@ jobs:
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64
           path: ./artifacts-linux
+      - run: mkdir ./artifacts-linux/titledb
       - name: Compress LINUX64 artifacts
         run: zip -r -j nsfw-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64.zip artifacts-linux
       - name: Download OSX-ARM64 artifacts
@@ -95,6 +97,7 @@ jobs:
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64
           path: ./artifacts-osx-arm
+      - run: mkdir ./artifacts-osx-arm/titledb
       - name: Compress OSX-ARM64 artifacts
         run: zip -r -j nsfw-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip artifacts-osx-arm
       - name: Do Release (v${{ env.GitVersion_MajorMinorPatch }})
