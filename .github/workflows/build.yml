@@ -1,0 +1,20 @@
+name: NSFW Build
+run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
+on: [push]
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Determine Version
+        uses: gittools/actions/gitversion/execute@v0
+        with:
+          useConfigFile: true
+          additionalArguments: '/updateprojectfiles'
+      - name: Display GitVersion outputs (step output)
+        run: |
+          echo "Version: ${{ steps.gitversion.outputs.informationalVersion }}"
+

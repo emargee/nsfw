@@ -9,6 +9,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_", "_", "{7AE86D66-0F12-44
 		GitVersion.yml = GitVersion.yml
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{D73EE369-AD18-48E8-9A3A-41D5E6084211}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{0A8AB0C6-01FB-4753-80F5-8221D14B5736}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\build.yml = .github\workflows\build.yml
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -19,5 +26,8 @@ Global
 		{D5191345-7FAB-4A09-80E2-130C6FA5AF27}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D5191345-7FAB-4A09-80E2-130C6FA5AF27}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D5191345-7FAB-4A09-80E2-130C6FA5AF27}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{0A8AB0C6-01FB-4753-80F5-8221D14B5736} = {D73EE369-AD18-48E8-9A3A-41D5E6084211}
 	EndGlobalSection
 EndGlobal

@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Nsfw.Commands;
@@ -15,11 +16,8 @@ public static class Program
         var app = new CommandApp();
         app.Configure(config =>
         {
-            var assembly = Assembly.GetExecutingAssembly();
-            var fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
-            var version = fvi.FileVersion;
-            
-            config.SetApplicationVersion(version ?? "UNKNOWN");
+            var pv = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
+            config.SetApplicationVersion($"{pv.FileMajorPart}.{pv.FileMinorPart}.{pv.FileBuildPart}");
             config.SetApplicationName("nsfw");
             config.ValidateExamples();
 
