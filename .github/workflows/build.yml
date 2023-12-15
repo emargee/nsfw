@@ -75,17 +75,27 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64
-          path: ./artifacts
+          path: ./artifacts-win
+      - run: zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-win-x64.zip artifacts-win/
       - name: Download LINUX64 artifacts
         uses: actions/download-artifact@v3
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64
-          path: ./artifacts
+          path: ./artifacts-linux
+      - run: zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64.zip artifacts-linux/
       - name: Download OSX-ARM64 artifacts
         uses: actions/download-artifact@v3
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64
-          path: ./artifacts
-      - name: List artifacts
-        run: ls -laR ./artifacts
+          path: ./artifacts-osx-arm
+      - run: zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip artifacts-osx-arm/
+      - name: Do Release (v${{ env.GitVersion_MajorMinorPatch }})
+        uses: ncipollo/release-action@v1
+        with:
+          name: "NSFW v${{ env.GitVersion_MajorMinorPatch }}"
+          artifactErrorsFailBuild: true
+          omitBody: true
+          commit: true
+          tag: "v${{ env.GitVersion_MajorMinorPatch }}"
+          artifacts: "*.zip"
 
