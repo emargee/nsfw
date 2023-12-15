@@ -22,5 +22,10 @@ jobs:
           name_is_regexp: true
       - name: "List"
         run: ls -la
-      - name: "Run NSFW"
-        run: cd *linux-x64 && chmod +x nsfw && ./nsfw -v
+      - name: "Build TitleDB"
+        run: cd *linux-x64 && chmod +x nsfw && ./nsfw btdb --titledbdir ..
+      - name: "Upload TitleDB"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "titledb-${{github.sha}}"
+          path: ./titledb.db
