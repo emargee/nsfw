@@ -50,7 +50,7 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
             }
             else
             {
-                AnsiConsole.Write(new Rule("[[[blue]N$FW[/]]]").LeftJustified());
+                AnsiConsole.Write(new Rule($"[[[blue]N$FW[/]]][[{Program.GetVersion()}]]").LeftJustified());
             }
         
             var service = new ValidateNspService(settings);
@@ -71,7 +71,7 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
         AnsiConsole.MarkupLine(@"[olive]=[/]/       /    /      /     \    /        /      /[grey]\_\/[/][olive]==[/]");
         AnsiConsole.MarkupLine(@"/       /____/       ______/___/        /\_____/ [grey]/[/][olive]=====[/]  ");
         AnsiConsole.MarkupLine(@"\______/[grey]\____[/]\______/[grey]\_____\___[/]\_______/ [grey]/_____\/[/]");
-        AnsiConsole.MarkupLine(@"[grey] \_____\/     \_____\/          \______\/[/]");
-        AnsiConsole.Write(new Rule());
+        AnsiConsole.MarkupLine($@"[grey] \_____\/     \_____\/          \______\/[/]");
+        AnsiConsole.Write(new Rule($"[[{Program.GetVersion()}]]").RightJustified());
     }
 }

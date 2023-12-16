@@ -10,14 +10,19 @@ using Spectre.Console.Cli;
 
 public static class Program
 {
+    public static string GetVersion()
+    {
+        var pv = Assembly.GetEntryAssembly()?.GetName().Version;
+        return pv != null ? $"v{pv.Major}.{pv.Minor}.{pv.Build}" : "0.0.0";
+    }
+    
     public static int Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
         var app = new CommandApp();
         app.Configure(config =>
         {
-            var pv = Assembly.GetEntryAssembly()?.GetName().Version;
-            config.SetApplicationVersion(pv != null ? $"v{pv.Major}.{pv.Minor}.{pv.Build}" : "0.0.0");
+            config.SetApplicationVersion(GetVersion());
             config.SetApplicationName("nsfw");
             config.ValidateExamples();
 

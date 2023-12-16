@@ -939,7 +939,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 }
 
                 propertiesTable.AddRow("MasterKey Revision", nspInfo.MasterKeyRevision.ToString());
-                propertiesTable.AddRow("Minimum Application Version", nspInfo.MinimumApplicationVersion == "0.0.0.0" ? "None" : nspInfo.MinimumApplicationVersion);
+                propertiesTable.AddRow("Minimum Application Version", nspInfo.MinimumApplicationVersion == "0.0.0" ? "None" : nspInfo.MinimumApplicationVersion);
                 propertiesTable.AddRow("Minimum System Version", nspInfo.MinimumSystemVersion.Version == 0 ? "None" : nspInfo.MinimumSystemVersion.ToString());
             }
 
