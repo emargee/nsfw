@@ -87,7 +87,7 @@ jobs:
           path: ./artifacts-win
       - run: mkdir ./artifacts-win/titledb; cp titledb-*/titledb.db ./artifacts-win/titledb/
       - name: Compress WIN64 artifacts
-        run: cd artifacts-win; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-win-x64.zip *
+        run: cd artifacts-win; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-win-x64.zip *; mv *.zip ..
       - name: Download LINUX64 artifacts
         uses: actions/download-artifact@v3
         with:
@@ -95,7 +95,7 @@ jobs:
           path: ./artifacts-linux
       - run: mkdir ./artifacts-linux/titledb; cp titledb-*/titledb.db ./artifacts-linux/titledb/
       - name: Compress LINUX64 artifacts
-        run: cd artifacts-linux; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64.zip *
+        run: cd artifacts-linux; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64.zip *; mv *.zip ..
       - name: Download OSX-ARM64 artifacts
         uses: actions/download-artifact@v3
         with:
@@ -103,7 +103,7 @@ jobs:
           path: ./artifacts-osx-arm
       - run: mkdir ./artifacts-osx-arm/titledb; cp titledb-*/titledb.db ./artifacts-osx-arm/titledb/
       - name: Compress OSX-ARM64 artifacts
-        run: cd artifacts-osx-arm; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip *
+        run: cd artifacts-osx-arm; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip *; mv *.zip ..
       - name: Do Release (v${{ env.GitVersion_MajorMinorPatch }})
         uses: ncipollo/release-action@v1
         with:
