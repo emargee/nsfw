@@ -15,7 +15,7 @@ jobs:
       actions: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Install GitVersion
@@ -47,12 +47,12 @@ jobs:
           name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64"
           path: ./publish-win
       - name: Upload LINUX64 Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64"
           path: ./publish-linux
       - name: Upload OSX-ARM64 Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64"
           path: ./publish-osx-arm
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Install GitVersion
@@ -76,32 +76,31 @@ jobs:
         with:
           useConfigFile: true
       - name: Download TitleDb
-        uses: dawidd6/action-download-artifact@v2
+        uses: dawidd6/action-download-artifact@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: titledb.yml
+      - name: Compress TitleDb
+        run: cd titledb-*; zip -r titledb.zip *; mv *.zip ..
       - name: Download WIN64 artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64
           path: ./artifacts-win
-      - run: mkdir ./artifacts-win/titledb; cp titledb-*/titledb.db ./artifacts-win/titledb/
       - name: Compress WIN64 artifacts
         run: cd artifacts-win; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-win-x64.zip *; mv *.zip ..
       - name: Download LINUX64 artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64
           path: ./artifacts-linux
-      - run: mkdir ./artifacts-linux/titledb; cp titledb-*/titledb.db ./artifacts-linux/titledb/
       - name: Compress LINUX64 artifacts
         run: cd artifacts-linux; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64.zip *; mv *.zip ..
       - name: Download OSX-ARM64 artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64
           path: ./artifacts-osx-arm
-      - run: mkdir ./artifacts-osx-arm/titledb; cp titledb-*/titledb.db ./artifacts-osx-arm/titledb/
       - name: Compress OSX-ARM64 artifacts
         run: cd artifacts-osx-arm; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip *; mv *.zip ..
       - name: Do Release (v${{ env.GitVersion_MajorMinorPatch }})
