@@ -42,7 +42,7 @@ jobs:
       - name: Publish OSX-ARM64
         run: dotnet publish -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true --no-restore -o ./publish-osx-arm ./src/nsfw/nsfw.csproj
       - name: Upload WIN64 Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: "NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64"
           path: ./publish-win
