@@ -79,6 +79,8 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
                 return 1;
             }
             
+            var count = 0;
+            
             foreach (var gameEntry in gameEntries)
             {
                 var game = gameEntry.Value;
@@ -95,14 +97,17 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
                 }
                 
                 await db.InsertAsync(game);
+                count++;
             }
             
-            AnsiConsole.MarkupLine($"[[[green]DONE[/]]] ({timer.Elapsed.TotalSeconds:0.00}s)");
+            AnsiConsole.MarkupLine($"[[[green]DONE[/]]] - Added {count} - ({timer.Elapsed.TotalSeconds:0.00}s)");
             timer.Reset();
         }
         
+        AnsiConsole.MarkupLine($"[[[green]COMPLETE![/]]]");
+        await db.CloseAsync();
+        
         return 0;
     }
-    
     
 }
