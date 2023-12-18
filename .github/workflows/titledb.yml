@@ -3,6 +3,7 @@ run-name: Building TitleDB! 🚀
 on: workflow_dispatch
 jobs:
   build_titledb:
+    timeout-minutes: 60
     permissions:
       contents: read
       actions: read
