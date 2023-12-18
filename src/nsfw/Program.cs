@@ -1,13 +1,9 @@
-﻿using System.Diagnostics;
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text;
-using Microsoft.Extensions.Logging;
 using Nsfw.Commands;
-using Serilog;
-using Serilog.Sinks.Spectre;
-using Spectre.Console;
 using Spectre.Console.Cli;
 
+// ReSharper disable once CheckNamespace
 public static class Program
 {
     public static string GetVersion()
@@ -43,28 +39,15 @@ public static class Program
                 .WithDescription("Reads & print properties from CNMT NCA file.")
                 .WithAlias("m");
             
+            config.AddCommand<QueryCommand>("query")
+                .WithDescription("Query TitleDB for Title ID.")
+                .WithAlias("q");
+            
             config.AddCommand<BuildTitleDbCommand>("build-titledb")
                 .WithDescription("Builds TitleDB from NSP files.")
                 .WithAlias("btdb");
         });
 
         return app.Run(args);
-    }
-}
-
-public static class SettingsDumper
-{
-    public static void Dump(object settings)
-    {
-        var table = new Table();
-        table.AddColumn("Property");
-        table.AddColumn("Value");
-
-        foreach (var property in settings.GetType().GetProperties())
-        {
-            table.AddRow(property.Name, property.GetValue(settings)?.ToString() ?? "null");
-        }
-
-        AnsiConsole.Write(table);
     }
 }

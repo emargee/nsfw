@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System.Runtime.InteropServices.ComTypes;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using LibHac.Common;
 using LibHac.Common.Keys;
@@ -113,7 +114,8 @@ public class ValidateNspService(ValidateNspSettings settings)
                     FullPath = rawFile.FullPath,
                     Type = rawFile.Type,
                     BlockCount = (int)BitUtil.DivideUp(rawFile.Size, nspInfo.DefaultBlockSize),
-                    IsLooseFile = isLooseFile
+                    IsLooseFile = isLooseFile,
+                    Priority = NsfwUtilities.AssignPriority(rawFile.Name)
                 });
         }
 
@@ -183,18 +185,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             Log.Error($"{phase} - Unsupported content type {nspInfo.TitleType}");
             return 1;
         }
-
-        var metaContent = new ContentFileInfo
-        {
-            FileName = title.MetaNca.Filename,
-            NcaId = title.MetaNca.NcaId,
-            Hash = cnmt.Hash,
-            Type = ContentType.Meta,
-            IsMissing = !nspInfo.RawFileEntries.ContainsKey(title.MetaNca.Filename)
-        };
-
-        nspInfo.ContentFiles.Add(metaContent.FileName, metaContent);
-
+        
         foreach (var contentEntry in cnmt.ContentEntries)
         {
             var contentFile = new ContentFileInfo
@@ -202,7 +193,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 FileName = $"{contentEntry.NcaId.ToHexString().ToLower()}.nca",
                 NcaId = contentEntry.NcaId.ToHexString(),
                 Hash = contentEntry.Hash,
-                Type = contentEntry.Type
+                Type = contentEntry.Type,
             };
 
             if (contentFile.NcaId != contentFile.Hash.Take(16).ToArray().ToHexString())
@@ -287,7 +278,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.CanProceed = false;
         }
 
-        if (nspInfo.HasTitleKeyCrypto)
+        if (nspInfo.HasTitleKeyCrypto && nspInfo.Ticket != null)
         {
             if (mainNca.Nca.Header.RightsId.IsZeros())
             {
@@ -297,41 +288,56 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             phase = $"[olive]Validate Ticket[/]";
 
-            if (nspInfo.Ticket!.SignatureType != TicketSigType.Rsa2048Sha256)
+            if (nspInfo.Ticket.SignatureType != TicketSigType.Rsa2048Sha256)
             {
-                Log.Error($"{phase} - Unsupported ticket signature type {nspInfo.Ticket!.SignatureType}");
+                Log.Error($"{phase} - Unsupported ticket signature type {nspInfo.Ticket.SignatureType}");
                 return 1;
             }
 
-            if (nspInfo.Ticket!.TitleKeyType != TitleKeyType.Common)
+            var offset = BitConverter.GetBytes(nspInfo.Ticket.SectHeaderOffset);
+            Array.Reverse(offset);
+
+            if (!offset.ToHexString().Equals("000002C0"))
+            {
+                nspInfo.Warnings.Add($"{phase} - Section Records Offset is incorrect.");
+                nspInfo.GenerateNewTicket = true; 
+            }
+
+            if (nspInfo.Ticket.LicenseType != LicenseType.Permanent)
+            {
+                nspInfo.Warnings.Add($"{phase} - Incorrect license-type found.");
+                nspInfo.GenerateNewTicket = true;
+            }
+
+            if (nspInfo.Ticket.TitleKeyType != TitleKeyType.Common)
             {
                 nspInfo.Warnings.Add($"{phase} - Personal ticket type found.");
                 nspInfo.GenerateNewTicket = true;
             }
 
-            var propertyMask = (FixedPropertyFlags)nspInfo.Ticket!.PropertyMask;
+            var propertyMask = (FixedPropertyFlags)nspInfo.Ticket.PropertyMask;
             
-            if (nspInfo.Ticket!.TicketId != 0)
+            if (nspInfo.Ticket.TicketId != 0)
             {
-                nspInfo.Warnings.Add($"{phase} - Ticket has ticket ID set ({nspInfo.Ticket!.TicketId}).");
+                nspInfo.Warnings.Add($"{phase} - Ticket has ticket ID set ({nspInfo.Ticket.TicketId}).");
                 nspInfo.GenerateNewTicket = true;
             }
 
-            if (nspInfo.Ticket!.PropertyMask != 0)
+            if (nspInfo.Ticket.PropertyMask != 0)
             {
                 nspInfo.Warnings.Add($"{phase} - Ticket has property mask set ({propertyMask}).");
                 nspInfo.GenerateNewTicket = true;
             }
 
-            if (nspInfo.Ticket!.AccountId != 0)
+            if (nspInfo.Ticket.AccountId != 0)
             {
-                nspInfo.Warnings.Add($"{phase} - Ticket has account ID set ({nspInfo.Ticket!.AccountId})");
+                nspInfo.Warnings.Add($"{phase} - Ticket has account ID set ({nspInfo.Ticket.AccountId})");
                 nspInfo.GenerateNewTicket = true;
             }
 
-            if (nspInfo.Ticket!.DeviceId != 0)
+            if (nspInfo.Ticket.DeviceId != 0)
             {
-                nspInfo.Warnings.Add($"{phase} - Ticket has device ID set ({nspInfo.Ticket!.DeviceId})");
+                nspInfo.Warnings.Add($"{phase} - Ticket has device ID set ({nspInfo.Ticket.DeviceId})");
                 nspInfo.GenerateNewTicket = true;
             }
 
@@ -376,12 +382,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         foreach (var fsNca in title.Ncas)
         {
-            if (fsNca.Nca.Header.ContentType == NcaContentType.Meta)
-            {
-                continue;
-            }
-
-            var ncaInfo = new NcaInfo(fsNca.Filename)
+            var ncaInfo = new NcaInfo(fsNca)
             {
                 IsHeaderValid = fsNca.Nca.VerifyHeaderSignature() == Validity.Valid
             };
@@ -468,8 +469,6 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                 var blockCount = rawFile.BlockCount;
 
-                var expectedHash = nspInfo.ContentFiles[fsNca.Filename].Hash.ToHexString();
-
                 AnsiConsole.Progress()
                     .AutoClear(true) // Do not remove the task list when done
                     .HideCompleted(true) // Hide tasks as they are completed
@@ -477,7 +476,6 @@ public class ValidateNspService(ValidateNspSettings settings)
                     {
                         new SpinnerColumn(),
                         new TaskDescriptionColumn(), // Task description
-                        //new ProgressBarColumn(),      // Progress bar
                         new PercentageColumn(), // Percentage
                         new RemainingTimeColumn(), // Remaining time
                     })
@@ -503,10 +501,23 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                             sha256.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
                             var ncaHash = sha256.Hash.ToHexString();
-                            ncaInfo.HashMatch = string.Equals(ncaHash, expectedHash, StringComparison.OrdinalIgnoreCase)
-                                ? HashMatchType.Match
-                                : HashMatchType.Mismatch;
-
+                            var expectedHash = string.Empty;
+                            
+                            if(fsNca.Nca.Header.ContentType == NcaContentType.Meta)
+                            {
+                                expectedHash = fsNca.Filename[..^9];
+                                ncaInfo.HashMatch = ncaHash.StartsWith(expectedHash, StringComparison.InvariantCultureIgnoreCase)
+                                    ? HashMatchType.Match
+                                    : HashMatchType.Mismatch;
+                            }
+                            else
+                            {
+                                expectedHash = nspInfo.ContentFiles[fsNca.Filename].Hash.ToHexString();
+                                ncaInfo.HashMatch = string.Equals(ncaHash, expectedHash, StringComparison.InvariantCultureIgnoreCase)
+                                    ? HashMatchType.Match
+                                    : HashMatchType.Mismatch; 
+                            }
+                            
                             if (ncaInfo.HashMatch == HashMatchType.Mismatch)
                             {
                                 nspInfo.Errors.Add($"{phase} - Hash mismatch for NCA {ncaInfo.FileName} - Expected {expectedHash}, got {ncaHash}");
@@ -518,6 +529,8 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             nspInfo.NcaFiles.Add(fsNca.Filename, ncaInfo);
         }
+        
+        // DISPLAY TITLE LOOKUP
 
         var control = title.Control.Value;
 
@@ -644,6 +657,19 @@ public class ValidateNspService(ValidateNspSettings settings)
         {
             nspInfo.DisplayVersion = control.DisplayVersionString.ToString()!.Trim();
         }
+        
+        // NCA ORDER CHECK
+
+        if (NsfwUtilities.IsOrderCorrect(nspInfo.RawFileEntries.Values.ToArray()))
+        {
+            nspInfo.IsFileOrderCorrect = true;
+        }
+        else
+        {
+            nspInfo.Warnings.Add("[olive]NCA File Order[/] <- [red]Non-standard[/]");
+        }
+        
+        // VALIDATION CHECK
 
         if (settings.SkipHash && !settings.Rename)
         {
@@ -700,7 +726,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             };
             foreach (var rawFile in nspInfo.RawFileEntries.Values)
             {
-                var displayLine = $"{rawFile.Name} - {rawFile.DisplaySize}";
+                var displayLine = $"{rawFile.Name} ({rawFile.DisplaySize})";
                 
                 if (rawFile.IsLooseFile)
                 {
@@ -726,6 +752,11 @@ public class ValidateNspService(ValidateNspSettings settings)
             };
             foreach (var contentFile in nspInfo.ContentFiles.Values)
             {
+                if(contentFile.Type == ContentType.Meta)
+                {
+                    continue;
+                }
+                
                 var status = contentFile.IsMissing || contentFile.SizeMismatch ? validationFail : validationPass;
                 var error = contentFile.IsMissing ? "<- Missing" :
                     contentFile.SizeMismatch ? "<- Size Mismatch" : string.Empty;
@@ -753,7 +784,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     HashMatchType.Mismatch => hashFail,
                     _ => hashSkip
                 };
-                var ncaNode = new TreeNode(new Markup($"{status}{hashStatus} {ncaFile.FileName} ({ncaFile.Type})"));
+                var ncaNode = new TreeNode(new Markup($"{status}{hashStatus} {ncaFile.FileName}"));
                 ncaNode.Expanded = true;
 
                 foreach (var section in ncaFile.Sections.Values)
@@ -912,6 +943,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             propertiesTable.AddRow("Meta Validity", nspInfo.ContentValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
             propertiesTable.AddRow("Raw File Count", nspInfo.RawFileEntries.Count + $" ({nspInfo.RawFileEntries.Keys.Count(x => x.EndsWith(".nca"))} NCAs" + (nspInfo.DeltaCount > 0 ? $" + {nspInfo.DeltaCount} Missing Deltas" : "") + ") ");
             propertiesTable.AddRow("Has loose files ?", nspInfo.HasLooseFiles ? "[red]Yes[/]" : "[green]No[/]");
+            propertiesTable.AddRow("NCA File Order", nspInfo.IsFileOrderCorrect ? "[green]Correct[/]" : "[red]Non-Standard[/]");
             if (nspInfo.TitleKeyDecrypted.Length > 0)
             {
                 propertiesTable.AddRow("TitleKey (Enc)", nspInfo.TitleKeyEncrypted.ToHexString());
@@ -945,10 +977,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             propertiesTable.AddRow("Output Name", $"[olive]{outputName.EscapeMarkup()}[/]");
             propertiesTable.AddRow("[olive]Validation[/]", nspInfo.CanProceed ? "[green]Passed[/]" : "[red]Failed[/]");
-
-            var isStandard = nspInfo.CanProceed && !nspInfo.GenerateNewTicket && !nspInfo.HasLooseFiles;
-
-            propertiesTable.AddRow("[olive]Standard NSP?[/]", isStandard ? "[green]Passed[/]" : "[red]Failed[/]");
+            propertiesTable.AddRow("[olive]Standard NSP?[/]", nspInfo.IsStandardNsp ? "[green]Passed[/]" : "[red]Failed[/]");
 
             AnsiConsole.Write(new Padder(propertiesTable).PadLeft(1).PadTop(1).PadBottom(1));
         }
@@ -960,8 +989,6 @@ public class ValidateNspService(ValidateNspSettings settings)
                 Log.Warning($"Output name is looong ({outputName.Length + 4}). This may cause issues saving on Windows.");
             }
         }
-            
-        //AnsiConsole.WriteLine("----------------------------------------");
         
         if(!nspInfo.CanProceed)
         {
@@ -1156,6 +1183,12 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (settings.Convert)
         {
+            if (nspInfo.IsStandardNsp)
+            {
+                Log.Information("File is already in Standard NSP format. Skipping conversion.");
+                return 0;
+            }
+            
             if (settings.DryRun)
             {
                 Log.Information($"[[[green]DRYRUN[/]]] -> Would create: [olive]{outputName.EscapeMarkup()}.nsp[/]");
@@ -1163,8 +1196,11 @@ public class ValidateNspService(ValidateNspSettings settings)
             
             var builder = new PartitionFileSystemBuilder();
         
-            foreach (var nca in title.Ncas)
+            // Add NCAs in CNMT order
+            foreach (var contentFile in nspInfo.ContentFiles.Values)
             {
+                var nca = nspInfo.NcaFiles[contentFile.FileName].FsNca;
+                
                 if (settings.DryRun)
                 {
                     Log.Information($"[[[green]DRYRUN[/]]] -> Would add: [olive]{nca.Filename}[/]");
@@ -1174,7 +1210,17 @@ public class ValidateNspService(ValidateNspSettings settings)
                     builder.AddFile(nca.Filename, nca.Nca.BaseStorage.AsFile(OpenMode.Read));
                 }
             }
-        
+            
+            // Add CNMT/MetaNCA
+            if (settings.DryRun)
+            {
+                Log.Information($"[[[green]DRYRUN[/]]] -> Would add: [olive]{title.MetaNca.Filename}[/]");
+            }
+            else
+            {
+                builder.AddFile(title.MetaNca.Filename, title.MetaNca.Nca.BaseStorage.AsFile(OpenMode.Read));
+            }
+
             if (nspInfo.HasTitleKeyCrypto && nspInfo.Ticket != null)
             {
                 if (settings.DryRun)

@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using SQLite;
@@ -8,7 +10,7 @@ namespace Nsfw.Commands;
 
 public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
 {
-    public const string TitleDbName = "titledb.db"; 
+    public const string TitleDbName = "titledb.db";
     
     public override async Task<int> ExecuteAsync(CommandContext context, BuildTitleDbSettings settings)
     {
@@ -19,12 +21,6 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
             AnsiConsole.MarkupLine($"[[[green]DONE[/]]] Clean old DB.");
             File.Delete(dbPath);
         }
-        
-        var jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            AllowTrailingCommas = true
-        };
         
         var db = new SQLiteAsyncConnection(dbPath);
         await db.EnableWriteAheadLoggingAsync();
@@ -37,8 +33,8 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
         var versionFilePath = Path.Combine(settings.TitleDbDirectory, "versions.json");
         await using var versionFs = File.OpenRead(versionFilePath);
         
-        var versionEntries = JsonSerializer.Deserialize<Dictionary<string,Dictionary<string, string>>>(versionFs, jsonOptions);
-
+        var versionEntries = JsonSerializer.Deserialize(versionFs, SourceGenerationContext.Default.DictionaryStringDictionaryStringString);
+        
         foreach (var versionInfo in versionEntries!
                      .SelectMany(version => version.Value.Select(titleVersion => new TitleVersions
                  {
@@ -49,7 +45,7 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
         {
             await db.InsertAsync(versionInfo);
         }
-
+        
         AnsiConsole.MarkupLine($"[[[green]DONE[/]]]");
         
         var entries = new HashSet<string>();
@@ -75,7 +71,7 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
             
             await using var fs = File.OpenRead(entry);
             
-            var gameEntries = JsonSerializer.Deserialize<Dictionary<string,GameInfo>>(fs, jsonOptions);
+            var gameEntries = JsonSerializer.Deserialize(fs, SourceGenerationContext.Default.DictionaryStringGameInfo);
         
             if (gameEntries == null)
             {
@@ -107,4 +103,6 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
         
         return 0;
     }
+    
+    
 }

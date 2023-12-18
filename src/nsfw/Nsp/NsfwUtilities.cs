@@ -266,6 +266,14 @@ public static partial class NsfwUtilities
         
         return result.Languages.Split(",",StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).OrderBy(x => languageOrder.IndexOf(x)).ToArray();
     }
+    
+    public static async Task<string[]> LookUpRegions(string titleDbPath, long nsuId)
+    {
+        var db = new SQLiteAsyncConnection(titleDbPath);
+        var result = await db.Table<TitleRegion>().Where(x => x.NsuId == nsuId).ToArrayAsync();
+        
+        return result.Select(x => x.Region).ToArray();
+    }
 
     public static async Task<TitleVersions[]> LookUpUpdates(string titleDbPath, string titleId)
     {
@@ -322,8 +330,8 @@ public static partial class NsfwUtilities
         table.AddRow("TitleKey Type", ticket.TitleKeyType == TitleKeyType.Common ? $"[green]{ticket.TitleKeyType}[/]" : $"[red]{ticket.TitleKeyType}[/]");
         table.AddRow("Ticket Id", ticket.TicketId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.TicketId:X})[/]");
         table.AddRow("Ticket Version", ticket.TicketVersion == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.TicketVersion:X})[/]");
-        table.AddRow("License Type", ticket.LicenseType.ToString());
-        table.AddRow("Crypto Revision", "0x" +ticket.CryptoType.ToString("X"));
+        table.AddRow("License Type", ticket.LicenseType == LicenseType.Permanent ? $"[green]{ticket.LicenseType}[/]" : $"[red]{ticket.LicenseType}[/]");
+        table.AddRow("Crypto Revision", ticket.CryptoType == ticket.RightsId.Last() ? $"[green]0x{ticket.CryptoType:X}[/]": $"[red]0x{ticket.CryptoType:X}[/]");
         table.AddRow("Device Id", ticket.DeviceId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.DeviceId:X})[/]");
         table.AddRow("Account Id", ticket.AccountId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.AccountId:X})[/]");
         table.AddRow("Rights Id", ticket.RightsId.ToHexString());
@@ -344,5 +352,37 @@ public static partial class NsfwUtilities
         propertyTable.AddRow("E-License Required ?", myTikFlags.HasFlag(FixedPropertyFlags.ELicenseRequired) ? "[red]True[/]" : "[green]False[/]");
 
         table.AddRow(new Text("Properties"), propertyTable);
+    }
+
+    public static int? AssignPriority(string fileName)
+    {
+        if(fileName.EndsWith(".cnmt.nca"))
+        {
+            return 1;
+        }
+
+        if (fileName.EndsWith(".nca"))
+        {
+            return 0;
+        }
+
+        if (fileName.EndsWith(".tik"))
+        {
+            return 2;
+        }
+
+        if (fileName.EndsWith(".cert"))
+        {
+            return 3;
+        }
+
+        return null;
+    }
+
+    public static bool IsOrderCorrect(RawContentFileInfo[] values)
+    {
+        var rawList = values.Aggregate(string.Empty, (current, rawFile) => current + rawFile.Priority);
+        var sortedList = values.OrderBy(x => x.Priority).Aggregate(string.Empty, (current, rawFile) => current + rawFile.Priority);
+        return rawList.Equals(sortedList, StringComparison.InvariantCulture);
     }
 }

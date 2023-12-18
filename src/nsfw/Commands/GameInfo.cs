@@ -45,6 +45,13 @@ public class GameInfo
     public string RegionLanguage { get; set; } = "Unknown";
 }
 
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNameCaseInsensitive = true, AllowTrailingCommas = true)]
+[JsonSerializable(typeof(Dictionary<string,GameInfo>))]
+[JsonSerializable(typeof(Dictionary<string,Dictionary<string, string>>))]
+internal partial class SourceGenerationContext : JsonSerializerContext
+{
+}
+
 public class TitleRegion
 {
     [Indexed]
