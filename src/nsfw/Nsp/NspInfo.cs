@@ -178,6 +178,8 @@ public class NspInfo
     public int DeltaCount { get; set; }
     public KeyGeneration KeyGeneration { get; set; }
     public bool HasLooseFiles { get; set; }
+    public bool IsFileOrderCorrect { get; set; }
+    public bool IsStandardNsp => CanProceed && !GenerateNewTicket && !HasLooseFiles && IsFileOrderCorrect;
 
     public NspInfo(string filePath)
     {

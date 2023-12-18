@@ -11,4 +11,5 @@ public class RawContentFileInfo
     public string DisplaySize => Size.BytesToHumanReadable();
     public int BlockCount { get; set; }
     public bool IsLooseFile { get; set; }
+    public int? Priority { get; set; } = null;
 }

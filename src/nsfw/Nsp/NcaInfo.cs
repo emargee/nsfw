@@ -1,11 +1,13 @@
-﻿using LibHac.Tools.FsSystem.NcaUtils;
+﻿using LibHac.Tools.Fs;
+using LibHac.Tools.FsSystem.NcaUtils;
 using Nsfw.Commands;
 
 namespace Nsfw.Nsp;
 
-public class NcaInfo(string ncaFilename)
+public class NcaInfo(SwitchFsNca nca)
 {
-    public string FileName { get; init; } = ncaFilename;
+    public SwitchFsNca FsNca { get; init; } = nca;
+    public string FileName { get; init; } = nca.Filename;
     public Dictionary<int, NcaSectionInfo> Sections { get; set; } = [];
     public bool IsHeaderValid { get; set; }
     public bool IsErrored => Sections.Any(x => x.Value.IsErrored) || !IsHeaderValid;
