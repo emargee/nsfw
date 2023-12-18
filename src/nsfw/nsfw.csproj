@@ -20,6 +20,7 @@
     <StackTraceSupport>false</StackTraceSupport>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <PublishSingleFile>true</PublishSingleFile>
+    <PublishSelfContained>true</PublishSelfContained>
     <PublishTrimmed>true</PublishTrimmed>
     <TrimmerRemoveSymbols>true</TrimmerRemoveSymbols>
     <DebuggerSupport>false</DebuggerSupport>
