@@ -60,7 +60,7 @@ public static class Program
                 .WithAlias("q");
             
             config.AddCommand<BuildTitleDbCommand>("build-titledb")
-                .WithDescription("Builds TitleDB from NSP files.")
+                .WithDescription("Builds TitleDB from TitleDB repo files.")
                 .WithAlias("btdb");
         });
 

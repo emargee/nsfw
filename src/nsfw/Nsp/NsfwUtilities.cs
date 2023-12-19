@@ -380,4 +380,10 @@ public static partial class NsfwUtilities
         var sortedList = values.OrderBy(x => x.Priority).Aggregate(string.Empty, (current, rawFile) => current + rawFile.Priority);
         return rawList.Equals(sortedList, StringComparison.InvariantCulture);
     }
+
+    public static CnmtInfo[] GetCnmtInfo(string titleDbPath, string titleId, string version)
+    {
+        var db = new SQLiteAsyncConnection(titleDbPath);
+        return db.Table<CnmtInfo>().Where(x => x.TitleId.ToLower() == titleId.ToLower() && x.Version == version).ToArrayAsync().Result;
+    }
 }

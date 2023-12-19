@@ -766,6 +766,26 @@ public class ValidateNspService(ValidateNspSettings settings)
             AnsiConsole.Write(new Padder(metaTree).PadLeft(1).PadTop(1).PadBottom(0));
         }
 
+        if (settings is { LogLevel: LogLevel.Full, VerifyTitle: true } && nspInfo.OutputOptions.IsTitleDbAvailable)
+        {
+            var titleDbCnmt = NsfwUtilities.GetCnmtInfo(settings.TitleDbFile, nspInfo.TitleId, nspInfo.TitleVersion[1..]);
+            if (titleDbCnmt.Length > 0)
+            {
+                var titleDbTree = new Tree("TitleDB CNMT:")
+                {
+                    Expanded = true,
+                    Guide = TreeGuide.Line
+                };
+                foreach (var contentEntry in titleDbCnmt)
+                {
+                    var status = nspInfo.ContentFiles.ContainsKey(contentEntry.NcaId + ".nca") ? validationPass : validationFail;
+                    titleDbTree.AddNode($"{status} {contentEntry.NcaId} [[{(ContentType)contentEntry.NcaType}]]");
+                }
+
+                AnsiConsole.Write(new Padder(titleDbTree).PadLeft(1).PadTop(1).PadBottom(0));
+            }
+        }
+
         // NCA TREE
 
         if (settings.LogLevel == LogLevel.Full)
