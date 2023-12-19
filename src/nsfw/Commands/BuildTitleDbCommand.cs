@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Spectre.Console;
@@ -10,7 +11,7 @@ namespace Nsfw.Commands;
 
 public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
 {
-    public const string TitleDbName = "titledb.db";
+    private const string TitleDbName = "titledb.db";
     
     public override async Task<int> ExecuteAsync(CommandContext context, BuildTitleDbSettings settings)
     {
@@ -27,6 +28,38 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
         await db.CreateTableAsync<GameInfo>();
         await db.CreateTableAsync<TitleRegion>();
         await db.CreateTableAsync<TitleVersions>();
+        await db.CreateTableAsync<CnmtInfo>();
+        
+        AnsiConsole.Markup("Ingesting: [olive]CNMT[/]...");
+        
+        var cnmtFilePath = Path.Combine(settings.TitleDbDirectory, "cnmts.json");
+        await using var cnmtFs = File.OpenRead(cnmtFilePath);
+        
+        var cnmtEntries = JsonSerializer.Deserialize(cnmtFs, SourceGenerationContext.Default.DictionaryStringDictionaryStringDtoCnmtInfo);
+
+        if (cnmtEntries != null)
+        {
+            foreach (var dbEntry in cnmtEntries.SelectMany(cnmtEntry => 
+                         from versions in cnmtEntry.Value 
+                         from contentEntry in versions.Value.ContentEntries 
+                         select new CnmtInfo
+                         {
+                             TitleId = cnmtEntry.Key,
+                             Version = versions.Key,
+                             NcaId = contentEntry.NcaId,
+                             NcaType = contentEntry.Type
+                         }))
+            {
+                await db.InsertAsync(dbEntry);
+            }
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[[red]Error[/]] Cannot parse CNMTS file.");
+            return 1;
+        }
+
+        AnsiConsole.MarkupLine($"[[[green]DONE[/]]]");
         
         AnsiConsole.Markup("Ingesting: [olive]VERSIONS[/]...");
         
@@ -34,18 +67,27 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
         await using var versionFs = File.OpenRead(versionFilePath);
         
         var versionEntries = JsonSerializer.Deserialize(versionFs, SourceGenerationContext.Default.DictionaryStringDictionaryStringString);
-        
-        foreach (var versionInfo in versionEntries!
-                     .SelectMany(version => version.Value.Select(titleVersion => new TitleVersions
-                 {
-                     TitleId = version.Key,
-                     Version = titleVersion.Key,
-                     ReleaseDate = titleVersion.Value
-                 })))
+
+        if (versionEntries != null)
         {
-            await db.InsertAsync(versionInfo);
+            foreach (var versionInfo in versionEntries
+                         .SelectMany(version => version.Value.Select(titleVersion => 
+                             new TitleVersions
+                             {
+                                 TitleId = version.Key,
+                                 Version = titleVersion.Key,
+                                 ReleaseDate = titleVersion.Value
+                             })))
+            {
+                await db.InsertAsync(versionInfo);
+            }
         }
-        
+        else
+        {
+            AnsiConsole.MarkupLine("[[red]Error[/]] Cannot parse VERSIONS file.");
+            return 1;
+        }
+
         AnsiConsole.MarkupLine($"[[[green]DONE[/]]]");
         
         var entries = new HashSet<string>();

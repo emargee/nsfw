@@ -92,11 +92,6 @@ public static partial class NsfwUtilities
             cleanTitle = cleanTitle[..^2];
         }
 
-        if (cleanTitle.EndsWith('-'))
-        {
-            cleanTitle = cleanTitle[..^1];
-        }
-
         if (cleanTitle.StartsWith('-'))
         {
             cleanTitle = cleanTitle[1..];

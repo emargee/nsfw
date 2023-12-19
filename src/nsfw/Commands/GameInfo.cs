@@ -48,8 +48,32 @@ public class GameInfo
 [JsonSourceGenerationOptions(WriteIndented = true, PropertyNameCaseInsensitive = true, AllowTrailingCommas = true)]
 [JsonSerializable(typeof(Dictionary<string,GameInfo>))]
 [JsonSerializable(typeof(Dictionary<string,Dictionary<string, string>>))]
+[JsonSerializable(typeof(Dictionary<string, Dictionary<string, DtoCnmtInfo>>))]
 internal partial class SourceGenerationContext : JsonSerializerContext
 {
+}
+
+public class CnmtInfo
+{
+    [PrimaryKey]
+    [AutoIncrement]
+    public long Id { get; set; }
+    public string TitleId { get; set; } = string.Empty;
+    public string Version { get; set; } = string.Empty;
+    public string NcaId { get; set; } = string.Empty;
+    public int NcaType { get; set; }
+}
+
+public class DtoCnmtInfo
+{
+    public DtoCnmtContentEntry[] ContentEntries { get; set; } = Array.Empty<DtoCnmtContentEntry>();
+    public string OtherApplicationId { get; set; } = string.Empty;
+}
+
+public class DtoCnmtContentEntry
+{
+    public string NcaId { get; set; } = string.Empty;
+    public int Type { get; set; }
 }
 
 public class TitleRegion
