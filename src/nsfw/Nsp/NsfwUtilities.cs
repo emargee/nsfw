@@ -318,37 +318,6 @@ public static partial class NsfwUtilities
         return certSha256 == commonCertSha256.ToUpperInvariant();
     }
 
-    public static void RenderTicket(Table table, Ticket ticket)
-    {
-        table.AddRow("Issuer", ticket.Issuer == "Root-CA00000003-XS00000020" ? $"[green]{ticket.Issuer}[/]" : $"[red]{ticket.Issuer}[/]");
-        table.AddRow("Format Version", "0x" + ticket.FormatVersion.ToString("X"));
-        table.AddRow("TitleKey Type", ticket.TitleKeyType == TitleKeyType.Common ? $"[green]{ticket.TitleKeyType}[/]" : $"[red]{ticket.TitleKeyType}[/]");
-        table.AddRow("Ticket Id", ticket.TicketId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.TicketId:X})[/]");
-        table.AddRow("Ticket Version", ticket.TicketVersion == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.TicketVersion:X})[/]");
-        table.AddRow("License Type", ticket.LicenseType == LicenseType.Permanent ? $"[green]{ticket.LicenseType}[/]" : $"[red]{ticket.LicenseType}[/]");
-        table.AddRow("Crypto Revision", ticket.CryptoType == ticket.RightsId.Last() ? $"[green]0x{ticket.CryptoType:X}[/]": $"[red]0x{ticket.CryptoType:X}[/]");
-        table.AddRow("Device Id", ticket.DeviceId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.DeviceId:X})[/]");
-        table.AddRow("Account Id", ticket.AccountId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.AccountId:X})[/]");
-        table.AddRow("Rights Id", ticket.RightsId.ToHexString());
-        table.AddRow("Signature Type", ticket.SignatureType.ToString());
-        
-        var propertyTable = new Table{
-            ShowHeaders = false
-        };
-        propertyTable.AddColumn("Property");
-        propertyTable.AddColumn("Value");
-        
-        var myTikFlags = (FixedPropertyFlags)ticket.PropertyMask;
-        propertyTable.AddRow("Pre-Install ?", myTikFlags.HasFlag(FixedPropertyFlags.PreInstall) ? "[red]True[/]" : "[green]False[/]");
-        propertyTable.AddRow("Allow All Content ?", myTikFlags.HasFlag(FixedPropertyFlags.AllowAllContent) ? "[red]True[/]" : "[green]False[/]");
-        propertyTable.AddRow("Shared Title ?", myTikFlags.HasFlag(FixedPropertyFlags.SharedTitle) ? "[red]True[/]" : "[green]False[/]");
-        propertyTable.AddRow("DeviceLink Independent ?", myTikFlags.HasFlag(FixedPropertyFlags.DeviceLinkIndependent) ? "[red]True[/]" : "[green]False[/]");
-        propertyTable.AddRow("Volatile ?", myTikFlags.HasFlag(FixedPropertyFlags.Volatile) ? "[red]True[/]" : "[green]False[/]");
-        propertyTable.AddRow("E-License Required ?", myTikFlags.HasFlag(FixedPropertyFlags.ELicenseRequired) ? "[red]True[/]" : "[green]False[/]");
-
-        table.AddRow(new Text("Properties"), propertyTable);
-    }
-
     public static int? AssignPriority(string fileName)
     {
         if(fileName.EndsWith(".cnmt.nca"))
@@ -385,5 +354,208 @@ public static partial class NsfwUtilities
     {
         var db = new SQLiteAsyncConnection(titleDbPath);
         return db.Table<CnmtInfo>().Where(x => x.TitleId.ToLower() == titleId.ToLower() && x.Version == version).ToArrayAsync().Result;
+    }
+    
+    private static Region GetRegion(NacpLanguage[] titles, ref string languageList)
+    {
+        var region = Region.Unknown;
+
+        if (titles.Length == 0)
+        {
+            return region;
+        }
+
+        if (titles is [NacpLanguage.AmericanEnglish])
+        {
+            region = Region.USA;
+            languageList = string.Empty;
+        }
+
+        if (titles is [NacpLanguage.Japanese])
+        {
+            region = Region.Japan;
+            languageList = string.Empty;
+        }
+
+        if (titles is [NacpLanguage.Korean])
+        {
+            region = Region.Korea;
+            languageList = string.Empty;
+        }
+
+        if (titles is [NacpLanguage.Russian])
+        {
+            region = Region.Russia;
+            languageList = string.Empty;
+        }
+
+        if (titles is [NacpLanguage.TraditionalChinese])
+        {
+            region = Region.China;
+            languageList = string.Empty;
+        }
+
+        if (titles is [NacpLanguage.SimplifiedChinese])
+        {
+            region = Region.China;
+            languageList = string.Empty;
+        }
+
+        if (titles.Any(x => x is NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese))
+        {
+            region = Region.China;
+
+            if (titles.Any(x => x is NacpLanguage.Japanese or NacpLanguage.Korean))
+            {
+                region = Region.Asia;
+
+                if (titles.Contains(NacpLanguage.AmericanEnglish) || titles.Contains(NacpLanguage.BritishEnglish))
+                {
+                    region = Region.World;
+                }
+            }
+        }
+
+        if (titles.Any(x => x is NacpLanguage.BritishEnglish or NacpLanguage.French or NacpLanguage.German
+                or NacpLanguage.Italian or NacpLanguage.Spanish or NacpLanguage.Dutch or NacpLanguage.Portuguese))
+        {
+            region = Region.Europe;
+
+            if (titles.Any(x => x is NacpLanguage.AmericanEnglish or NacpLanguage.Japanese or NacpLanguage.Korean
+                    or NacpLanguage.Russian or NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese
+                    or NacpLanguage.LatinAmericanSpanish or NacpLanguage.BrazilianPortuguese
+                    or NacpLanguage.CanadianFrench))
+            {
+                region = Region.World;
+            }
+        }
+
+        if (titles.Any(x => x is NacpLanguage.AmericanEnglish))
+        {
+            region = Region.USA;
+
+            if (titles.Any(x => x is NacpLanguage.Japanese or NacpLanguage.Korean or NacpLanguage.Russian
+                    or NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese
+                    or NacpLanguage.LatinAmericanSpanish or NacpLanguage.BrazilianPortuguese
+                    or NacpLanguage.CanadianFrench))
+            {
+                region = Region.World;
+            }
+        }
+
+        return region;
+    }
+    
+    public static string BuildOutputName(LanguageMode languageMode,
+        IEnumerable<string> languagesFullShort,
+        IEnumerable<string> languagesShort,
+        NacpLanguage[] titles,
+        string displayTitle,
+        string? displayParentTitle,
+        string displayVersion,
+        FixedContentMetaType titleType,
+        string titleVersion,
+        string displayTypeShort,
+        string titleId,
+        NacpLanguage[] parentLanguages,
+        string displayParentLanguages,
+        bool isDlc,
+        bool possibleDlcUnlocker)
+    {
+        var languageList = string.Empty;
+
+        if (languageMode == LanguageMode.Full)
+        {
+            languageList = string.Join(",", languagesFullShort);
+        }
+
+        if (languageMode == LanguageMode.Short)
+        {
+            languageList = string.Join(",", languagesShort);
+        }
+
+        if (languageMode == LanguageMode.None)
+        {
+            languageList = string.Empty;
+        }
+
+        if (!string.IsNullOrEmpty(languageList))
+        {
+            languageList = $"({languageList})";
+        }
+
+        var region = GetRegion(titles, ref languageList);
+        var displayRegion = languageMode != LanguageMode.None ? $"({region})" : string.Empty;
+
+        var cleanTitle = displayTitle.CleanTitle();
+        var cleanParentTitle = (displayParentTitle ?? string.Empty).CleanTitle();
+
+        if (string.IsNullOrWhiteSpace(cleanParentTitle))
+        {
+            cleanParentTitle = string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(cleanTitle))
+        {
+            cleanTitle = string.Empty;
+        }
+
+        cleanTitle = cleanTitle.Replace(titleId, String.Empty);
+        if (cleanTitle.EndsWith("v0"))
+        {
+            cleanTitle = cleanTitle[..^2];
+        }
+
+        if (titleType is FixedContentMetaType.Patch)
+        {
+            return $"{cleanTitle} {displayRegion}{languageList}[{displayVersion}][{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
+        }
+
+        if (isDlc && !string.IsNullOrEmpty(displayParentTitle))
+        {
+            if (parentLanguages.Any())
+            {
+                languageList = displayParentLanguages;
+                region = GetRegion(parentLanguages.ToArray(), ref languageList);
+                displayRegion = languageMode != LanguageMode.None ? $"({region})" : string.Empty;
+
+                if (languageMode == LanguageMode.None)
+                {
+                    languageList = string.Empty;
+                }
+
+                if (!string.IsNullOrEmpty(languageList))
+                {
+                    languageList = languageList.Replace("Zh,Zh", "Zh-Hans,Zh-Hant");
+                    languageList = $"({languageList})";
+                }
+            }
+
+            var parentParts = cleanParentTitle.Split(" - ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            cleanTitle = parentParts.Aggregate(cleanTitle, (current, part) => current.Replace(part, string.Empty, StringComparison.InvariantCultureIgnoreCase)).CleanTitle();
+
+            var titleParts = cleanTitle.Split(" - ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            foreach (var titlePart in titleParts)
+            {
+                if (cleanParentTitle.Contains(titlePart, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    cleanTitle = cleanTitle?.Replace(titlePart, string.Empty, StringComparison.InvariantCultureIgnoreCase).CleanTitle();
+                }
+            }
+
+            var finalTitle = $"{cleanParentTitle} - {cleanTitle} {displayRegion}{languageList}".CleanTitle();
+
+            if (possibleDlcUnlocker)
+            {
+                finalTitle = $"{cleanParentTitle} - DLC Unlocker (Homebrew){displayRegion}{languageList}".CleanTitle();
+            }
+
+            var formattedTitle = $"{finalTitle}[{titleId}][{titleVersion}][{displayTypeShort}]";
+
+            return formattedTitle.CleanTitle();
+        }
+
+        return $"{cleanTitle} {displayRegion}{languageList}[{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
     }
 }

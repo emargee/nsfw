@@ -64,7 +64,7 @@ public sealed class Cdn2NspSettings : CommandSettings
 
         if (!Directory.Exists(OutDirectory))
         {
-            return ValidationResult.Error($"Output directory '{OutDirectory}' does not exist.");
+            Directory.CreateDirectory(OutDirectory);
         }
         
         if(!Nsp.NsfwUtilities.ValidateCommonCert(CertFile))

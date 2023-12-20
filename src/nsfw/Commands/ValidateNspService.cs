@@ -705,65 +705,19 @@ public class ValidateNspService(ValidateNspSettings settings)
         }
         
         // -- DISPLAY SECTION --
-
-        const string validationFail = "[red][[X]][/]";
-        const string validationPass = "[green][[V]][/]";
-        const string headerPass = "[green][[H]][/]";
-        const string headerFail = "[red][[H]][/]";
-        const string validationSkipped = "[olive][[-]][/]";
-        const string hashPass = "[green][[PASS]][/]";
-        const string hashFail = "[red][[FAIL]][/]";
-        const string hashSkip = "[olive][[SKIP]][/]";
-
+        
         // RAW FILE TREE
 
         if (settings.LogLevel == LogLevel.Full)
         {
-            var rawFileTree = new Tree("PFS0:")
-            {
-                Expanded = true,
-                Guide = TreeGuide.Line
-            };
-            foreach (var rawFile in nspInfo.RawFileEntries.Values)
-            {
-                var displayLine = $"{rawFile.Name} ({rawFile.DisplaySize})";
-                
-                if (rawFile.IsLooseFile)
-                {
-                    rawFileTree.AddNode($"[grey]{displayLine}[/]");
-                }
-                else
-                {
-                    rawFileTree.AddNode($"{displayLine}");
-                }
-            }
-
-            AnsiConsole.Write(new Padder(rawFileTree).PadLeft(1).PadTop(0).PadBottom(0));
+            AnsiConsole.Write(new Padder(RenderUtilities.RenderRawFilesTree(nspInfo.RawFileEntries.Values)).PadLeft(1).PadTop(0).PadBottom(0));
         }
 
         // CNMT TREE
 
         if (settings.LogLevel == LogLevel.Full)
         {
-            var metaTree = new Tree("Metadata Content:")
-            {
-                Expanded = true,
-                Guide = TreeGuide.Line
-            };
-            foreach (var contentFile in nspInfo.ContentFiles.Values)
-            {
-                if(contentFile.Type == ContentType.Meta)
-                {
-                    continue;
-                }
-                
-                var status = contentFile.IsMissing || contentFile.SizeMismatch ? validationFail : validationPass;
-                var error = contentFile.IsMissing ? "<- Missing" :
-                    contentFile.SizeMismatch ? "<- Size Mismatch" : string.Empty;
-                metaTree.AddNode($"{status} {contentFile.FileName} [[{contentFile.Type}]] {error}");
-            }
-
-            AnsiConsole.Write(new Padder(metaTree).PadLeft(1).PadTop(1).PadBottom(0));
+            AnsiConsole.Write(new Padder(RenderUtilities.RenderCnmtTree(nspInfo.ContentFiles.Values)).PadLeft(1).PadTop(1).PadBottom(0));
         }
 
         if (settings is { LogLevel: LogLevel.Full, VerifyTitle: true } && nspInfo.OutputOptions.IsTitleDbAvailable)
@@ -771,18 +725,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             var titleDbCnmt = NsfwUtilities.GetCnmtInfo(settings.TitleDbFile, nspInfo.TitleId, nspInfo.TitleVersion[1..]);
             if (titleDbCnmt.Length > 0)
             {
-                var titleDbTree = new Tree("TitleDB CNMT:")
-                {
-                    Expanded = true,
-                    Guide = TreeGuide.Line
-                };
-                foreach (var contentEntry in titleDbCnmt)
-                {
-                    var status = nspInfo.ContentFiles.ContainsKey(contentEntry.NcaId + ".nca") ? validationPass : validationFail;
-                    titleDbTree.AddNode($"{status} {contentEntry.NcaId} [[{(ContentType)contentEntry.NcaType}]]");
-                }
-
-                AnsiConsole.Write(new Padder(titleDbTree).PadLeft(1).PadTop(1).PadBottom(0));
+                AnsiConsole.Write(new Padder(RenderUtilities.RenderTitleDbCnmtTree(titleDbCnmt,nspInfo.ContentFiles)).PadLeft(1).PadTop(1).PadBottom(0));
             }
         }
 
@@ -790,80 +733,25 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (settings.LogLevel == LogLevel.Full)
         {
-            var ncaTree = new Tree("NCAs:")
-            {
-                Expanded = true,
-                Guide = TreeGuide.Line
-            };
-            foreach (var ncaFile in nspInfo.NcaFiles.Values)
-            {
-                var status = !ncaFile.IsHeaderValid ? headerFail : headerPass;
-                var hashStatus = ncaFile.HashMatch switch
-                {
-                    HashMatchType.Match => hashPass,
-                    HashMatchType.Mismatch => hashFail,
-                    _ => hashSkip
-                };
-                var ncaNode = new TreeNode(new Markup($"{status}{hashStatus} {ncaFile.FileName}"));
-                ncaNode.Expanded = true;
-
-                foreach (var section in ncaFile.Sections.Values)
-                {
-                    var sectionStatus = section.IsErrored ? validationFail :
-                        section.IsPatchSection ? validationSkipped : validationPass;
-
-                    if (section.IsErrored)
-                    {
-                        ncaNode.AddNode(
-                            $"{sectionStatus} Section {section.SectionId} <- [red]{section.ErrorMessage}[/]");
-                    }
-                    else
-                    {
-                        ncaNode.AddNode(
-                            $"{sectionStatus} Section {section.SectionId} [grey]({section.EncryptionType})[/]");
-                    }
-
-                }
-
-                ncaTree.AddNode(ncaNode);
-            }
-            AnsiConsole.Write(new Padder(ncaTree).PadLeft(1).PadTop(1).PadBottom(0));
+            AnsiConsole.Write(new Padder(RenderUtilities.RenderNcaTree(nspInfo.NcaFiles.Values)).PadLeft(1).PadTop(1).PadBottom(0));
         }
         
         // TICKET INFO
         
-        if (nspInfo.Ticket != null && (settings.LogLevel == LogLevel.Full || settings.TicketInfo))
+        if (nspInfo.Ticket != null && (settings.LogLevel == LogLevel.Full))
         {
-            var tikTable = new Table
-            {
-                ShowHeaders = false
-            };
-            tikTable.AddColumn("Property");
-            tikTable.AddColumn("Value");
-            
-            Nsp.NsfwUtilities.RenderTicket(tikTable, nspInfo.Ticket);
-            
-            AnsiConsole.Write(new Padder(tikTable).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
+            AnsiConsole.Write(new Padder(RenderUtilities.RenderTicket(nspInfo.Ticket, nspInfo.IsNormalisedSignature, nspInfo.IsTicketSignatureValid)).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
         }
         
         // TITLEDB - REGIONAL TITLES
         
         if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.RegionalTitles)
         {
-            var titleResults = Nsp.NsfwUtilities.GetTitleDbInfo(settings.TitleDbFile, nspInfo.UseBaseTitleId && nspInfo.IsDLC ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
+            var titleResults = NsfwUtilities.GetTitleDbInfo(settings.TitleDbFile, nspInfo.UseBaseTitleId && nspInfo.IsDLC ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
         
             if (titleResults.Length > 0)
             {
-                var regionTable = new Table() { ShowHeaders = false };
-                regionTable.AddColumns("Region", "Title");
-                regionTable.AddRow(new Text("Regional Titles"));
-                regionTable.AddEmptyRow();
-                foreach (var titleResult in titleResults.DistinctBy(x => x.RegionLanguage))
-                {
-                    regionTable.AddRow(new Markup($"{titleResult.Name!.ReplaceLineEndings(string.Empty).EscapeMarkup()}"), new Markup($"{titleResult.RegionLanguage.ToUpper()}"));
-                }
-                
-                AnsiConsole.Write(new Padder(regionTable).PadLeft(1).PadTop(1).PadBottom(0));
+                AnsiConsole.Write(new Padder(RenderUtilities.RenderRegionalTitles(titleResults)).PadLeft(1).PadTop(1).PadBottom(0));
             }
         }
         
@@ -875,16 +763,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
             if (relatedResults.Length > 0)
             {
-                var relatedTable = new Table() { ShowHeaders = false };
-                relatedTable.AddColumn("Title");
-                relatedTable.AddRow(new Text("Related DLC Titles"));
-                relatedTable.AddEmptyRow();
-                foreach (var relatedResult in relatedResults.Distinct())
-                {
-                    relatedTable.AddRow(new Markup($"{relatedResult.ReplaceLineEndings(string.Empty).EscapeMarkup()}"));
-                }
-        
-                AnsiConsole.Write(new Padder(relatedTable).PadLeft(1).PadTop(1).PadBottom(0));
+                AnsiConsole.Write(new Padder(RenderUtilities.RenderDlcRelatedTitles(relatedResults)).PadLeft(1).PadTop(1).PadBottom(0));
             }
         }
         
@@ -896,23 +775,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             
             if (versions.Length > 0)
             {
-                var updateTable = new Table() { ShowHeaders = false };
-                updateTable.AddColumn("Version");
-                updateTable.AddColumn("Date");
-                updateTable.AddRow(new Text("Updates"));
-                updateTable.AddEmptyRow();
-                foreach (var version in versions)
-                {
-                    if ("v"+version.Version == nspInfo.TitleVersion)
-                    {
-                        updateTable.AddRow($"[green]v{version.Version}[/]", $"[green]{version.ReleaseDate}[/]");
-                    }
-                    else
-                    {
-                        updateTable.AddRow($"v{version.Version}", $"{version.ReleaseDate}");
-                    }
-                }
-                AnsiConsole.Write(new Padder(updateTable).PadLeft(1).PadTop(1).PadBottom(1));
+                AnsiConsole.Write(new Padder(RenderUtilities.RenderTitleUpdates(versions, nspInfo.TitleVersion)).PadLeft(1).PadTop(1).PadBottom(1));
             }
         }
         
@@ -922,84 +785,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (settings.LogLevel != LogLevel.Quiet)
         {
-            var propertiesTable = new Table() { ShowHeaders = false };
-            propertiesTable.AddColumns("Name", "Value");
-
-            propertiesTable.AddRow("Title",
-                $"[olive]{nspInfo.DisplayTitle.EscapeMarkup()}[/]" + " (From " + nspInfo.DisplayTitleLookupSource + ")");
-
-            if (nspInfo.IsDLC && !string.IsNullOrEmpty(nspInfo.DisplayParentTitle))
-            {
-                propertiesTable.AddRow("Parent Title",
-                    $"[olive]{nspInfo.DisplayParentTitle.EscapeMarkup()}[/]" + " (From " + nspInfo.DisplayTitleLookupSource + ")");
-            }
-
-            if (nspInfo.HasLanguages)
-            {
-                propertiesTable.AddRow("Languages", string.Join(",", nspInfo.LanguagesFull));
-                propertiesTable.AddRow("Languages (Short)", string.Join(",", nspInfo.LanguagesShort));
-            }
-
-            if (nspInfo.IsDLC && nspInfo.DisplayParentLanguages != NspInfo.Unknown)
-            {
-                propertiesTable.AddRow("Parent Languages", nspInfo.DisplayParentLanguages + " (From TitleDb)");
-            }
-            
-            propertiesTable.AddRow("Languages Output", nspInfo.OutputOptions.LanguageMode.ToString());
-
-            propertiesTable.AddRow("Title ID", nspInfo.TitleId);
-            if (nspInfo.UseBaseTitleId)
-            {
-                propertiesTable.AddRow("Base Title ID", nspInfo.BaseTitleId);
-            }
-
-            propertiesTable.AddRow("Title Type", nspInfo.DisplayType);
-            propertiesTable.AddRow("Title Version", nspInfo.TitleVersion == "v0" ? "BASE (v0)" : nspInfo.TitleVersion);
-            propertiesTable.AddRow("Key Generation", nspInfo.DisplayKeyGeneration);
-            propertiesTable.AddRow("NSP Version", nspInfo.DisplayVersion);
-            propertiesTable.AddRow("Rights ID", nspInfo.RightsId);
-            propertiesTable.AddRow("Header Validity", nspInfo.HeaderSignatureValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
-            propertiesTable.AddRow("NCA Validity", nspInfo.NcaValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
-            propertiesTable.AddRow("Meta Validity", nspInfo.ContentValidity == Validity.Valid ? "[green]Valid[/]" : "[red]Invalid[/]");
-            propertiesTable.AddRow("Raw File Count", nspInfo.RawFileEntries.Count + $" ({nspInfo.RawFileEntries.Keys.Count(x => x.EndsWith(".nca"))} NCAs" + (nspInfo.DeltaCount > 0 ? $" + {nspInfo.DeltaCount} Missing Deltas" : "") + ") ");
-            propertiesTable.AddRow("Has loose files ?", nspInfo.HasLooseFiles ? "[red]Yes[/]" : "[green]No[/]");
-            propertiesTable.AddRow("NCA File Order", nspInfo.IsFileOrderCorrect ? "[green]Correct[/]" : "[red]Non-Standard[/]");
-            if (nspInfo.TitleKeyDecrypted.Length > 0)
-            {
-                propertiesTable.AddRow("TitleKey (Enc)", nspInfo.TitleKeyEncrypted.ToHexString());
-                propertiesTable.AddRow("TitleKey (Dec)", nspInfo.TitleKeyDecrypted.ToHexString());
-
-                if (nspInfo.IsNormalisedSignature)
-                {
-                    propertiesTable.AddRow("Ticket Signature", "[green]Normalised[/]");
-                }
-                else
-                {
-                    propertiesTable.AddRow("Ticket Signature",
-                        nspInfo.IsTicketSignatureValid
-                            ? "[green]Valid[/]"
-                            : "[red]Invalid[/] (Signature Mismatch) - Will generate new ticket.");
-                }
-
-                if (nspInfo.GenerateNewTicket)
-                {
-                    propertiesTable.AddRow("Ticket Validation", "[red]Non-Standard[/] - Will generate new ticket.");
-                }
-                else
-                {
-                    propertiesTable.AddRow("Ticket Validation", "[green]Passed[/]");
-                }
-
-                propertiesTable.AddRow("MasterKey Revision", nspInfo.MasterKeyRevision.ToString());
-                propertiesTable.AddRow("Minimum Application Version", nspInfo.MinimumApplicationVersion == "0.0.0" ? "None" : nspInfo.MinimumApplicationVersion);
-                propertiesTable.AddRow("Minimum System Version", nspInfo.MinimumSystemVersion.Version == 0 ? "None" : nspInfo.MinimumSystemVersion.ToString());
-            }
-
-            propertiesTable.AddRow("Output Name", $"[olive]{outputName.EscapeMarkup()}[/]");
-            propertiesTable.AddRow("[olive]Validation[/]", nspInfo.CanProceed ? "[green]Passed[/]" : "[red]Failed[/]");
-            propertiesTable.AddRow("[olive]Standard NSP?[/]", nspInfo.IsStandardNsp ? "[green]Passed[/]" : "[red]Failed[/]");
-
-            AnsiConsole.Write(new Padder(propertiesTable).PadLeft(1).PadTop(1).PadBottom(1));
+            AnsiConsole.Write(new Padder(RenderUtilities.RenderProperties(nspInfo, outputName)).PadLeft(1).PadTop(1).PadBottom(1));
         }
         
         if ((settings.Extract || settings.Convert || settings.Rename))

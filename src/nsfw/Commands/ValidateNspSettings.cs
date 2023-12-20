@@ -39,7 +39,7 @@ public class ValidateNspSettings : CommandSettings
     public string CdnDirectory { get; set; } = string.Empty;
     
     [CommandOption("-d|--dryrun")]
-    [Description("Print files but do not generate NSP.")]
+    [Description("Prints actions to be performed but does not execute any of them.")]
     public bool DryRun { get; set; }
     
     [CommandOption("--titledb <FILE>")]
@@ -47,24 +47,24 @@ public class ValidateNspSettings : CommandSettings
     [DefaultValue("./titledb/titledb.db")]
     public string TitleDbFile { get; set; } = string.Empty;
     
-    [CommandOption("--verify-title")]
+    [CommandOption("--verify")]
     [Description("Verify title against TitleDB.")]
     public bool VerifyTitle { get; set; }
     
     [CommandOption("--related-titles")]
-    [Description("For DLC, print related titles.")]
+    [Description("For DLC, print related titles (from TitleDb).")]
     public bool RelatedTitles { get; set; }
     
     [CommandOption("--regional-titles")]
-    [Description("Print regional title variations.")]
+    [Description("Print regional title variations (from TitleDb).")]
     public bool RegionalTitles { get; set; }
     
     [CommandOption("--updates")]
-    [Description("Print title update versions.")]
+    [Description("Print title update versions (from TitleDb).")]
     public bool Updates { get; set; }
     
     [CommandOption("--nl")]
-    [Description("Do not print languages in output filename.")]
+    [Description("Do not include any languages in output filename.")]
     public bool NoLanguages { get; set; }
     
     [CommandOption("--sl")]
@@ -83,16 +83,12 @@ public class ValidateNspSettings : CommandSettings
     [Description("Set output level to 'full'. Full break-down on NSP structure.")]
     public bool IsFull { get; set; }
     
-    [CommandOption("-t|--ticketinfo")]
-    [Description("Print ticket info.")]
-    public bool TicketInfo { get; set; }
-    
     [CommandOption("--force-hash")]
-    [Description("Force hash verification of bad NCA files.")]
+    [Description("Force hash verification of bad NCA files (where header validation has already failed).")]
     public bool ForceHash { get; set; }
     
     [CommandOption("--extract-all")]
-    [Description("Extract all files from NSP.")]
+    [Description("Extract all files from NSP (including loose files).")]
     public bool ExtractAll { get; set; }
     
     [CommandArgument(0, "<NSP_FILE>")]

@@ -15,28 +15,16 @@ public class TicketPropertiesCommand : Command<TicketPropertiesSettings>
     {
         var ticket = new Ticket(new LocalFile(settings.TicketFile, OpenMode.Read).AsStream());
         var fixedSignature = Enumerable.Repeat((byte)0xFF, 0x100).ToArray();
+
+        var isNormalised = fixedSignature.ToHexString() == ticket.Signature.ToHexString();
+        var isTicketSignatureValid = false;
         
-        var table = new Table
+        if (isNormalised)
         {
-            ShowHeaders = false
-        };
-        
-        table.AddColumn("Property");
-        table.AddColumn("Value");
-        
-        if (fixedSignature.ToHexString() == ticket.Signature.ToHexString())
-        {
-            table.AddRow("Ticket Signature", "[olive]Normalised[/]");
-        }
-        else
-        {
-            var isTicketSignatureValid = Nsp.NsfwUtilities.ValidateTicket(ticket, settings.CertFile);
-            table.AddRow("Ticket Signature", isTicketSignatureValid ? "[green]Valid[/]" : "[red]Invalid[/]");
+            isTicketSignatureValid = Nsp.NsfwUtilities.ValidateTicket(ticket, settings.CertFile);
         }
         
-        Nsp.NsfwUtilities.RenderTicket(table, ticket);
-        
-        AnsiConsole.Write(new Padder(table).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
+        AnsiConsole.Write(new Padder(RenderUtilities.RenderTicket(ticket, isNormalised, isTicketSignatureValid)).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
 
         return 0;
     }

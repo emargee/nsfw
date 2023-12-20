@@ -15,6 +15,7 @@ using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
 using LibHac.Tools.Ncm;
 using LibHac.Util;
+using Nsfw.Nsp;
 using Spectre.Console;
 using ContentType = LibHac.Ncm.ContentType;
 using Path = System.IO.Path;
@@ -244,8 +245,8 @@ public class Cdn2NspService
             File.Copy(_settings.CertFile, _certFile, true);
             _contentFiles.Add(_certFile, new FileInfo(_settings.CertFile).Length);
         }
-
-        var nspFilename = "FIXME !"; // $"{NsfwUtilities.BuildName(_title, _version, _titleId, _titleVersion, _titleType, string.Empty, Enumerable.Empty<TitleInfo>())}.nsp";
+        
+        var nspFilename = $"{_title.CleanTitle()} [{_version}][{_titleId}][{_titleVersion}][{_titleType}].nsp";
         if (_settings.Verbose)
         {
             AnsiConsole.WriteLine("----------------------------------------");
