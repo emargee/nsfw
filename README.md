@@ -28,11 +28,11 @@ Also, a big thanks to the people that have helped me test this tool and provided
 
 ## What is a "Standard NSP"?
 
-See [Standard NSP](docs/standard_nsp.md) for more information.
+See [Standard NSP](StandardNSP.md) for more information.
 
 ## Validate (`v`)
 
-```shell
+```
 USAGE:
     nsfw validate <NSP_FILE> [OPTIONS]
 
@@ -172,7 +172,7 @@ Create "Standard NSP" - Dry Run - Will validate and print actions but will not e
 
 ## Analyse Ticket (`t`)
 
-```shell
+```
 DESCRIPTION:
 Read & print ticket properties from Ticket file.
 
@@ -193,7 +193,7 @@ OPTIONS:
 
 ## Analyse CNMT (`m`)
 
-```shell
+```
 DESCRIPTION:
 Reads & print properties from CNMT NCA file.
 
@@ -213,7 +213,7 @@ OPTIONS:
 
 ## Query TitleDB (`q`)
 
-```shell
+```
 DESCRIPTION:
 Query TitleDB for Title ID.
 
@@ -234,7 +234,7 @@ OPTIONS:
 
 Will convert a No-Intro CDN format folder into a "Standard NSP" file.
 
-```shell
+```
 DESCRIPTION:
 Deterministically recreates NSP files from extracted CDN data following nxdumptool NSP generation guidelines.
 
