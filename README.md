@@ -7,11 +7,28 @@
 
 This is a tool that allows you to verify the integrity of your NSP files, identify any problems and convert the to a standard deterministic format so that they can be accurately verified and preserved.
 
+This tool wouldn't be possible without the amazing work and knowledge of the following people:
+
+* LibHac - https://github.com/Thealexbarney/LibHac/ (@thealexbarney)
+* DarkMatterCore - https://github.com/DarkMatterCore/ (@DarkMatterCore)
+
+Also, a big thanks to the people that have helped me test this tool and provided feedback.
+
+> [!CAUTION]
+> This software is still in active development and should be considered experimental and liable to change regularly. Please use with caution and always keep a backup of your files.
+
+
+> [!IMPORTANT]
+> This software is designed to work with legal backup copies of your own games.
 ---
 ## Installation
 
-1. Extract the latest release of `nsfw` to a directory of your choice.
+1. Extract the latest release of `nsfw` (that matches your system architecture) to a directory of your choice.
 1. (*Optional*) Extract latest `titledb.db` from `titledb.zip` to a directory called `titledb` in the same directory as the executable. 
+
+## What is a "Standard NSP"?
+
+See [Standard NSP](docs/standard_nsp.md) for more information.
 
 ## Validate (`v`)
 
@@ -47,6 +64,8 @@ OPTIONS:
         --force-hash                                  Force hash verification of bad NCA files (where header validation has
                                                       already failed)
         --extract-all                                 Extract all files from NSP (including loose files)
+        --keep-deltas                                 When creating a standard NSP, include Delta Fragment files
+        --overwrite                                   Overwrite any existing files
 ```
 
 ### Validate - Example Usage
@@ -134,6 +153,12 @@ Validate and Extract - Extract All - Will extract all files from the NSP (includ
 ### Create "Standard NSP" (`v -s`) - Example Usage
 
 Will re-create the NSP file in a standardised format, normalising ticket properties and and re-ordering the NCA files to match the order in the CNMT file.
+
+> [!IMPORTANT]
+> This will not fix any signature or validation problems with the NSP file. It will abort if any validation errors are found.
+
+> [!WARNING]
+> This process will **exclude** Delta Fragment files from the rebuilt NSP as they effect standardisation. To include these please use the `--keep-deltas` option.
 
 Create "Standard NSP" - Will write the new NSP file to the directory defined by the `--nspdir` option.
 
@@ -253,5 +278,8 @@ Prints additional information about the NSP file. Not as comprehensive as `valid
 
 `./nsfw c2n -v`
 
----
-# Credits & Thanks
+# Roadmap / TODO
+
+* [ ] Add support for verifying `*.xci` files
+* [ ] Add support for outputting XML DAT format for No-Intro verification
+* [ ] Add support for outputting validation information in JSON format

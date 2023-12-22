@@ -54,9 +54,19 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (settings.Convert)
         {
-            Log.Information(settings.DryRun
-                ? "Output Mode <- [green]CONVERT[/] ([olive]Dry Run[/])"
-                : "Output Mode <- [green]CONVERT[/]");
+            var extra = string.Empty;
+            
+            if(settings.DryRun)
+            {
+                extra = " ([olive]Dry Run[/])";
+            }
+            
+            if(settings.ForceConvert)
+            {
+                extra = " ([olive]Force[/])";
+            }
+            
+            Log.Information($"Output Mode <- [green]CONVERT[/]{extra}");
         }
 
         if (settings.Extract)
@@ -839,9 +849,9 @@ public class ValidateNspService(ValidateNspSettings settings)
                 return 1;
             }
             
-            if (File.Exists(targetName))
+            if (File.Exists(targetName) && !settings.Overwrite)
             {
-                Log.Error($"File with the same name already exists. ({outputName.EscapeMarkup()}.nsp)");
+                Log.Error($"File with the same name already exists. ({outputName.EscapeMarkup()}.nsp). Use [grey]--overwrite[/] to overwrite an existing file.");
                 return 1;
             }
             
@@ -884,9 +894,9 @@ public class ValidateNspService(ValidateNspSettings settings)
                 return 1;
             }
 
-            if (Directory.Exists(outDir))
+            if (Directory.Exists(outDir) && !settings.Overwrite)
             {
-                Log.Error($"Directory with the same name already exists. ({outDir.EscapeMarkup()})");
+                Log.Error($"Directory with the same name already exists. ({outDir.EscapeMarkup()}). Use [grey]--overwrite[/] to overwrite existing files.");
                 return 1;
             }
             
@@ -912,7 +922,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     var stream = nca.Nca.BaseStorage.AsStream();
                     var outFile = System.IO.Path.Combine(outDir, nca.Filename);
 
-                    if (File.Exists(outFile))
+                    if (File.Exists(outFile) && !settings.Overwrite)
                     {
                         Log.Error($"Skipping. File already exists. ({outFile.EscapeMarkup()})");
                         continue;
@@ -989,7 +999,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (settings.Convert)
         {
-            if (nspInfo.IsStandardNsp)
+            if (nspInfo.IsStandardNsp && !settings.ForceConvert)
             {
                 Log.Information("File is already in Standard NSP format. Skipping conversion.");
                 return 0;
@@ -1005,7 +1015,25 @@ public class ValidateNspService(ValidateNspSettings settings)
             // Add NCAs in CNMT order
             foreach (var contentFile in nspInfo.ContentFiles.Values)
             {
-                var nca = nspInfo.NcaFiles[contentFile.FileName].FsNca;
+                if(!settings.KeepDeltas && contentFile.Type == ContentType.DeltaFragment)
+                {
+                    Log.Information($"[[[green]SKIP[/]]] -> Skipping delta fragment: [olive]{contentFile.FileName.EscapeMarkup()}[/]");
+                    continue;
+                }
+                
+                if(!nspInfo.NcaFiles.TryGetValue(contentFile.FileName, out var ncaInfo))
+                {
+                    if(contentFile.Type != ContentType.DeltaFragment)
+                    {
+                        Log.Error($"Failed to locate NCA file [olive]{contentFile.FileName.EscapeMarkup()}[/] in the NSP file-system.");
+                        return 1;
+                    }
+
+                    Log.Information($"[[[green]SKIP[/]]] -> Delta fragment [olive]{contentFile.FileName.EscapeMarkup()}[/] not found in the NSP file-system. Skipping.");
+                    continue;
+                }
+                
+                var nca = ncaInfo.FsNca;
                 
                 if (settings.DryRun)
                 {
@@ -1052,6 +1080,12 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (targetName == nspFullPath)
             {
                 Log.Error($"Trying to save converted file to the same location as the input file.");
+                return 1;
+            }
+            
+            if (File.Exists(targetName) && !settings.Overwrite)
+            {
+                Log.Error($"File already exists. ({targetName.EscapeMarkup()}). Use [grey]--overwrite[/] to overwrite an existing file.");
                 return 1;
             }
         

@@ -88,21 +88,21 @@ jobs:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-win-x64
           path: ./artifacts-win
       - name: Compress WIN64 artifacts
-        run: cd artifacts-win; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-win-x64.zip *; mv *.zip ..
+        run: cd artifacts-win;cp ../README.md .;zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-win-x64.zip *; mv *.zip ..
       - name: Download LINUX64 artifacts
         uses: actions/download-artifact@v4
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64
           path: ./artifacts-linux
       - name: Compress LINUX64 artifacts
-        run: cd artifacts-linux; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64.zip *; mv *.zip ..
+        run: cd artifacts-linux; cp ../README.md .; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-linux-x64.zip *; mv *.zip ..
       - name: Download OSX-ARM64 artifacts
         uses: actions/download-artifact@v4
         with:
           name: NSFW-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64
           path: ./artifacts-osx-arm
       - name: Compress OSX-ARM64 artifacts
-        run: cd artifacts-osx-arm; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip *; mv *.zip ..
+        run: cd artifacts-osx-arm; cp ../README.md .; zip -r nsfw-v${{ env.GitVersion_MajorMinorPatch }}-osx-arm64.zip *; mv *.zip ..
       - name: Do Release (v${{ env.GitVersion_MajorMinorPatch }})
         uses: ncipollo/release-action@v1
         with:

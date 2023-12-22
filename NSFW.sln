@@ -5,6 +5,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_", "_", "{7AE86D66-0F12-44
 		README.md = README.md
 		.gitignore = .gitignore
 		GitVersion.yml = GitVersion.yml
+		StandardNSP.md = StandardNSP.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{3265F2D2-0292-4931-92D7-1FA2B907CE3A}"

@@ -91,6 +91,18 @@ public class ValidateNspSettings : CommandSettings
     [Description("Extract all files from NSP (including loose files).")]
     public bool ExtractAll { get; set; }
     
+    [CommandOption("--keep-deltas")]
+    [Description("When creating a standard NSP, include Delta Fragment files")]
+    public bool KeepDeltas { get; set; }
+    
+    [CommandOption("--force-convert", IsHidden = true)]
+    [Description("Force conversion of NSP to standard NSP (even if already standard).")]
+    public bool ForceConvert { get; set; }
+    
+    [CommandOption("--overwrite")]
+    [Description("Overwrite any existing files.")]
+    public bool Overwrite { get; set; }
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;
