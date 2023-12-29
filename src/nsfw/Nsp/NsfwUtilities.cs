@@ -1,11 +1,16 @@
-﻿using System.Numerics;
+﻿using System.Globalization;
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using LibHac.Common;
+using LibHac.Diag;
+using LibHac.Fs;
+using LibHac.Fs.Fsa;
 using LibHac.Tools.Es;
 using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
+using LibHac.Tools.Npdm;
 using LibHac.Util;
 using Nsfw.Commands;
 using Spectre.Console;
@@ -233,6 +238,27 @@ public static partial class NsfwUtilities
         return null;
     }
     
+    public static DateTime? LookUpReleaseDate(string titledbPath, string titleId)
+    {
+        var titleNames = GetTitleDbInfo(titledbPath, titleId).Result;
+        
+        if(titleNames.Length != 0)
+        {
+            var releaseDate = titleNames.First().ReleaseDate;
+            
+            if (releaseDate != 0 && releaseDate?.ToString().Length == 8)
+            {
+                var d = releaseDate.Value % 100;
+                var m = (releaseDate.Value / 100) % 100;
+                var y = releaseDate.Value / 10000;
+
+                return new DateTime(y, m, d);
+            }
+        }
+
+        return null;
+    }
+    
     public static async Task<string[]> LookUpRelatedTitles(string titleDbPath, string titleId)
     {
         var db = new SQLiteAsyncConnection(titleDbPath);
@@ -275,30 +301,6 @@ public static partial class NsfwUtilities
         var db = new SQLiteAsyncConnection(titleDbPath);
         return await db.Table<TitleVersions>().Where(x => x.TitleId == titleId.ToLower()).ToArrayAsync();
     }
-
-    public static string TrimTitle(string title)
-    {
-        if (!title.Contains('「') || !title.Contains('」'))
-        {
-            return title;
-        }
-
-        var titleParts = new List<string>();
-        
-        var regex = JapaneseBracketRegex();
-
-        var matches = regex.Matches(title);
-
-        foreach (Match match in matches)
-        {
-            titleParts.Add(match.Value.Trim());
-        }
-        
-        return string.Join(" & ", titleParts);
-    }
-
-    [GeneratedRegex("(?<=「).*?(?=」)")]
-    private static partial Regex JapaneseBracketRegex();
     
     public static bool ValidateCommonCert(string certPath)
     {
@@ -430,7 +432,7 @@ public static partial class NsfwUtilities
             }
         }
 
-        if (titles.Any(x => x is NacpLanguage.AmericanEnglish))
+        if (titles.Any(x => x is NacpLanguage.AmericanEnglish) && region == Region.Unknown)
         {
             region = Region.USA;
 
@@ -556,6 +558,32 @@ public static partial class NsfwUtilities
             return formattedTitle.CleanTitle();
         }
 
-        return $"{cleanTitle} {displayRegion}{languageList}[{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
+        return $"{cleanTitle} {displayRegion}{languageList}[{displayVersion}][{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
+    }
+    
+    public static Validity VerifyNpdm(Nca nca)
+    {
+        if (nca.Header.ContentType != NcaContentType.Program) return Validity.Unchecked;
+
+        var pfs = nca.OpenFileSystem(NcaSectionType.Code, IntegrityCheckLevel.ErrorOnInvalid);
+        
+        if (!pfs.FileExists("/main.npdm")) return Validity.Unchecked;
+        
+        using var npdmFile = new UniqueRef<IFile>();
+        pfs.OpenFile(ref npdmFile.Ref, "/main.npdm"u8, OpenMode.Read).ThrowIfFailure();
+        
+        var validityResult = Validity.Invalid;
+
+        try
+        {
+            var npdm = new NpdmBinaryFixed(npdmFile.Release().AsStream());
+            validityResult = nca.Header.VerifySignature2(npdm.AciD.Rsa2048Modulus);
+        }
+        catch(Exception exception)
+        {
+            Serilog.Log.Error(exception.Message);
+        }
+
+        return validityResult;
     }
 }

@@ -48,20 +48,20 @@ public class NspInfo
     {
         NacpLanguage.AmericanEnglish => "En-US",
         NacpLanguage.BritishEnglish => "En-GB",
-        NacpLanguage.Japanese => "Ja",
+        NacpLanguage.Japanese => "Ja-JP",
         NacpLanguage.French => "Fr-FR",
         NacpLanguage.CanadianFrench => "Fr-CA",
-        NacpLanguage.German => "De",
-        NacpLanguage.Italian => "It",
+        NacpLanguage.German => "De-DE",
+        NacpLanguage.Italian => "It-IT",
         NacpLanguage.Spanish => "Es-ES",
         NacpLanguage.LatinAmericanSpanish => "Es-XL",
         NacpLanguage.SimplifiedChinese => "Zh-Hans",
         NacpLanguage.TraditionalChinese => "Zh-Hant",
-        NacpLanguage.Korean => "Ko",
-        NacpLanguage.Dutch => "Nl",
-        NacpLanguage.Portuguese => "Pt-pt",
+        NacpLanguage.Korean => "Ko-KR",
+        NacpLanguage.Dutch => "Nl-NL",
+        NacpLanguage.Portuguese => "Pt-PT",
         NacpLanguage.BrazilianPortuguese => "Pt-BR",
-        NacpLanguage.Russian => "Ru",
+        NacpLanguage.Russian => "Ru-RU",
         _ => "Unknown"
     });
 
@@ -184,6 +184,7 @@ public class NspInfo
     public bool HasLooseFiles { get; set; }
     public bool IsFileOrderCorrect { get; set; }
     public bool IsStandardNsp => CanProceed && !GenerateNewTicket && !HasLooseFiles && IsFileOrderCorrect;
+    public DateTime? ReleaseDate { get; set; }
 
     public NspInfo(string filePath)
     {

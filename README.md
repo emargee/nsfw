@@ -33,6 +33,9 @@ See [Standard NSP](StandardNSP.md) for more information.
 ## Validate (`v`)
 
 ```
+DESCRIPTION:
+Validates NSP.
+
 USAGE:
     nsfw validate <NSP_FILE> [OPTIONS]
 
@@ -48,25 +51,26 @@ OPTIONS:
     -x, --extract                                     Extract NSP contents to output directory
     -s, --standard                                    Convert to Standardised NSP
     -r, --rename                                      Rename NSP to match TitleDB. No other actions performed
-        --nspdir <DIR>       ./nsp                    Path to standardised NSP output directory
+    -o, --nspdir <DIR>       ./nsp                    Path to standardised NSP output directory
         --cdndir <DIR>       ./cdn                    Path to CDN output directory
     -d, --dryrun                                      Prints actions to be performed but does not execute any of them
         --titledb <FILE>     ./titledb/titledb.db     Path to titledb.db file
-        --verify                                      Verify title against TitleDB
+    -y, --verify                                      Verify title against TitleDB
         --related-titles                              For DLC, print related titles (from TitleDb)
         --regional-titles                             Print regional title variations (from TitleDb)
-        --updates                                     Print title update versions (from TitleDb)
+    -u, --updates                                     Print title update versions (from TitleDb)
         --nl                                          Do not include any languages in output filename
         --sl                                          Use short language codes in output filename
         --skip-hash                                   When re-naming files, skip NCA hash validation
-        --quiet                                       Set output level to 'quiet'. Minimal display for details
-        --full                                        Set output level to 'full'. Full break-down on NSP structure
-        --force-hash                                  Force hash verification of bad NCA files (where header validation has
-                                                      already failed)
-        --extract-all                                 Extract all files from NSP (including loose files)
+    -q, --quiet                                       Set output level to 'quiet'. Minimal display for details
+    -V, --full                                        Set output level to 'full'. Full break-down on NSP structure
+        --force-hash                                  Force hash verification of bad NCA files (where header validation has already failed)
+    -X, --extract-all                                 Extract all files from NSP (including loose files)
         --keep-deltas                                 When creating a standard NSP, include Delta Fragment files
+        --force-convert                               Force conversion of NSP to standard NSP (even if already in standard format)
         --overwrite                                   Overwrite any existing files
-```
+        --keep-filename                               Keep original filename when converting to standard NSP
+  ```
 
 ### Validate - Example Usage
 

@@ -1,5 +1,4 @@
-﻿using System.Runtime.InteropServices.ComTypes;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using LibHac.Common;
 using LibHac.Common.Keys;
@@ -18,6 +17,7 @@ using Serilog;
 using Spectre.Console;
 using ContentType = LibHac.Ncm.ContentType;
 using NcaFsHeader = LibHac.Tools.FsSystem.NcaUtils.NcaFsHeader;
+using Path = System.IO.Path;
 
 namespace Nsfw.Commands;
 
@@ -42,7 +42,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.OutputOptions.LanguageMode = LanguageMode.Short;
         }
 
-        var titleDbPath = System.IO.Path.GetFullPath(settings.TitleDbFile);
+        var titleDbPath = Path.GetFullPath(settings.TitleDbFile);
 
         if (File.Exists(titleDbPath))
         {
@@ -162,7 +162,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         var title = switchFs.Titles.First().Value;
 
-        phase = $"[olive]Validate Metadata (CNMT)[/]";
+        phase = "[olive]Validate Metadata (CNMT)[/]";
 
         var cnmt = title.Metadata;
 
@@ -296,7 +296,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 return 1;
             }
 
-            phase = $"[olive]Validate Ticket[/]";
+            phase = "[olive]Validate Ticket[/]";
 
             if (nspInfo.Ticket.SignatureType != TicketSigType.Rsa2048Sha256)
             {
@@ -360,14 +360,14 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.TitleKeyEncrypted = nspInfo.Ticket.GetTitleKey(_keySet);
             nspInfo.TitleKeyDecrypted = mainNca.Nca.GetDecryptedTitleKey();
 
-            if (nspInfo.NormalisedSignature.ToHexString() == nspInfo.Ticket!.Signature.ToHexString())
+            if (nspInfo.NormalisedSignature.ToHexString() == nspInfo.Ticket.Signature.ToHexString())
             {
                 nspInfo.IsTicketSignatureValid = true;
                 nspInfo.IsNormalisedSignature = true;
             }
             else
             {
-                nspInfo.IsTicketSignatureValid = Nsp.NsfwUtilities.ValidateTicket(nspInfo.Ticket!, settings.CertFile);
+                nspInfo.IsTicketSignatureValid = NsfwUtilities.ValidateTicket(nspInfo.Ticket, settings.CertFile);
             }
 
             nspInfo.MasterKeyRevision = Utilities.GetMasterKeyRevision(mainNca.Nca.Header.KeyGeneration);
@@ -382,7 +382,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             }
         }
 
-        phase = $"[olive]Validate NCAs[/]";
+        phase = "[olive]Validate NCAs[/]";
 
         if (title.Ncas.Count == 0)
         {
@@ -394,12 +394,19 @@ public class ValidateNspService(ValidateNspSettings settings)
         {
             var ncaInfo = new NcaInfo(fsNca)
             {
-                IsHeaderValid = fsNca.Nca.VerifyHeaderSignature() == Validity.Valid
+                IsHeaderValid = fsNca.Nca.VerifyHeaderSignature() == Validity.Valid,
+                IsNpdmValid = NsfwUtilities.VerifyNpdm(fsNca.Nca) == Validity.Valid
             };
 
             if (!ncaInfo.IsHeaderValid)
             {
                 nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} - Header signature is invalid.");
+                nspInfo.CanProceed = false;
+            }
+            
+            if(!ncaInfo.IsNpdmValid && fsNca.Nca.Header.ContentType == NcaContentType.Program)
+            {
+                nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} - NPDM signature is invalid.");
                 nspInfo.CanProceed = false;
             }
 
@@ -482,16 +489,10 @@ public class ValidateNspService(ValidateNspSettings settings)
                 AnsiConsole.Progress()
                     .AutoClear(true) // Do not remove the task list when done
                     .HideCompleted(true) // Hide tasks as they are completed
-                    .Columns(new ProgressColumn[]
-                    {
-                        new SpinnerColumn(),
-                        new TaskDescriptionColumn(), // Task description
-                        new PercentageColumn(), // Percentage
-                        new RemainingTimeColumn(), // Remaining time
-                    })
+                    .Columns(new SpinnerColumn(), new TaskDescriptionColumn(), new PercentageColumn(), new RemainingTimeColumn())
                     .Start(ctx =>
                     {
-                        var hashTask = ctx.AddTask($"Hashing ..", new ProgressTaskSettings { MaxValue = blockCount });
+                        var hashTask = ctx.AddTask("Hashing ..", new ProgressTaskSettings { MaxValue = blockCount });
 
                         while (!ctx.IsFinished)
                         {
@@ -591,12 +592,12 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                 if (nspInfo.IsDLC)
                 {
-                    titleDbTitle = Nsp.NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.TitleId)?.CleanTitle();
-                    nspInfo.DisplayParentTitle = Nsp.NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.BaseTitleId)?.CleanTitle();
+                    titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.TitleId)?.CleanTitle();
+                    nspInfo.DisplayParentTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.BaseTitleId)?.CleanTitle();
                 }
                 else
                 {
-                    titleDbTitle = Nsp.NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
+                    titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
                 }
 
                 if (!string.IsNullOrEmpty(titleDbTitle))
@@ -605,10 +606,16 @@ public class ValidateNspService(ValidateNspSettings settings)
                     nspInfo.DisplayTitleLookupSource = LookupSource.TitleDb;
                 }
             }
+
+            var releaseDate = NsfwUtilities.LookUpReleaseDate(nspInfo.OutputOptions.TitleDbPath, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
+            
+            if (releaseDate != null)
+            {
+                nspInfo.ReleaseDate = releaseDate;
+            }
         }
 
-        if (nspInfo.DisplayTitleLookupSource == LookupSource.FileName && nspInfo.IsDLC &&
-            nspInfo.FileName.Contains('['))
+        if (nspInfo is { DisplayTitleLookupSource: LookupSource.FileName, IsDLC: true } && nspInfo.FileName.Contains('['))
         {
             var filenameParts = nspInfo.FileName.Split('[', StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
 
@@ -619,7 +626,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 if (!char.IsDigit(filenameParts[1][0]) && filenameParts.Length > 2)
                 {
                     nspInfo.DisplayTitle += " - " + filenameParts[1]
-                        .Replace("]", String.Empty)
+                        .Replace("]", string.Empty)
                         .Replace("dlc", "DLC").Trim();
                 }
             }
@@ -639,7 +646,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (nspInfo is { IsDLC: true, OutputOptions.IsTitleDbAvailable: true })
         {
-            var parentLanguages = Nsp.NsfwUtilities.LookupLanguages(settings.TitleDbFile, nspInfo.BaseTitleId);
+            var parentLanguages = NsfwUtilities.LookupLanguages(settings.TitleDbFile, nspInfo.BaseTitleId);
             if (parentLanguages.Length > 0)
             {
                 var parentLanguagesList = parentLanguages.Distinct()
@@ -665,7 +672,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (!string.IsNullOrEmpty(control.DisplayVersionString.ToString()))
         {
-            nspInfo.DisplayVersion = control.DisplayVersionString.ToString()!.Trim();
+            nspInfo.DisplayVersion = control.DisplayVersionString.ToString().Trim();
         }
         
         // NCA ORDER CHECK
@@ -769,7 +776,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.RelatedTitles && nspInfo.IsDLC)
         {
-            var relatedResults = Nsp.NsfwUtilities.LookUpRelatedTitles(settings.TitleDbFile, nspInfo.TitleId).Result;
+            var relatedResults = NsfwUtilities.LookUpRelatedTitles(settings.TitleDbFile, nspInfo.TitleId).Result;
         
             if (relatedResults.Length > 0)
             {
@@ -781,17 +788,17 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.Updates && nspInfo.TitleType is FixedContentMetaType.Application or FixedContentMetaType.Patch)
         {
-            var versions = Nsp.NsfwUtilities.LookUpUpdates(settings.TitleDbFile, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
+            var versions = NsfwUtilities.LookUpUpdates(settings.TitleDbFile, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
             
             if (versions.Length > 0)
             {
-                AnsiConsole.Write(new Padder(RenderUtilities.RenderTitleUpdates(versions, nspInfo.TitleVersion)).PadLeft(1).PadTop(1).PadBottom(1));
+                AnsiConsole.Write(new Padder(RenderUtilities.RenderTitleUpdates(versions, nspInfo.TitleVersion, Path.GetDirectoryName(nspInfo.FilePath) ?? string.Empty,nspInfo.DisplayTitle,nspInfo.ReleaseDate)).PadLeft(1).PadTop(1).PadBottom(1));
             }
         }
         
         // PROPERTIES
         
-        var outputName = nspInfo.OutputName;
+        var outputName = settings.KeepFilename ? nspInfo.FileName : nspInfo.OutputName;
 
         if (settings.LogLevel != LogLevel.Quiet)
         {
@@ -829,11 +836,11 @@ public class ValidateNspService(ValidateNspSettings settings)
             
             if (nspInfo.FileName ==  outputName+".nsp")
             {
-                Log.Information($"Renaming skipped. Nothing to do. Filename matches already.");
+                Log.Information("Renaming skipped. Nothing to do. Filename matches already.");
                 return 0;
             }
             
-            var targetDirectory = System.IO.Path.GetDirectoryName(nspFullPath);
+            var targetDirectory = Path.GetDirectoryName(nspFullPath);
             
             if(targetDirectory == null || !Directory.Exists(targetDirectory))
             {
@@ -841,7 +848,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 return 1;
             }
             
-            var targetName = System.IO.Path.Combine(targetDirectory, outputName + ".nsp");
+            var targetName = Path.Combine(targetDirectory, outputName + ".nsp");
             
             if (targetName.Length > 254)
             {
@@ -864,7 +871,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             try
             {
-                File.Move(nspFullPath, System.IO.Path.Combine(targetDirectory, outputName + ".nsp"));
+                File.Move(nspFullPath, Path.Combine(targetDirectory, outputName + ".nsp"));
             }
             catch (Exception exception)
             {
@@ -878,7 +885,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.HasTitleKeyCrypto && (!nspInfo.IsTicketSignatureValid || nspInfo.GenerateNewTicket))
         {
-            nspInfo.Ticket = Nsp.NsfwUtilities.CreateTicket(nspInfo.MasterKeyRevision, nspInfo.Ticket!.RightsId, nspInfo.TitleKeyEncrypted);
+            nspInfo.Ticket = NsfwUtilities.CreateTicket(nspInfo.MasterKeyRevision, nspInfo.Ticket!.RightsId, nspInfo.TitleKeyEncrypted);
             Log.Information("Generated new normalised ticket.");
         }
         
@@ -886,7 +893,7 @@ public class ValidateNspService(ValidateNspSettings settings)
      
         if(settings.Extract)
         {
-            var outDir = System.IO.Path.Combine(settings.CdnDirectory, outputName);
+            var outDir = Path.Combine(settings.CdnDirectory, outputName);
             
             if (outDir.Length > 254)
             {
@@ -920,7 +927,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 try
                 {
                     var stream = nca.Nca.BaseStorage.AsStream();
-                    var outFile = System.IO.Path.Combine(outDir, nca.Filename);
+                    var outFile = Path.Combine(outDir, nca.Filename);
 
                     if (File.Exists(outFile) && !settings.Overwrite)
                     {
@@ -953,7 +960,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     
                     try
                     {
-                        var outFile = System.IO.Path.Combine(outDir, miscFile.Name);
+                        var outFile = Path.Combine(outDir, miscFile.Name);
                         using var outStream = new FileStream(outFile, FileMode.Create, FileAccess.ReadWrite);
                         miscFileRef.Get.GetSize(out var fileSize);
                         miscFileRef.Get.AsStream().CopyStream(outStream, fileSize);
@@ -981,9 +988,9 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                  try
                  {
-                     File.WriteAllBytes(System.IO.Path.Combine(outDir, decFile), nspInfo.TitleKeyDecrypted);
-                     File.WriteAllBytes(System.IO.Path.Combine(outDir, encFile), nspInfo.TitleKeyEncrypted);
-                     File.WriteAllBytes(System.IO.Path.Combine(outDir, $"{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.tik"), nspInfo.Ticket.File);
+                     File.WriteAllBytes(Path.Combine(outDir, decFile), nspInfo.TitleKeyDecrypted);
+                     File.WriteAllBytes(Path.Combine(outDir, encFile), nspInfo.TitleKeyEncrypted);
+                     File.WriteAllBytes(Path.Combine(outDir, $"{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.tik"), nspInfo.Ticket.File);
                  }
                  catch (Exception exception)
                  {
@@ -1069,7 +1076,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 }
             }
         
-            var targetName = System.IO.Path.Combine(settings.NspDirectory, $"{outputName}.nsp");
+            var targetName = Path.Combine(settings.NspDirectory, $"{outputName}.nsp");
             
             if (targetName.Length > 254)
             {
@@ -1079,7 +1086,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
             if (targetName == nspFullPath)
             {
-                Log.Error($"Trying to save converted file to the same location as the input file.");
+                Log.Error("Trying to save converted file to the same location as the input file.");
                 return 1;
             }
             
@@ -1132,7 +1139,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (nspInfo.Ticket != null)
         {
-            Log.Warning($"[olive]Import tickets[/] - Multiple tickets found. Using first.");
+            Log.Warning("[olive]Import tickets[/] - Multiple tickets found. Using first.");
             return;
         }
         

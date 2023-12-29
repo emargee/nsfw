@@ -4,6 +4,7 @@ using LibHac.Tools.Es;
 using LibHac.Util;
 using Nsfw.Nsp;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 
 namespace Nsfw.Commands;
 
@@ -202,22 +203,46 @@ public static class RenderUtilities
         return relatedTable;
     }
 
-    public static Table RenderTitleUpdates(IEnumerable<TitleVersions> versions, string titleVersion)
+    public static Table RenderTitleUpdates(IEnumerable<TitleVersions> versions, string titleVersion, string rootDirectory, string displayTitle, DateTime? releaseDate)
     {
         var updateTable = new Table() { ShowHeaders = false };
         updateTable.AddColumn("Version");
         updateTable.AddColumn("Date");
+        updateTable.AddColumn("File");
         updateTable.AddRow(new Text("Updates"));
         updateTable.AddEmptyRow();
+
+        var cleanTitle = displayTitle.CleanTitle();
+        var relDate = releaseDate?.ToString("yyyy-MM-dd") ?? "????-??-??";
+        
+        var foundBaseFile = Directory.GetFiles(rootDirectory, cleanTitle + "*[v0][BASE]*").FirstOrDefault();
+        if (foundBaseFile != null)
+        {
+            updateTable.AddRow("[green]v0[/]", relDate, foundBaseFile.Replace(rootDirectory, string.Empty).TrimStart('\\').EscapeMarkup());
+        }
+        else
+        {
+            updateTable.AddRow("v0", relDate, "[grey]MISSING[/]");
+        }
+
         foreach (var version in versions)
         {
-            if ("v"+version.Version == titleVersion)
+            var foundFile = Directory.GetFiles(rootDirectory, cleanTitle + $"*[v{version.Version}]*").FirstOrDefault();
+
+            if (foundFile != null)
             {
-                updateTable.AddRow($"[green]v{version.Version}[/]", $"[green]{version.ReleaseDate}[/]");
+                updateTable.AddRow($"[green]v{version.Version}[/]", $"{version.ReleaseDate}", foundFile.Replace(rootDirectory, string.Empty).TrimStart('\\').EscapeMarkup());
             }
             else
             {
-                updateTable.AddRow($"v{version.Version}", $"{version.ReleaseDate}");
+                if ("v"+version.Version == titleVersion)
+                {
+                    updateTable.AddRow($"[green]v{version.Version}[/]", $"[green]{version.ReleaseDate}[/]");
+                }
+                else
+                {
+                    updateTable.AddRow($"v{version.Version}", $"{version.ReleaseDate}", "[grey]MISSING[/]");
+                }
             }
         }
 
@@ -259,6 +284,10 @@ public static class RenderUtilities
 
         propertiesTable.AddRow("Title Type", nspInfo.DisplayType);
         propertiesTable.AddRow("Title Version", nspInfo.TitleVersion == "v0" ? "BASE (v0)" : nspInfo.TitleVersion);
+        if (nspInfo is { ReleaseDate: not null, TitleType: FixedContentMetaType.Application })
+        {
+            propertiesTable.AddRow("Release Date", nspInfo.ReleaseDate.Value.ToString("yyyy-MM-dd"));
+        }
         propertiesTable.AddRow("Key Generation", nspInfo.DisplayKeyGeneration);
         propertiesTable.AddRow("NSP Version", nspInfo.DisplayVersion);
         propertiesTable.AddRow("Rights ID", nspInfo.RightsId);

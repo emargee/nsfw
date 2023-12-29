@@ -28,7 +28,7 @@ public class ValidateNspSettings : CommandSettings
     [Description("Rename NSP to match TitleDB. No other actions performed.")]
     public bool Rename { get; set; }
     
-    [CommandOption("--nspdir <DIR>")]
+    [CommandOption("-o|--nspdir <DIR>")]
     [Description("Path to standardised NSP output directory.")]
     [DefaultValue("./nsp")]
     public string NspDirectory { get; set; } = string.Empty;
@@ -47,7 +47,7 @@ public class ValidateNspSettings : CommandSettings
     [DefaultValue("./titledb/titledb.db")]
     public string TitleDbFile { get; set; } = string.Empty;
     
-    [CommandOption("--verify")]
+    [CommandOption("-y|--verify")]
     [Description("Verify title against TitleDB.")]
     public bool VerifyTitle { get; set; }
     
@@ -59,7 +59,7 @@ public class ValidateNspSettings : CommandSettings
     [Description("Print regional title variations (from TitleDb).")]
     public bool RegionalTitles { get; set; }
     
-    [CommandOption("--updates")]
+    [CommandOption("-u|--updates")]
     [Description("Print title update versions (from TitleDb).")]
     public bool Updates { get; set; }
     
@@ -75,11 +75,11 @@ public class ValidateNspSettings : CommandSettings
     [Description("When re-naming files, skip NCA hash validation.")]
     public bool SkipHash { get; set; }
     
-    [CommandOption("--quiet")]
+    [CommandOption("-q|--quiet")]
     [Description("Set output level to 'quiet'. Minimal display for details.")]
     public bool IsQuiet { get; set; }
     
-    [CommandOption("--full")]
+    [CommandOption("-V|--full")]
     [Description("Set output level to 'full'. Full break-down on NSP structure.")]
     public bool IsFull { get; set; }
     
@@ -87,7 +87,7 @@ public class ValidateNspSettings : CommandSettings
     [Description("Force hash verification of bad NCA files (where header validation has already failed).")]
     public bool ForceHash { get; set; }
     
-    [CommandOption("--extract-all")]
+    [CommandOption("-X|--extract-all")]
     [Description("Extract all files from NSP (including loose files).")]
     public bool ExtractAll { get; set; }
     
@@ -95,13 +95,17 @@ public class ValidateNspSettings : CommandSettings
     [Description("When creating a standard NSP, include Delta Fragment files")]
     public bool KeepDeltas { get; set; }
     
-    [CommandOption("--force-convert", IsHidden = true)]
-    [Description("Force conversion of NSP to standard NSP (even if already standard).")]
+    [CommandOption("--force-convert")]
+    [Description("Force conversion of NSP to standard NSP (even if already in standard format).")]
     public bool ForceConvert { get; set; }
     
     [CommandOption("--overwrite")]
     [Description("Overwrite any existing files.")]
     public bool Overwrite { get; set; }
+    
+    [CommandOption("--keep-filename")]
+    [Description("Keep original filename when converting.")]
+    public bool KeepFilename { get; set; }
     
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
