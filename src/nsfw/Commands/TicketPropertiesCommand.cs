@@ -24,7 +24,7 @@ public class TicketPropertiesCommand : Command<TicketPropertiesSettings>
             isTicketSignatureValid = Nsp.NsfwUtilities.ValidateTicket(ticket, settings.CertFile);
         }
         
-        AnsiConsole.Write(new Padder(RenderUtilities.RenderTicket(ticket, isNormalised, isTicketSignatureValid)).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
+        AnsiConsole.Write(new Padder(RenderUtilities.RenderTicket(ticket, isNormalised, isTicketSignatureValid, null)).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
 
         return 0;
     }

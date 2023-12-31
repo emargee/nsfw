@@ -1,16 +1,12 @@
-﻿using System.Globalization;
-using System.Numerics;
+﻿using System.Numerics;
 using System.Security.Cryptography;
-using System.Text.RegularExpressions;
 using LibHac.Common;
-using LibHac.Diag;
 using LibHac.Fs;
 using LibHac.Fs.Fsa;
 using LibHac.Tools.Es;
 using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
-using LibHac.Tools.Npdm;
 using LibHac.Util;
 using Nsfw.Commands;
 using Spectre.Console;
@@ -367,40 +363,102 @@ public static partial class NsfwUtilities
             return region;
         }
 
-        if (titles is [NacpLanguage.AmericanEnglish])
+        if (titles.Length == 1)
         {
-            region = Region.USA;
-            languageList = string.Empty;
-        }
+            if (titles is [NacpLanguage.AmericanEnglish])
+            {
+                region = Region.USA;
+                languageList = string.Empty;
+            }
 
-        if (titles is [NacpLanguage.Japanese])
-        {
-            region = Region.Japan;
-            languageList = string.Empty;
-        }
+            if (titles is [NacpLanguage.Japanese])
+            {
+                region = Region.Japan;
+                languageList = string.Empty;
+            }
 
-        if (titles is [NacpLanguage.Korean])
-        {
-            region = Region.Korea;
-            languageList = string.Empty;
-        }
+            if (titles is [NacpLanguage.Korean])
+            {
+                region = Region.Korea;
+                languageList = string.Empty;
+            }
 
-        if (titles is [NacpLanguage.Russian])
-        {
-            region = Region.Russia;
-            languageList = string.Empty;
-        }
+            if (titles is [NacpLanguage.Russian])
+            {
+                region = Region.Russia;
+                languageList = string.Empty;
+            }
 
-        if (titles is [NacpLanguage.TraditionalChinese])
-        {
-            region = Region.China;
-            languageList = string.Empty;
-        }
+            if (titles is [NacpLanguage.TraditionalChinese])
+            {
+                region = Region.China;
+                languageList = string.Empty;
+            }
 
-        if (titles is [NacpLanguage.SimplifiedChinese])
-        {
-            region = Region.China;
-            languageList = string.Empty;
+            if (titles is [NacpLanguage.SimplifiedChinese])
+            {
+                region = Region.China;
+                languageList = string.Empty;
+            }
+
+            if (titles is [NacpLanguage.BritishEnglish])
+            {
+                region = Region.UnitedKingdom;
+                languageList = string.Empty;
+            }
+            
+            if(titles is [NacpLanguage.LatinAmericanSpanish])
+            {
+                region = Region.LatinAmerica;
+                languageList = string.Empty;
+            }
+            
+            if(titles is [NacpLanguage.BrazilianPortuguese])
+            {
+                region = Region.Brazil;
+                languageList = string.Empty;
+            }
+            
+            if(titles is [NacpLanguage.Dutch])
+            {
+                region = Region.Netherlands;
+                languageList = string.Empty;
+            }
+            
+            if(titles is [NacpLanguage.Portuguese])
+            {
+                region = Region.Portugal;
+                languageList = string.Empty;
+            }
+            
+            if(titles is [NacpLanguage.French])
+            {
+                region = Region.France;
+                languageList = string.Empty;
+            }
+            
+            if(titles is [NacpLanguage.German])
+            {
+                region = Region.Germany;
+                languageList = string.Empty;
+            }
+            
+            if(titles is [NacpLanguage.Italian])
+            {
+                region = Region.Italy;
+                languageList = string.Empty;
+            }
+            
+            if(titles is [NacpLanguage.Spanish])
+            {
+                region = Region.Spain;
+                languageList = string.Empty;
+            }
+            
+            if(region != Region.Unknown)
+            {
+                return region;
+            }
         }
 
         if (titles.Any(x => x is NacpLanguage.TraditionalChinese or NacpLanguage.SimplifiedChinese))
@@ -487,8 +545,33 @@ public static partial class NsfwUtilities
         }
 
         var region = GetRegion(titles, ref languageList);
-        var displayRegion = languageMode != LanguageMode.None ? $"({region})" : string.Empty;
+        
+        var displayRegion = region switch {
+            Region.USA => "(USA)",
+            Region.Europe => "(Europe)",
+            Region.Asia => "(Asia)",
+            Region.Japan => "(Japan)",
+            Region.Korea => "(Korea)",
+            Region.China => "(China)",
+            Region.Russia => "(Russia)",
+            Region.UnitedKingdom => "(United Kingdom)",
+            Region.World => "(World)",
+            Region.LatinAmerica => "(Latin America)",
+            Region.Brazil => "(Brazil)",
+            Region.Netherlands => "(Netherlands)",
+            Region.Portugal => "(Portugal)",
+            Region.France => "(France)",
+            Region.Germany => "(Germany)",
+            Region.Italy => "(Italy)",
+            Region.Spain => "(Spain)",
+            _ => string.Empty
+        };
 
+        if (languageMode == LanguageMode.None)
+        {
+            displayRegion = string.Empty;
+        }
+        
         var cleanTitle = displayTitle.CleanTitle();
         var cleanParentTitle = (displayParentTitle ?? string.Empty).CleanTitle();
 
@@ -558,7 +641,16 @@ public static partial class NsfwUtilities
             return formattedTitle.CleanTitle();
         }
 
-        return $"{cleanTitle} {displayRegion}{languageList}[{displayVersion}][{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
+        if (displayVersion == "UNKNOWN")
+        {
+            displayVersion = string.Empty;
+        }
+        else
+        {
+            displayVersion = $"[{displayVersion}]";
+        }
+
+        return $"{cleanTitle} {displayRegion}{languageList}{displayVersion}[{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
     }
     
     public static Validity VerifyNpdm(Nca nca)

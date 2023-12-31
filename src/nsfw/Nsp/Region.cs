@@ -11,5 +11,14 @@ public enum Region
     Russia,
     // ReSharper disable once InconsistentNaming
     USA,
+    UnitedKingdom,
+    LatinAmerica,
+    Brazil,
+    Netherlands,
+    Portugal,
+    France,
+    Germany,
+    Italy,
+    Spain,
     Unknown
 }

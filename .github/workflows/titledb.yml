@@ -1,6 +1,8 @@
 ﻿name: Build TitleDB
-run-name: Building TitleDB! 🚀
-on: workflow_dispatch
+run-name: Building TitleDB! 🔮
+on:
+  schedule:
+    - cron: "30 01 * * *" # 1:30 AM UTC
 jobs:
   build_titledb:
     timeout-minutes: 60

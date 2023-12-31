@@ -126,7 +126,7 @@ public static class RenderUtilities
         return ncaTree;
     }
 
-    public static Table RenderTicket(Ticket ticket, bool isNormalised, bool isTicketSignatureValid)
+    public static Table RenderTicket(Ticket ticket, bool isNormalised, bool isTicketSignatureValid, bool? isOldTicketCrypto)
     {
         var tikTable = new Table
         {
@@ -150,7 +150,23 @@ public static class RenderUtilities
         tikTable.AddRow("Ticket Id", ticket.TicketId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.TicketId:X})[/]");
         tikTable.AddRow("Ticket Version", ticket.TicketVersion == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.TicketVersion:X})[/]");
         tikTable.AddRow("License Type", ticket.LicenseType == LicenseType.Permanent ? $"[green]{ticket.LicenseType}[/]" : $"[red]{ticket.LicenseType}[/]");
-        tikTable.AddRow("Crypto Revision", ticket.CryptoType == ticket.RightsId.Last() ? $"[green]0x{ticket.CryptoType:X}[/]": $"[red]0x{ticket.CryptoType:X}[/]");
+
+        if (isOldTicketCrypto != null)
+        {
+            if (!isOldTicketCrypto.Value)
+            {
+                tikTable.AddRow("Crypto Revision", ticket.CryptoType == ticket.RightsId.Last() ? $"[green]0x{ticket.CryptoType:X}[/]" : $"[red]0x{ticket.CryptoType:X}[/]");
+            }
+            else
+            {
+                tikTable.AddRow("Crypto Revision", ticket.CryptoType == 0 ? $"[green]0x{ticket.CryptoType:X}[/]" : $"[red]0x{ticket.CryptoType:X}[/]");
+            }
+        }
+        else
+        {
+            tikTable.AddRow("Crypto Revision", ticket.CryptoType.ToString("X8"));
+        }
+
         tikTable.AddRow("Device Id", ticket.DeviceId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.DeviceId:X})[/]");
         tikTable.AddRow("Account Id", ticket.AccountId == 0 ? "[green]Not Set[/]" : $"[red]Set ({ticket.AccountId:X})[/]");
         tikTable.AddRow("Rights Id", ticket.RightsId.ToHexString());

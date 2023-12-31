@@ -11,6 +11,7 @@ using LibHac.Tools.Es;
 using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
+using LibHac.Tools.Ncm;
 using LibHac.Util;
 using Nsfw.Nsp;
 using Serilog;
@@ -26,7 +27,7 @@ public class ValidateNspService(ValidateNspSettings settings)
     private readonly KeySet _keySet = ExternalKeyReader.ReadKeyFile(settings.KeysFile);
     private bool _batchMode;
 
-    public int Process(string nspFullPath, bool batchMode)
+    public int Process(string nspFullPath, bool batchMode, bool cdnMode = false)
     {
         _batchMode = batchMode;
         
@@ -50,9 +51,12 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.OutputOptions.TitleDbPath = titleDbPath;
         }
 
-        Log.Information($"Validating NSP : [olive]{nspInfo.FileName.EscapeMarkup()}[/]");
+        if (!cdnMode)
+        {
+            Log.Information($"Validating NSP : [olive]{nspInfo.FileName.EscapeMarkup()}[/]");
+        }
 
-        if (settings.Convert)
+        if (settings.Convert && !cdnMode)
         {
             var extra = string.Empty;
             
@@ -85,7 +89,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         var localFile = new LocalFile(nspInfo.FilePath, OpenMode.Read);
         var headerBuffer = new Span<byte>(new byte[4]);
-        localFile.Read(out var bytesRead, 0, headerBuffer);
+        localFile.Read(out _, 0, headerBuffer);
 
         if (headerBuffer.ToHexString() != nspInfo.HeaderMagic)
         {
@@ -97,8 +101,10 @@ public class ValidateNspService(ValidateNspSettings settings)
         var fileSystem = new PartitionFileSystem();
         fileSystem.Initialize(fileStorage);
 
-        var phase = "[olive]Import Tickets[/]";
+        var nspStructure = new NspStructure();
 
+        var phase = "[olive]Import Tickets[/]";
+        
         foreach (var rawFile in fileSystem.EnumerateEntries("*.*", SearchOptions.RecurseSubdirectories))
         {
             if (rawFile.Name.EndsWith(".tik"))
@@ -107,6 +113,29 @@ public class ValidateNspService(ValidateNspSettings settings)
                 fileSystem.OpenFile(ref tikFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
                 ImportTicket(new Ticket(tikFile.Get.AsStream()), _keySet, nspInfo);
                 Log.Verbose($"{phase} <- Ticket ({rawFile.Name}) imported.");
+            }
+            
+            if (rawFile.Name.EndsWith(".nca"))
+            {
+                var ncaFile = new UniqueRef<IFile>();
+                fileSystem.OpenFile(ref ncaFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
+                var nca = new SwitchFsNca(new Nca(_keySet, ncaFile.Release().AsStorage()));
+                nca.Filename = rawFile.Name;
+                nca.NcaId = rawFile.Name[..32];
+                nspStructure.NcaCollection.Add(nca.NcaId, nca);
+                
+                if(rawFile.Name.EndsWith(".cnmt.nca"))
+                {
+                    nspStructure.MetaNca = nca;
+                    
+                    var fs = nca.OpenFileSystem(NcaSectionType.Data, IntegrityCheckLevel.ErrorOnInvalid);
+                    var cnmtPath = fs.EnumerateEntries("/", "*.cnmt").Single().FullPath;
+
+                    using var file = new UniqueRef<IFile>();
+                    fs.OpenFile(ref file.Ref, cnmtPath.ToU8Span(), OpenMode.Read).ThrowIfFailure();
+
+                    nspStructure.Metadata = new Cnmt(file.Release().AsStream());
+                }
             }
 
             var isLooseFile = !(rawFile.Name.EndsWith(".nca") || rawFile.Name.EndsWith(".tik") || rawFile.Name.EndsWith(".cert"));
@@ -133,42 +162,20 @@ public class ValidateNspService(ValidateNspSettings settings)
         {
             Log.Verbose($"{phase} <- No valid tickets found.");
         }
-
+        
         phase = "[olive]NSP File-System[/]";
-
-        var switchFs = SwitchFs.OpenNcaDirectory(_keySet, fileSystem);
-
-        if (switchFs == null)
-        {
-            Log.Error($"{phase} - Failed to open NSP as SwitchFS.");
-            return 1;
-        }
+        
+        nspStructure.Build();
 
         Log.Verbose($"{phase} <- Loaded correctly.");
 
-        phase = "[olive]Validate NSP[/]";
-
-        if (switchFs.Applications.Count != 1)
-        {
-            Log.Error($"{phase} - Expected 1 Application, found {switchFs.Applications.Count}");
-            return 1;
-        }
-
-        if (switchFs.Applications.Count != switchFs.Titles.Count)
-        {
-            nspInfo.Warnings.Add(
-                $"{phase} - Title count ({switchFs.Titles.Count}) does not match Application count ({switchFs.Applications.Count})");
-        }
-
-        var title = switchFs.Titles.First().Value;
-
         phase = "[olive]Validate Metadata (CNMT)[/]";
 
-        var cnmt = title.Metadata;
+        var cnmt = nspStructure.Metadata;
 
         if (cnmt == null)
         {
-            Log.Error($"{phase} - Unable to load CNMT.");
+            Log.Error("Failed to open CNMT.");
             return 1;
         }
 
@@ -186,8 +193,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         nspInfo.MinimumApplicationVersion = cnmt.MinimumApplicationVersion != null
             ? cnmt.MinimumApplicationVersion.ToString()
             : "0.0.0";
-        nspInfo.MinimumSystemVersion =
-            cnmt.MinimumSystemVersion != null ? cnmt.MinimumSystemVersion : new TitleVersion(0);
+        nspInfo.MinimumSystemVersion = cnmt.MinimumSystemVersion ?? new TitleVersion(0);
 
         if (nspInfo.TitleType != FixedContentMetaType.Patch && nspInfo.TitleType != FixedContentMetaType.Application &&
             nspInfo.TitleType != FixedContentMetaType.Delta && nspInfo.TitleType != FixedContentMetaType.AddOnContent && nspInfo.TitleType != FixedContentMetaType.DataPatch)
@@ -224,7 +230,6 @@ public class ValidateNspService(ValidateNspSettings settings)
                 else
                 {
                     nspInfo.DeltaCount++;
-                    nspInfo.Warnings.Add($"{phase} - NSP file-system is missing delta fragments listed in CNMT.");
                 }
             }
             else
@@ -250,6 +255,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             ? $" ({nspInfo.TitleVersion})"
             : string.Empty));
 
+        var title = nspStructure.Titles.First().Value;
         var mainNca = title.MainNca;
 
         phase = "[olive]Validate Main NCA[/]";
@@ -276,8 +282,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (nspInfo is { HasTicket: true, HasTitleKeyCrypto: false, IsDLC: true })
         {
-            nspInfo.Errors.Add(
-                $"{phase} - NSP has ticket but no title key crypto. This is possibly a Homebrew DLC unlocker. Conversion would lose the ticket + cert.");
+            nspInfo.Errors.Add($"{phase} - NSP has ticket but no title key crypto. This is possibly a Homebrew DLC unlocker. Conversion would lose the ticket + cert.");
             nspInfo.PossibleDlcUnlocker = true;
             nspInfo.CanProceed = false;
         }
@@ -350,11 +355,19 @@ public class ValidateNspService(ValidateNspSettings settings)
                 nspInfo.Warnings.Add($"{phase} - Ticket has device ID set ({nspInfo.Ticket.DeviceId})");
                 nspInfo.GenerateNewTicket = true;
             }
+            
+            nspInfo.IsOldTicketCrypto = mainNca.Nca.Header.KeyGeneration < 3;
 
-            if (nspInfo.Ticket.CryptoType != nspInfo.Ticket.RightsId.Last())
+            if (!nspInfo.IsOldTicketCrypto && (nspInfo.Ticket.CryptoType != nspInfo.Ticket.RightsId.Last()))
             {
                 nspInfo.Warnings.Add($"{phase} - Ticket has mis-matched crypto settings ({nspInfo.Ticket.CryptoType} vs {nspInfo.Ticket.RightsId.Last()})");
                 nspInfo.GenerateNewTicket = true;    
+            }
+
+            if (nspInfo.IsOldTicketCrypto && nspInfo.Ticket.CryptoType != 0)
+            {
+                nspInfo.Warnings.Add($"{phase} - Ticket crypto should be set to zero (Keygen < 3)");
+                nspInfo.GenerateNewTicket = true;
             }
 
             nspInfo.TitleKeyEncrypted = nspInfo.Ticket.GetTitleKey(_keySet);
@@ -371,26 +384,17 @@ public class ValidateNspService(ValidateNspSettings settings)
             }
 
             nspInfo.MasterKeyRevision = Utilities.GetMasterKeyRevision(mainNca.Nca.Header.KeyGeneration);
-
-            var ticketMasterKey = Utilities.GetMasterKeyRevision(nspInfo.Ticket!.RightsId.Last());
-
-            if (nspInfo.MasterKeyRevision != ticketMasterKey)
-            {
-                Log.Error(
-                    $"{phase} - Invalid rights ID key generation! Got {ticketMasterKey}, expected {nspInfo.MasterKeyRevision}.");
-                return 1;
-            }
         }
 
         phase = "[olive]Validate NCAs[/]";
 
-        if (title.Ncas.Count == 0)
+        if (nspStructure.NcaCollection.Count == 0)
         {
             Log.Error($"{phase} - No NCAs found.");
             return 1;
         }
 
-        foreach (var fsNca in title.Ncas)
+        foreach (var fsNca in nspStructure.NcaCollection.Values)
         {
             var ncaInfo = new NcaInfo(fsNca)
             {
@@ -544,7 +548,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         // DISPLAY TITLE LOOKUP
 
         var control = title.Control.Value;
-
+        
         var nspLanguageId = -1;
 
         if (control.Title.Items != null)
@@ -602,6 +606,14 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                 if (!string.IsNullOrEmpty(titleDbTitle))
                 {
+                    if (nspInfo.DisplayTitleLookupSource == LookupSource.Control)
+                    {
+                        if (titleDbTitle.Equals(nspInfo.DisplayTitle, StringComparison.InvariantCultureIgnoreCase))
+                        {
+                            titleDbTitle = nspInfo.DisplayTitle;
+                        }
+                    }
+                    
                     nspInfo.DisplayTitle = titleDbTitle;
                     nspInfo.DisplayTitleLookupSource = LookupSource.TitleDb;
                 }
@@ -757,7 +769,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.Ticket != null && (settings.LogLevel == LogLevel.Full))
         {
-            AnsiConsole.Write(new Padder(RenderUtilities.RenderTicket(nspInfo.Ticket, nspInfo.IsNormalisedSignature, nspInfo.IsTicketSignatureValid)).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
+            AnsiConsole.Write(new Padder(RenderUtilities.RenderTicket(nspInfo.Ticket, nspInfo.IsNormalisedSignature, nspInfo.IsTicketSignatureValid, nspInfo.IsOldTicketCrypto)).PadLeft(1).PadRight(0).PadBottom(0).PadTop(1));
         }
         
         // TITLEDB - REGIONAL TITLES
@@ -883,9 +895,9 @@ public class ValidateNspService(ValidateNspSettings settings)
             return 0;
         }
         
-        if (nspInfo.HasTitleKeyCrypto && (!nspInfo.IsTicketSignatureValid || nspInfo.GenerateNewTicket))
+        if (nspInfo is { Ticket: not null, HasTitleKeyCrypto: true } && (!nspInfo.IsTicketSignatureValid || nspInfo.GenerateNewTicket))
         {
-            nspInfo.Ticket = NsfwUtilities.CreateTicket(nspInfo.MasterKeyRevision, nspInfo.Ticket!.RightsId, nspInfo.TitleKeyEncrypted);
+            nspInfo.Ticket = NsfwUtilities.CreateTicket(nspInfo.MasterKeyRevision, nspInfo.Ticket.RightsId, nspInfo.TitleKeyEncrypted);
             Log.Information("Generated new normalised ticket.");
         }
         
@@ -916,7 +928,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 Directory.CreateDirectory(outDir);
             }
             
-            foreach (var nca in title.Ncas)
+            foreach (var nca in nspStructure.NcaCollection.Values)
             {
                 if(settings.DryRun)
                 {
@@ -1016,99 +1028,120 @@ public class ValidateNspService(ValidateNspSettings settings)
             {
                 Log.Information($"[[[green]DRYRUN[/]]] -> Would create: [olive]{outputName.EscapeMarkup()}.nsp[/]");
             }
+
+            var buildStatus = 0;
             
-            var builder = new PartitionFileSystemBuilder();
-        
-            // Add NCAs in CNMT order
-            foreach (var contentFile in nspInfo.ContentFiles.Values)
-            {
-                if(!settings.KeepDeltas && contentFile.Type == ContentType.DeltaFragment)
+            AnsiConsole.Status()
+                .Start("Building Standard NSP...", ctx =>
                 {
-                    Log.Information($"[[[green]SKIP[/]]] -> Skipping delta fragment: [olive]{contentFile.FileName.EscapeMarkup()}[/]");
-                    continue;
-                }
-                
-                if(!nspInfo.NcaFiles.TryGetValue(contentFile.FileName, out var ncaInfo))
-                {
-                    if(contentFile.Type != ContentType.DeltaFragment)
+                    ctx.Spinner(Spinner.Known.Ascii);
+                    
+                    var builder = new PartitionFileSystemBuilder();
+
+                    // Add NCAs in CNMT order
+                    foreach (var contentFile in nspInfo.ContentFiles.Values)
                     {
-                        Log.Error($"Failed to locate NCA file [olive]{contentFile.FileName.EscapeMarkup()}[/] in the NSP file-system.");
-                        return 1;
+                        if (!settings.KeepDeltas && contentFile.Type == ContentType.DeltaFragment)
+                        {
+                            Log.Information($"[[[green]SKIP[/]]] -> Skipping delta fragment: [olive]{contentFile.FileName.EscapeMarkup()}[/]");
+                            continue;
+                        }
+
+                        if (!nspInfo.NcaFiles.TryGetValue(contentFile.FileName, out var ncaInfo))
+                        {
+                            if (contentFile.Type != ContentType.DeltaFragment)
+                            {
+                                Log.Error($"Failed to locate NCA file [olive]{contentFile.FileName.EscapeMarkup()}[/] in the NSP file-system.");
+                                buildStatus = 1;
+                                return;
+                            }
+
+                            Log.Information($"[[[green]SKIP[/]]] -> Delta fragment [olive]{contentFile.FileName.EscapeMarkup()}[/] not found in the NSP file-system. Skipping.");
+                            continue;
+                        }
+
+                        var nca = ncaInfo.FsNca;
+
+                        if (settings.DryRun)
+                        {
+                            Log.Information($"[[[green]DRYRUN[/]]] -> Would add: [olive]{nca.Filename}[/]");
+                        }
+                        else
+                        {
+                            builder.AddFile(nca.Filename, nca.Nca.BaseStorage.AsFile(OpenMode.Read));
+                        }
                     }
 
-                    Log.Information($"[[[green]SKIP[/]]] -> Delta fragment [olive]{contentFile.FileName.EscapeMarkup()}[/] not found in the NSP file-system. Skipping.");
-                    continue;
-                }
-                
-                var nca = ncaInfo.FsNca;
-                
-                if (settings.DryRun)
-                {
-                    Log.Information($"[[[green]DRYRUN[/]]] -> Would add: [olive]{nca.Filename}[/]");
-                }
-                else
-                {
-                    builder.AddFile(nca.Filename, nca.Nca.BaseStorage.AsFile(OpenMode.Read));
-                }
-            }
-            
-            // Add CNMT/MetaNCA
-            if (settings.DryRun)
-            {
-                Log.Information($"[[[green]DRYRUN[/]]] -> Would add: [olive]{title.MetaNca.Filename}[/]");
-            }
-            else
-            {
-                builder.AddFile(title.MetaNca.Filename, title.MetaNca.Nca.BaseStorage.AsFile(OpenMode.Read));
-            }
+                    // Add CNMT/MetaNCA
+                    if (settings.DryRun)
+                    {
+                        Log.Information($"[[[green]DRYRUN[/]]] -> Would add: [olive]{nspStructure.MetaNca?.Filename}[/]");
+                    }
+                    else
+                    {
+                        builder.AddFile(nspStructure.MetaNca?.Filename, nspStructure.MetaNca?.Nca.BaseStorage.AsFile(OpenMode.Read));
+                    }
 
-            if (nspInfo.HasTitleKeyCrypto && nspInfo.Ticket != null)
-            {
-                if (settings.DryRun)
-                {
-                    Log.Information($"[[[green]DRYRUN[/]]] -> Would add: [olive]{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.tik[/]");
-                    Log.Information($"[[[green]DRYRUN[/]]] -> Would add: [olive]{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.cert[/]");
-                }
-                else
-                {
-                    builder.AddFile($"{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.tik", new MemoryStorage(nspInfo.Ticket.GetBytes()).AsFile(OpenMode.Read)); 
-                    builder.AddFile($"{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.cert", new LocalFile(settings.CertFile, OpenMode.Read));
-                }
-            }
-        
-            var targetName = Path.Combine(settings.NspDirectory, $"{outputName}.nsp");
-            
-            if (targetName.Length > 254)
-            {
-                Log.Error($"Path too long for Windows ({targetName.Length})");
-                return 1;
-            }
-        
-            if (targetName == nspFullPath)
-            {
-                Log.Error("Trying to save converted file to the same location as the input file.");
-                return 1;
-            }
-            
-            if (File.Exists(targetName) && !settings.Overwrite)
-            {
-                Log.Error($"File already exists. ({targetName.EscapeMarkup()}). Use [grey]--overwrite[/] to overwrite an existing file.");
-                return 1;
-            }
-        
-            if (settings.DryRun) return 0;
+                    if (nspInfo is { HasTitleKeyCrypto: true, Ticket: not null })
+                    {
+                        if (settings.DryRun)
+                        {
+                            Log.Information($"[[[green]DRYRUN[/]]] -> Would add: [olive]{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.tik[/]");
+                            Log.Information($"[[[green]DRYRUN[/]]] -> Would add: [olive]{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.cert[/]");
+                        }
+                        else
+                        {
+                            builder.AddFile($"{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.tik", new MemoryStorage(nspInfo.Ticket.GetBytes()).AsFile(OpenMode.Read));
+                            builder.AddFile($"{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.cert", new LocalFile(settings.CertFile, OpenMode.Read));
+                        }
+                    }
 
-            try
+                    var targetName = Path.Combine(settings.NspDirectory, $"{outputName}.nsp");
+
+                    if (targetName.Length > 254)
+                    {
+                        Log.Error($"Path too long for Windows ({targetName.Length})");
+                        buildStatus = 1;
+                        return;
+                    }
+
+                    if (targetName == nspFullPath)
+                    {
+                        Log.Error("Trying to save converted file to the same location as the input file.");
+                        buildStatus = 1;
+                        return;
+                    }
+
+                    if (File.Exists(targetName) && !settings.Overwrite)
+                    {
+                        Log.Error($"File already exists. ({targetName.EscapeMarkup()}). Use [grey]--overwrite[/] to overwrite an existing file.");
+                        buildStatus = 1;
+                        return;
+                    }
+
+                    if (settings.DryRun) return;
+
+                    try
+                    {
+                        using var outStream = new FileStream(targetName, FileMode.Create, FileAccess.ReadWrite);
+                        var builtPfs = builder.Build(PartitionFileSystemType.Standard);
+                        builtPfs.GetSize(out var pfsSize).ThrowIfFailure();
+                        builtPfs.CopyToStream(outStream, pfsSize);
+                    }
+                    catch (Exception exception)
+                    {
+                        Log.Error($"Failed to convert file. {exception.Message}");
+                        buildStatus = 1;
+                        return;
+                    }
+
+                    fileSystem.Dispose();
+                    localFile.Dispose();
+                });
+            
+            if(buildStatus != 0)
             {
-                using var outStream = new FileStream(targetName, FileMode.Create, FileAccess.ReadWrite);
-                var builtPfs = builder.Build(PartitionFileSystemType.Standard);
-                builtPfs.GetSize(out var pfsSize).ThrowIfFailure();
-                builtPfs.CopyToStream(outStream, pfsSize);
-            }
-            catch (Exception exception)
-            {
-                Log.Error($"Failed to convert file. {exception.Message}");
-                return 1;
+                return buildStatus;
             }
 
             Log.Information($"Converted: [olive]{outputName.EscapeMarkup()}.nsp[/]");

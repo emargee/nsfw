@@ -104,7 +104,7 @@ public class ValidateNspSettings : CommandSettings
     public bool Overwrite { get; set; }
     
     [CommandOption("--keep-filename")]
-    [Description("Keep original filename when converting.")]
+    [Description("Keep original filename when converting to standard NSP.")]
     public bool KeepFilename { get; set; }
     
     [CommandArgument(0, "<NSP_FILE>")]

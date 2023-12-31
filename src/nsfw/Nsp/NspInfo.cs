@@ -22,7 +22,6 @@ public class NspInfo
     public string FileExtension => Path.GetExtension(FilePath);
     public string DirectoryName => Path.GetDirectoryName(FilePath)!;
     public bool HasLanguages => Titles.Count > 0;
-
     public IEnumerable<string> LanguagesFull => Titles.Keys.Select(x => x switch
     {
         NacpLanguage.AmericanEnglish => "English (America)",
@@ -185,6 +184,7 @@ public class NspInfo
     public bool IsFileOrderCorrect { get; set; }
     public bool IsStandardNsp => CanProceed && !GenerateNewTicket && !HasLooseFiles && IsFileOrderCorrect;
     public DateTime? ReleaseDate { get; set; }
+    public bool IsOldTicketCrypto { get; set; }
 
     public NspInfo(string filePath)
     {

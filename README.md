@@ -12,7 +12,9 @@ This tool wouldn't be possible without the amazing work and knowledge of the fol
 * LibHac - https://github.com/Thealexbarney/LibHac/ (@thealexbarney)
 * DarkMatterCore - https://github.com/DarkMatterCore/ (@DarkMatterCore)
 
-Also, a big thanks to the people that have helped me test this tool and provided feedback.
+Also, thanks to TitleDb (https://github.com/blawar/titledb) for providing a great source of metadata for verifying and identifying titles.
+
+A huge thank you goes to the people that have helped me test this tool and provided feedback.
 
 > [!CAUTION]
 > This software is still in active development and should be considered experimental and liable to change regularly. Please use with caution and always keep a backup of your files.
@@ -172,6 +174,10 @@ Create "Standard NSP" - Dry Run - Will validate and print actions but will not e
 
 `./nsfw v -s -d <PATH_TO_NSP_FILE>`
 
+Create "Standard NSP" - Short Languages + TitleDB Verify - Will use short language codes and verify title name against TitleDB (if available).
+
+`./nsfw v -s --sl -y <PATH_TO_NSP_FILE>`
+
 ---
 
 ## Analyse Ticket (`t`)
@@ -253,8 +259,6 @@ OPTIONS:
     -k, --keys <FILE>     ~/.switch/prod.keys      Path to NSW keys file
     -c, --cert <FILE>     ~/.switch/common.cert    Path to 0x700-byte long common certificate chain file
     -o, --outdir <DIR>    ./out                    Path to output directory
-    -s, --check-shas                               Check SHA256 of all files in CDN directory and compare with CNMT hashes
-    -v, --verbose                                  Enable verbose output
     -d, --dryrun                                   Process files but do not generate NSP
 ```
 
@@ -269,18 +273,6 @@ Convert CDN to NSP - Will convert all files in the `--cdndir` directory and writ
 Convert CDN to NSP - Dry Run - Will convert all files in the `--cdndir` directory and print actions but will not execute them.
 
 `./nsfw c2n -d`
-
-### CDN2NSP - Check SHA256 - Example Usage
-
-Convert CDN to NSP - Check SHA256 - Will convert all files in the `--cdndir` directory and hash the SHA256 of each file against the CNMT hash.
-
-`./nsfw c2n -s`
-
-### CDN2NSP - Verbose - Example Usage
-
-Prints additional information about the NSP file. Not as comprehensive as `validate`.
-
-`./nsfw c2n -v`
 
 # Roadmap / TODO
 
