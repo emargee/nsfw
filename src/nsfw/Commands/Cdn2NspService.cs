@@ -164,13 +164,12 @@ public class Cdn2NspService
             TitleDbFile = "./titledb/titledb.db",
             NspDirectory = _settings.OutDirectory,
             ShortLanguages = true,
-            Overwrite = true,
             DryRun = _settings.DryRun
         };
 
         var validateNspService = new ValidateNspService(settings);
         var result = validateNspService.Process(tempFilePath, false, true);
-        if (result == 0)
+        if (result != 1)
         {
             File.Delete(tempFilePath);
         }

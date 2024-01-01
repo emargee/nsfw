@@ -38,12 +38,7 @@ public sealed class Cdn2NspCommand : Command<Cdn2NspSettings>
             }
             
             var cdn2NspService = new Cdn2NspService(settings);
-            var result = cdn2NspService.Process(workingDirectory, Path.GetFileName(metaNcaFileFullPath));
-            
-            if (result != 0)
-            {
-                return result;
-            }
+            cdn2NspService.Process(workingDirectory, Path.GetFileName(metaNcaFileFullPath));
         }
         
         AnsiConsole.WriteLine("----------------------------------------");

@@ -871,7 +871,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (File.Exists(targetName) && !settings.Overwrite)
             {
                 Log.Error($"File with the same name already exists. ({outputName.EscapeMarkup()}.nsp). Use [grey]--overwrite[/] to overwrite an existing file.");
-                return 1;
+                return 2;
             }
             
             if (settings.DryRun)
@@ -916,7 +916,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (Directory.Exists(outDir) && !settings.Overwrite)
             {
                 Log.Error($"Directory with the same name already exists. ({outDir.EscapeMarkup()}). Use [grey]--overwrite[/] to overwrite existing files.");
-                return 1;
+                return 2;
             }
             
             if(settings.DryRun)
@@ -1115,7 +1115,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     if (File.Exists(targetName) && !settings.Overwrite)
                     {
                         Log.Error($"File already exists. ({targetName.EscapeMarkup()}). Use [grey]--overwrite[/] to overwrite an existing file.");
-                        buildStatus = 1;
+                        buildStatus = 2;
                         return;
                     }
 
@@ -1132,12 +1132,11 @@ public class ValidateNspService(ValidateNspSettings settings)
                     {
                         Log.Error($"Failed to convert file. {exception.Message}");
                         buildStatus = 1;
-                        return;
                     }
-
-                    fileSystem.Dispose();
-                    localFile.Dispose();
                 });
+            
+            fileSystem.Dispose();
+            localFile.Dispose();
             
             if(buildStatus != 0)
             {
