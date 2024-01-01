@@ -468,16 +468,18 @@ public static partial class NsfwUtilities
             if (titles.Any(x => x is NacpLanguage.Japanese or NacpLanguage.Korean))
             {
                 region = Region.Asia;
-
-                if (titles.Contains(NacpLanguage.AmericanEnglish) || titles.Contains(NacpLanguage.BritishEnglish))
-                {
-                    region = Region.World;
-                }
+            }
+            
+            if (titles.Any(x => x is NacpLanguage.AmericanEnglish or NacpLanguage.BritishEnglish or NacpLanguage.French
+                    or NacpLanguage.German or NacpLanguage.Italian or NacpLanguage.Spanish or NacpLanguage.Dutch
+                    or NacpLanguage.Portuguese))
+            {
+                region = Region.World;
             }
         }
 
         if (titles.Any(x => x is NacpLanguage.BritishEnglish or NacpLanguage.French or NacpLanguage.German
-                or NacpLanguage.Italian or NacpLanguage.Spanish or NacpLanguage.Dutch or NacpLanguage.Portuguese))
+                or NacpLanguage.Italian or NacpLanguage.Spanish or NacpLanguage.Dutch or NacpLanguage.Portuguese) && region == Region.Unknown)
         {
             region = Region.Europe;
 
