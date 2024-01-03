@@ -175,7 +175,7 @@ public class NspInfo
     public string OutputName => NsfwUtilities.BuildOutputName(
         OutputOptions.LanguageMode, LanguagesFullShort, LanguagesShort,
         Titles.Keys.ToArray(), DisplayTitle, DisplayParentTitle, DisplayVersion, TitleType, TitleVersion,
-        DisplayTypeShort, TitleId, ParentLanguages.ToArray(), DisplayParentLanguages, IsDLC, PossibleDlcUnlocker);
+        DisplayTypeShort, TitleId, ParentLanguages.ToArray(), DisplayParentLanguages, IsDLC, PossibleDlcUnlocker, IsDemo);
     public string DisplayParentLanguages { get; set; } = Unknown;
     public IEnumerable<NacpLanguage> ParentLanguages { get; set; } = [];
     public int DeltaCount { get; set; }
@@ -185,6 +185,8 @@ public class NspInfo
     public bool IsStandardNsp => CanProceed && !GenerateNewTicket && !HasLooseFiles && IsFileOrderCorrect;
     public DateTime? ReleaseDate { get; set; }
     public bool IsOldTicketCrypto { get; set; }
+    public bool IsDemo { get; set; }
+    public bool IsRetailDisplay { get; set; }
 
     public NspInfo(string filePath)
     {

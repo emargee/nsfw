@@ -57,6 +57,7 @@ public static partial class NsfwUtilities
     {
         var cleanTitle = title
             .ReplaceLineEndings("")
+            .Replace("–","-")
             .Replace("“", "'")
             .Replace("*", "")
             .Replace("”", "'")
@@ -391,7 +392,7 @@ public static partial class NsfwUtilities
 
             if (titles is [NacpLanguage.TraditionalChinese])
             {
-                region = Region.China;
+                region = Region.Taiwan;
                 languageList = string.Empty;
             }
 
@@ -522,7 +523,8 @@ public static partial class NsfwUtilities
         NacpLanguage[] parentLanguages,
         string displayParentLanguages,
         bool isDlc,
-        bool possibleDlcUnlocker)
+        bool possibleDlcUnlocker,
+        bool isDemo)
     {
         var languageList = string.Empty;
 
@@ -592,10 +594,21 @@ public static partial class NsfwUtilities
         {
             cleanTitle = cleanTitle[..^2];
         }
+        
+        var demo = string.Empty;
+        
+        if (isDemo)
+        {
+            demo = "(Demo)";
+            if (cleanTitle.EndsWith(" Demo"))
+            {
+                cleanTitle = cleanTitle[..^5];
+            }
+        }
 
         if (titleType is FixedContentMetaType.Patch)
         {
-            return $"{cleanTitle} {displayRegion}{languageList}[{displayVersion}][{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
+            return $"{cleanTitle} {displayRegion}{languageList}{demo}[{displayVersion}][{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
         }
 
         if (isDlc && !string.IsNullOrEmpty(displayParentTitle))
@@ -652,7 +665,7 @@ public static partial class NsfwUtilities
             displayVersion = $"[{displayVersion}]";
         }
 
-        return $"{cleanTitle} {displayRegion}{languageList}{displayVersion}[{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
+        return $"{cleanTitle} {displayRegion}{languageList}{demo}{displayVersion}[{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
     }
     
     public static Validity VerifyNpdm(Nca nca)

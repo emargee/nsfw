@@ -300,6 +300,8 @@ public static class RenderUtilities
 
         propertiesTable.AddRow("Title Type", nspInfo.DisplayType);
         propertiesTable.AddRow("Title Version", nspInfo.TitleVersion == "v0" ? "BASE (v0)" : nspInfo.TitleVersion);
+        propertiesTable.AddRow("Is Interactive Display ?", nspInfo.IsRetailDisplay ? "[olive]Yes[/]" : "No");
+        propertiesTable.AddRow("Is Demo ?", nspInfo.IsDemo ? "[olive]Yes[/]" : "No");
         if (nspInfo is { ReleaseDate: not null, TitleType: FixedContentMetaType.Application })
         {
             propertiesTable.AddRow("Release Date", nspInfo.ReleaseDate.Value.ToString("yyyy-MM-dd"));

@@ -20,5 +20,6 @@ public enum Region
     Germany,
     Italy,
     Spain,
+    Taiwan,
     Unknown
 }
