@@ -61,6 +61,9 @@ public static class Program
             config.AddCommand<BuildTitleDbCommand>("build-titledb")
                 .WithDescription("Builds TitleDB from TitleDB repo files.")
                 .WithAlias("btdb");
+
+            config.AddCommand<NiCommand>("ni")
+                .IsHidden();
         });
 
         return app.Run(args);
