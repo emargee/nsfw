@@ -25,6 +25,8 @@ public static class Program
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, typeof(QuerySettings))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, typeof(TicketPropertiesCommand))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, typeof(TicketPropertiesSettings))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, typeof(NiSettings))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, typeof(NiCommand))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, "Spectre.Console.Cli.VersionCommand", "Spectre.Console.Cli")]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, "Spectre.Console.Cli.XmlDocCommand", "Spectre.Console.Cli")]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, "Spectre.Console.Cli.ExplainCommand", "Spectre.Console.Cli")]
@@ -61,6 +63,9 @@ public static class Program
             config.AddCommand<BuildTitleDbCommand>("build-titledb")
                 .WithDescription("Builds TitleDB from TitleDB repo files.")
                 .WithAlias("btdb");
+
+            config.AddCommand<NiCommand>("ni")
+                .IsHidden();
         });
 
         return app.Run(args);

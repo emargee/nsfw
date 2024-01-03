@@ -6,6 +6,7 @@ using LibHac.Fs;
 using LibHac.Fs.Fsa;
 using LibHac.FsSystem;
 using LibHac.Ncm;
+using LibHac.Ns;
 using LibHac.Spl;
 using LibHac.Tools.Es;
 using LibHac.Tools.Fs;
@@ -686,6 +687,16 @@ public class ValidateNspService(ValidateNspSettings settings)
         {
             nspInfo.DisplayVersion = control.DisplayVersionString.ToString().Trim();
         }
+
+        if (control.AttributeFlag.HasFlag(ApplicationControlProperty.AttributeFlagValue.Demo))
+        {
+            nspInfo.IsDemo = true;
+        }
+
+        if (control.AttributeFlag.HasFlag(ApplicationControlProperty.AttributeFlagValue.RetailInteractiveDisplay))
+        {
+            nspInfo.IsRetailDisplay = true;
+        }
         
         // NCA ORDER CHECK
 
@@ -821,7 +832,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         {
             if (outputName.Length + 4 > 100)
             {
-                Log.Warning($"Output name is looong ({outputName.Length + 4}). This may cause issues saving on Windows.");
+                Log.Warning($"Output name is looong ({outputName.Length + 4}).");
             }
         }
         
