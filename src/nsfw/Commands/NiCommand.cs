@@ -56,16 +56,27 @@ public partial class NiCommand : Command<NiSettings>
         }
         AnsiConsole.Write(new Rule());
 
-        var files = Directory.EnumerateFiles(settings.ScanDir, "*.nsp", new EnumerationOptions{ MatchCasing = MatchCasing.CaseInsensitive })
-            .Select(x => new FileEntry
+        var files = new Dictionary<string, FileEntry>(comparer: StringComparer.InvariantCultureIgnoreCase);
+        
+        var fileEntries = Directory.EnumerateFiles(settings.ScanDir, "*.nsp", new EnumerationOptions{ MatchCasing = MatchCasing.CaseInsensitive })
+        .Select(x => new FileEntry
+        {
+            TitleId = x.Split('[')[2].TrimEnd(']').Trim(),
+            Version = x.Split('[')[3].TrimEnd(']').Trim(),
+            FullName = Path.GetFileName(x),
+            Name = Path.GetFileName(x).Split('(')[0].Trim(),
+            Type = x.Contains("[BASE]") ? "GAME" : x.Contains("[UPD]") ? "UPD" : x.Contains("[DLC]") ? "DLC" : "UNKNOWN"
+        });
+
+        foreach (var fileEntry in fileEntries)
+        {
+            var key = $"{fileEntry.TitleId.ToLowerInvariant()}_{fileEntry.Version.ToLowerInvariant()}";
+            if(!files.TryAdd(key, fileEntry))
             {
-                TitleId = x.Split('[')[2].TrimEnd(']').Trim(),
-                Version = x.Split('[')[3].TrimEnd(']').Trim(),
-                FullName = Path.GetFileName(x),
-                Name = Path.GetFileName(x).Split('(')[0].Trim(),
-                Type = x.Contains("[BASE]") ? "GAME" : x.Contains("[UPD]") ? "UPD" : x.Contains("[DLC]") ? "DLC" : "UNKNOWN"
-            })
-            .ToImmutableDictionary(x => $"{x.TitleId.ToLowerInvariant()}_{x.Version}", x => x);
+                Log.Warning($"Duplicate file found: [green]{fileEntry.FullName.EscapeMarkup()}[/]");
+                return 1;
+            }
+        }
         
         //Combine and keep duplicates
         var sortedSet = xml1
@@ -93,8 +104,16 @@ public partial class NiCommand : Command<NiSettings>
             int correctCount = 0;
             int nameErrorCount = 0;
             int missingCount = 0;
+            int missingBuffer = 0;
+            
+            var searchList = sortedSet.AsEnumerable();
+            
+            if(settings.ByLetter != null)
+            {
+                searchList = searchList.Where(x => x.Name.StartsWith(settings.ByLetter, StringComparison.InvariantCultureIgnoreCase));
+            }
 
-            foreach (var game in sortedSet)
+            foreach (var game in searchList)
             {
                 Debug.Assert(game.Name != null, "game.Name != null");
 
@@ -111,7 +130,7 @@ public partial class NiCommand : Command<NiSettings>
                 {
                     var gameTrimmed = game.Name.Split('(')[0].Trim();
                     var exactMatch = gameTrimmed.Equals(file.Name, StringComparison.InvariantCultureIgnoreCase);
-
+                    
                     switch (exactMatch)
                     {
                         case false:
@@ -122,8 +141,16 @@ public partial class NiCommand : Command<NiSettings>
                                 if (AnsiConsole.Confirm($"Rename [green]{file.Name.EscapeMarkup()}[/] to [green]{gameTrimmed.EscapeMarkup()}[/] ?"))
                                 {
                                     var newFileName = file.FullName.Replace(file.Name, gameTrimmed);
-                                    File.Move(Path.Combine(settings.ScanDir, file.FullName), Path.Combine(settings.ScanDir, newFileName));
-                                    Log.Information($"Renamed [green]{file.FullName.EscapeMarkup()}[/] to [green]{newFileName.EscapeMarkup()}[/]");
+
+                                    if (File.Exists(Path.Combine(settings.ScanDir, newFileName)))
+                                    {
+                                        Log.Error($"File already exists: [red]{newFileName.EscapeMarkup()}[/]");
+                                    }
+                                    else
+                                    {
+                                        File.Move(Path.Combine(settings.ScanDir, file.FullName), Path.Combine(settings.ScanDir, newFileName));
+                                        Log.Information($"Renamed [green]{file.FullName.EscapeMarkup()}[/] to [green]{newFileName.EscapeMarkup()}[/]");
+                                    }
                                 }
                             }
 
@@ -134,6 +161,7 @@ public partial class NiCommand : Command<NiSettings>
                     }
 
                     correctCount++;
+                    missingBuffer = 0;
                 }
                 else
                 {
@@ -145,10 +173,11 @@ public partial class NiCommand : Command<NiSettings>
                     {
                         Log.Error($"{game.TitleId.ToUpperInvariant()} -> [red]{game.Name.EscapeMarkup()}[/] <- [red]{key}[/] ([grey]{game.Type}[/])");
                         missingCount++;
+                        missingBuffer++;
                     }
                 }
 
-                if (missingCount == 100)
+                if (missingBuffer == 100)
                 {
                     Log.Warning("Too many missing files. Stopping.");
                     break;

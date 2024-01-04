@@ -29,6 +29,11 @@ public class NiSettings : CommandSettings
     [CommandOption("-r |--reverse")]
     [Description("Reverse the scan - show files not in the dat.")]
     public bool Reverse { get; set; }
+    
+    [CommandOption("-l|--letter <LETTER>")]
+    [Description("Filter by single letter.")]
+    [DefaultValue(null)]
+    public string? ByLetter { get; set; }
 
     public override ValidationResult Validate()
     {
@@ -60,6 +65,11 @@ public class NiSettings : CommandSettings
         if(!Directory.Exists(ScanDir))
         {
             return ValidationResult.Error("Scan directory does not exist.");
+        }
+        
+        if(ByLetter?.Length > 1)
+        {
+            return ValidationResult.Error("Letter filter must be a single letter.");
         }
 
         return base.Validate();

@@ -568,6 +568,7 @@ public static partial class NsfwUtilities
             Region.Germany => "(Germany)",
             Region.Italy => "(Italy)",
             Region.Spain => "(Spain)",
+            Region.Taiwan => "(Taiwan)",
             _ => string.Empty
         };
 
@@ -600,7 +601,7 @@ public static partial class NsfwUtilities
         if (isDemo)
         {
             demo = "(Demo)";
-            if (cleanTitle.EndsWith(" Demo"))
+            if (cleanTitle.ToUpperInvariant().EndsWith(" DEMO"))
             {
                 cleanTitle = cleanTitle[..^5];
             }
