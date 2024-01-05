@@ -17,6 +17,7 @@ public class FileEntry
     public string Version { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
+    public bool IsDLC { get; set; }
 }
 
 public class DatEntry
@@ -29,6 +30,7 @@ public class DatEntry
     public bool Fixable => Xml.Contains(".tik");
     public string? Id { get; set; }
     public string? Sha1 { get; set; }
+    public bool IsDLC { get; set; }
 }
 
 public partial class NiCommand : Command<NiSettings>
@@ -46,9 +48,11 @@ public partial class NiCommand : Command<NiSettings>
         
         var xml1 = XDocument.Load(settings.NspDat);
         var xml2 = XDocument.Load(settings.CdnDat);
+        var xml3 = XDocument.Load(settings.DlcDat);
         
         Log.Information($"NSP Dat Loaded : [olive]{settings.NspDat}[/]");
         Log.Information($"CDN Dat Loaded : [olive]{settings.CdnDat}[/]");
+        Log.Information($"DLC Dat Loaded : [olive]{settings.DlcDat}[/]");
         Log.Information($"Scan Directory : [olive]{settings.ScanDir}[/]");
         if (settings.Reverse)
         {
@@ -63,20 +67,28 @@ public partial class NiCommand : Command<NiSettings>
         var files = new Dictionary<string, FileEntry>(comparer: StringComparer.InvariantCultureIgnoreCase);
         
         var fileEntries = Directory.EnumerateFiles(settings.ScanDir, "*.nsp", new EnumerationOptions{ MatchCasing = MatchCasing.CaseInsensitive })
-        .Select(x => new FileEntry
+        .Select(x =>
         {
-            TitleId = x.Split('[')[2].TrimEnd(']').Trim(),
-            Version = x.Split('[')[3].TrimEnd(']').Trim(),
-            FullName = Path.GetFileName(x),
-            Name = Path.GetFileName(x).Split('(')[0].Trim(),
-            Type = x.Contains("[BASE]") ? "GAME" : x.Contains("[UPD]") ? "UPD" : x.Contains("[DLC]") ? "DLC" : "UNKNOWN"
+            var parts = x.Split('[');
+            var offset = parts.Length > 4 ? 2 : 1;
+            return new FileEntry
+            {
+                TitleId = parts[offset].TrimEnd(']').Trim(),
+                Version = parts[offset+1].TrimEnd(']').Trim(),
+                FullName = Path.GetFileName(x),
+                Name = Path.GetFileName(x).Split('(')[0].Trim(),
+                Type = x.Contains("[BASE]") ? "GAME" : x.Contains("[UPD]") ? "UPD" : x.Contains("[DLC]") ? "DLC" : x.Contains("[DLCUPD]") ? "DLCUPD" : "UNKNOWN",
+                IsDLC = x.Contains("[DLC]") || x.Contains("[DLCUPD]")
+            };
         });
 
         foreach (var fileEntry in fileEntries)
         {
-            var key = $"{fileEntry.TitleId.ToLowerInvariant()}_{fileEntry.Version.ToLowerInvariant()}";
+            var key = $"{fileEntry.TitleId.ToLowerInvariant()}_{fileEntry.Version.ToLowerInvariant()}_{fileEntry.IsDLC}";
             if(!files.TryAdd(key, fileEntry))
             {
+                Console.WriteLine(files[key].FullName);
+                Console.WriteLine(key);
                 Log.Warning($"Duplicate file found: [green]{fileEntry.FullName.EscapeMarkup()}[/]");
                 return 1;
             }
@@ -86,6 +98,7 @@ public partial class NiCommand : Command<NiSettings>
         var sortedSet = xml1
             .Descendants("game")
             .Concat(xml2.Descendants("game"))
+            .Concat(xml3.Descendants("game"))
             .Descendants("game_id")
             .Select(x =>
             {
@@ -99,7 +112,8 @@ public partial class NiCommand : Command<NiSettings>
                         Type = x.Parent?.Descendants().Count() <= 4 ? "NSP" : "CDN",
                         Xml = x.Parent?.ToString() ?? string.Empty,
                         Id = x.Parent?.Attribute("id")?.Value,
-                        Sha1 = x.Parent?.Descendants().Count() <= 4 ? x.Parent.Descendants("rom").First().Attribute("sha1")?.Value : null
+                        Sha1 = x.Parent?.Descendants().Count() <= 4 ? x.Parent.Descendants("rom").First().Attribute("sha1")?.Value : null,
+                        IsDLC = name.Contains("(DLC)")
                     };
                 return new DatEntry();
             })
@@ -136,8 +150,7 @@ public partial class NiCommand : Command<NiSettings>
 
             foreach (var duplicate in duplicates)
             {
-                duplicateList.Add(duplicate.Value.Name);
-                duplicateList.Add(duplicate.Key.Name);
+                duplicateList.Add(duplicate.Value.Name); // Key = first instance, Value = second instance (duplicate) - go with first
             }
 
             if(settings.ByLetter != null)
@@ -156,17 +169,27 @@ public partial class NiCommand : Command<NiSettings>
                     version = VersionRegex().Match(game.Name).Value;
                 }
 
-                var key = $"{game.TitleId.ToLowerInvariant()}_{version.ToLowerInvariant()}";
+                if (game.TitleId.Length != 16)
+                {
+                    AnsiConsole.Write(new Rule());
+                    Log.Fatal($"[red]!!DAT ERROR: Invalid Title ID Length -> {game.TitleId} -> {game.Name}[/]");
+                    AnsiConsole.Write(new Rule());
+                    continue;
+                }
+
+                var key = $"{game.TitleId.ToLowerInvariant()}_{version.ToLowerInvariant()}_{game.IsDLC}";
 
                 if (files.TryGetValue(key, out var file))
                 {
                     var gameTrimmed = game.Name.Split('(')[0].Trim();
                     var exactMatch = gameTrimmed.Equals(file.Name, StringComparison.InvariantCulture);
+                    var newFileName = file.FullName.Replace(file.Name, gameTrimmed);
                     
                     switch (exactMatch)
                     {
                         case false:
                             nameErrorCount++;
+                            
                             if (duplicateList.Contains(game.Name))
                             {
                                 Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [grey][[D]] {game.Name.EscapeMarkup()}[/] ([grey]{game.Type}[/])");
@@ -177,8 +200,6 @@ public partial class NiCommand : Command<NiSettings>
                             {
                                 if (AnsiConsole.Confirm($"Rename [green]{file.Name.EscapeMarkup()}[/] to [green]{gameTrimmed.EscapeMarkup()}[/] ?"))
                                 {
-                                    var newFileName = file.FullName.Replace(file.Name, gameTrimmed);
-                                    
                                     if (file.FullName.Equals(newFileName, StringComparison.InvariantCultureIgnoreCase))
                                     {
                                         File.Move(Path.Combine(settings.ScanDir, file.FullName), Path.Combine(settings.ScanDir, "_tmp.nsp"));
@@ -213,11 +234,11 @@ public partial class NiCommand : Command<NiSettings>
                 {
                     if (game.Name.Contains("[b]"))
                     {
-                        Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [grey][[B]] {game.Name.EscapeMarkup()}[/] <- [maroon]{key}[/] ([grey]{game.Type}[/])");
+                        Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [grey][[B]] {game.Name.EscapeMarkup()}[/] <- [grey]{key.Replace("_True",string.Empty).Replace("_False", string.Empty)}[/] ([grey]{game.Type}[/])");
                     }
                     else
                     {
-                        Log.Error($"{game.TitleId.ToUpperInvariant()} -> [[[red]X[/]]] [red]{game.Name.EscapeMarkup()}[/] <- [red]{key}[/] ([grey]{game.Type}[/])");
+                        Log.Error($"{game.TitleId.ToUpperInvariant()} -> [[[red]X[/]]] [red]{game.Name.EscapeMarkup()}[/] <- [red]{key.Replace("_True",string.Empty).Replace("_False", string.Empty)}[/] ([grey]{game.Type}[/])");
                         missing.Add(game);
                         missingBuffer++;
                     }

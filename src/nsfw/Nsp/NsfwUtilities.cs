@@ -102,6 +102,14 @@ public static partial class NsfwUtilities
         return cleanTitle;
     }
 
+    public static string RemoveBrackets(this string input)
+    {
+        var result = input.Replace(" (", " - ")
+                                .Replace(")", " ");
+
+        return result.Trim();
+    }
+
     public static Ticket CreateTicket(int masterKeyRevision, byte[] rightsId, byte[] titleKeyEnc)
     {
         var keyGen = 0;
@@ -200,7 +208,7 @@ public static partial class NsfwUtilities
     {
         var languageOrder = new List<string>()
         {
-            "US", "GB", "JP", "DE", "FR", "ES", "IT", "NL", "PT", "KR", "TW", "CN", "RU"
+            "en", "ja", "de", "fr", "es", "it", "nl", "pt", "ko", "tw", "cn", "zh", "ru"
         };
         var db = new SQLiteAsyncConnection(titledbPath);
         AsyncTableQuery<GameInfo> query;
@@ -229,7 +237,7 @@ public static partial class NsfwUtilities
         
         if(titleNames.Length != 0)
         {
-            return titleNames.First().Name?.ReplaceLineEndings(string.Empty) ?? "UNKNOWN";
+            return titleNames.First().Name?.ReplaceLineEndings(string.Empty).RemoveBrackets().CleanTitle() ?? "UNKNOWN";
         }
 
         return null;
@@ -264,7 +272,7 @@ public static partial class NsfwUtilities
         
         var result = await query.ToArrayAsync();
         
-        return result.Select(x => x.Name ?? "UNKNOWN").ToArray();
+        return result.Select(x => (x.Name ?? "UNKNOWN").RemoveBrackets().CleanTitle()).ToArray();
     }
     
     public static string[] LookupLanguages(string titleDbPath, string titleId)
@@ -274,7 +282,7 @@ public static partial class NsfwUtilities
         
         var languageOrder = new List<string>()
         {
-            "en", "ja", "de", "fr", "es", "it", "nl", "pt", "kr", "zh", "ru"
+            "en", "ja", "de", "fr", "es", "it", "nl", "pt", "ko", "zh", "ru"
         };
         
         if (result?.Languages == null)
@@ -576,7 +584,7 @@ public static partial class NsfwUtilities
         {
             displayRegion = string.Empty;
         }
-        
+
         var cleanTitle = displayTitle.CleanTitle();
         var cleanParentTitle = (displayParentTitle ?? string.Empty).CleanTitle();
 

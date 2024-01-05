@@ -14,6 +14,10 @@ public class NiSettings : CommandSettings
     [Description("Path to NI NSP Dat file.")]
     public string NspDat { get; set; } = string.Empty;
     
+    [CommandOption("-d|--dlcdat <FILE>")]
+    [Description("Path to NI DLC NSP Dat file.")]
+    public string DlcDat { get; set; } = string.Empty;
+    
     [CommandOption("-i|--scandir <FILE>")]
     [Description("Path to NSP directory to scan.")]
     public string ScanDir { get; set; } = string.Empty;
@@ -57,6 +61,16 @@ public class NiSettings : CommandSettings
         if (string.IsNullOrWhiteSpace(ScanDir))
         {
             return ValidationResult.Error("Scan directory is required.");
+        }
+        
+        if (string.IsNullOrWhiteSpace(DlcDat))
+        {
+            return ValidationResult.Error("DLC Dat file is required.");
+        }
+        
+        if(!File.Exists(DlcDat))
+        {
+            return ValidationResult.Error("DLC Dat file does not exist.");
         }
         
         if(!File.Exists(CdnDat))
