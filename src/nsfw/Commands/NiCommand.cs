@@ -1,5 +1,5 @@
-﻿using System.Collections.Immutable;
-using System.Diagnostics;
+﻿using System.Diagnostics;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Serilog;
@@ -25,6 +25,10 @@ public class DatEntry
     public string TitleId { get; set; } = string.Empty;
     public string Version { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
+    public string Xml { get; set; } = string.Empty;
+    public bool Fixable => Xml.Contains(".tik");
+    public string? Id { get; set; }
+    public string? Sha1 { get; set; }
 }
 
 public partial class NiCommand : Command<NiSettings>
@@ -93,21 +97,49 @@ public partial class NiCommand : Command<NiSettings>
                         TitleId = x.Value,
                         Version = VersionRegex().IsMatch(name) ? VersionRegex().Match(name).Value : "v0",
                         Type = x.Parent?.Descendants().Count() <= 4 ? "NSP" : "CDN",
+                        Xml = x.Parent?.ToString() ?? string.Empty,
+                        Id = x.Parent?.Attribute("id")?.Value,
+                        Sha1 = x.Parent?.Descendants().Count() <= 4 ? x.Parent.Descendants("rom").First().Attribute("sha1")?.Value : null
                     };
                 return new DatEntry();
             })
-            .DistinctBy(x => x.Name)
+            .DistinctBy(x => x.Name.ToUpperInvariant())
             .OrderBy(x => x.Name, StringComparer.InvariantCultureIgnoreCase);
         
         if (!settings.Reverse)
         {
             int correctCount = 0;
             int nameErrorCount = 0;
-            int missingCount = 0;
+            HashSet<DatEntry> missing = [];
             int missingBuffer = 0;
             
             var searchList = sortedSet.AsEnumerable();
             
+            var duplicates = searchList.Duplicates();
+            if (settings.ShowDuplicates)
+            {
+                foreach (var duplicate in duplicates)
+                {
+                    if (duplicate.Value.Sha1 != null && duplicate.Value.Sha1.Equals(duplicate.Key.Sha1, StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        Log.Warning($"[[[green]DUPE EXACT[/]]]  {duplicate.Key.TitleId.ToUpperInvariant()} -> [green]{duplicate.Value.Name.EscapeMarkup()} -> {duplicate.Key.Name}[/]");
+                    }
+                    else
+                    {
+                        Log.Warning($"[[[red]DUPE[/]]] {duplicate.Key.TitleId.ToUpperInvariant()} -> [red]{duplicate.Value.Name.EscapeMarkup()} -> {duplicate.Key.Name}[/]");
+                    }
+                }
+                AnsiConsole.Write(new Rule());
+            }
+
+            var duplicateList = new HashSet<string>(StringComparer.InvariantCulture);
+
+            foreach (var duplicate in duplicates)
+            {
+                duplicateList.Add(duplicate.Value.Name);
+                duplicateList.Add(duplicate.Key.Name);
+            }
+
             if(settings.ByLetter != null)
             {
                 searchList = searchList.Where(x => x.Name.StartsWith(settings.ByLetter, StringComparison.InvariantCultureIgnoreCase));
@@ -129,34 +161,48 @@ public partial class NiCommand : Command<NiSettings>
                 if (files.TryGetValue(key, out var file))
                 {
                     var gameTrimmed = game.Name.Split('(')[0].Trim();
-                    var exactMatch = gameTrimmed.Equals(file.Name, StringComparison.InvariantCultureIgnoreCase);
+                    var exactMatch = gameTrimmed.Equals(file.Name, StringComparison.InvariantCulture);
                     
                     switch (exactMatch)
                     {
                         case false:
                             nameErrorCount++;
-                            Log.Warning($"{game.TitleId.ToUpperInvariant()} -> [green]{gameTrimmed.EscapeMarkup()}[/] -> [olive]{file.Name.EscapeMarkup()}[/] ([grey]{file.FullName.EscapeMarkup()}[/])");
+                            if (duplicateList.Contains(game.Name))
+                            {
+                                Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [grey][[D]] {game.Name.EscapeMarkup()}[/] ([grey]{game.Type}[/])");
+                                break;
+                            }
+                            Log.Warning($"{game.TitleId.ToUpperInvariant()} -> [[[olive]R[/]]] [green]{gameTrimmed.EscapeMarkup()}[/] -> [olive]{file.Name.EscapeMarkup()}[/] ({game.Type}) ([grey]{file.FullName.EscapeMarkup()}[/])");
                             if (settings.CorrectName)
                             {
                                 if (AnsiConsole.Confirm($"Rename [green]{file.Name.EscapeMarkup()}[/] to [green]{gameTrimmed.EscapeMarkup()}[/] ?"))
                                 {
                                     var newFileName = file.FullName.Replace(file.Name, gameTrimmed);
-
-                                    if (File.Exists(Path.Combine(settings.ScanDir, newFileName)))
+                                    
+                                    if (file.FullName.Equals(newFileName, StringComparison.InvariantCultureIgnoreCase))
                                     {
-                                        Log.Error($"File already exists: [red]{newFileName.EscapeMarkup()}[/]");
+                                        File.Move(Path.Combine(settings.ScanDir, file.FullName), Path.Combine(settings.ScanDir, "_tmp.nsp"));
+                                        File.Move(Path.Combine(settings.ScanDir, "_tmp.nsp"), Path.Combine(settings.ScanDir, newFileName));
                                     }
                                     else
                                     {
+                                        if (File.Exists(Path.Combine(settings.ScanDir, newFileName)))
+                                        {
+                                            Log.Error($"File already exists: [red]{newFileName.EscapeMarkup()}[/]");
+                                            break;
+                                        }
+
                                         File.Move(Path.Combine(settings.ScanDir, file.FullName), Path.Combine(settings.ScanDir, newFileName));
-                                        Log.Information($"Renamed [green]{file.FullName.EscapeMarkup()}[/] to [green]{newFileName.EscapeMarkup()}[/]");
+                                        
                                     }
+                                    
+                                    Log.Information($"Renamed [green]{file.FullName.EscapeMarkup()}[/] to [green]{newFileName.EscapeMarkup()}[/]");
                                 }
                             }
 
                             break;
                         case true when settings.ShowCorrect:
-                            Log.Information($"{game.TitleId.ToUpperInvariant()} -> [green]{gameTrimmed.EscapeMarkup()}[/] ([grey]{file.FullName.EscapeMarkup()}[/])");
+                            Log.Information($"{game.TitleId.ToUpperInvariant()} -> [[[green]V[/]]] [green]{gameTrimmed.EscapeMarkup()}[/] ([grey]{file.FullName.EscapeMarkup()}[/])");
                             break;
                     }
 
@@ -167,12 +213,12 @@ public partial class NiCommand : Command<NiSettings>
                 {
                     if (game.Name.Contains("[b]"))
                     {
-                        Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [maroon]BAD DUMP ->  {game.Name.EscapeMarkup()}[/] <- [maroon]{key}[/] ([grey]{game.Type}[/])");
+                        Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [grey][[B]] {game.Name.EscapeMarkup()}[/] <- [maroon]{key}[/] ([grey]{game.Type}[/])");
                     }
                     else
                     {
-                        Log.Error($"{game.TitleId.ToUpperInvariant()} -> [red]{game.Name.EscapeMarkup()}[/] <- [red]{key}[/] ([grey]{game.Type}[/])");
-                        missingCount++;
+                        Log.Error($"{game.TitleId.ToUpperInvariant()} -> [[[red]X[/]]] [red]{game.Name.EscapeMarkup()}[/] <- [red]{key}[/] ([grey]{game.Type}[/])");
+                        missing.Add(game);
                         missingBuffer++;
                     }
                 }
@@ -185,10 +231,17 @@ public partial class NiCommand : Command<NiSettings>
             }
             
             AnsiConsole.Write(new Rule());
-            AnsiConsole.MarkupLine($"Correct    : [green]{correctCount}[/] ([olive]{nameErrorCount}[/]) ");
-            AnsiConsole.MarkupLine($"Missing    : [red]{missingCount}[/] ");
-            AnsiConsole.MarkupLine($"Total      : {correctCount + missingCount}");
+            AnsiConsole.MarkupLine($"Correct        : [green]{correctCount}[/] ([olive]{nameErrorCount}[/]) ");
+            AnsiConsole.MarkupLine($"Missing        : [red]{missing.Count}[/] ");
+            AnsiConsole.MarkupLine($"CDN Fixable    : [yellow]{missing.Count(x => x.Fixable)}[/] ");
+            AnsiConsole.MarkupLine($"Total          : {correctCount + missing.Count}");
+            AnsiConsole.MarkupLine($"DAT Duplicates : {duplicateList.Count / 2}");
             AnsiConsole.Write(new Rule());
+            
+            if (settings.SaveDatDirectory != null)
+            {
+                File.WriteAllText(Path.Combine(settings.SaveDatDirectory, "nsp_std_missing.dat"), CreateXml(missing));
+            }
         }
         else
         {
@@ -209,6 +262,8 @@ public partial class NiCommand : Command<NiSettings>
                     Log.Information($"[olive]{file.FullName.EscapeMarkup()}[/]");
                 }
             }
+            
+            AnsiConsole.Write(new Rule());
         }
 
         return 0;
@@ -216,5 +271,36 @@ public partial class NiCommand : Command<NiSettings>
 
     [GeneratedRegex("(v[0-9])\\w+")]
     private static partial Regex VersionRegex();
+
+    public static string CreateXml(HashSet<DatEntry> missingEntries)
+    {
+        var header = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard)</name><description>Nintendo - Nintendo Switch (Digital) (Standard)</description><version>{DateTime.Now.ToString()}</version><author>[mRg]</author></header>""";
+        var footer = "</datafile>";
+        
+        var builder = new StringBuilder();
+
+        builder.Append(header);
+        builder.AppendJoin('\n', missingEntries.Select(x => x.Xml));
+        builder.Append(footer);
+
+        return builder.ToString();
+    }
+}
+
+public static class Extensions
+{
+    public static IEnumerable<KeyValuePair<DatEntry,DatEntry>> Duplicates(this IEnumerable<DatEntry> e)
+    {
+        var set = new Dictionary<string, DatEntry>();
+
+        foreach (var item in e)
+        {
+            var key = item.TitleId.ToUpperInvariant() + "_" + item.Version + "_" + item.Type;
+            if (!set.TryAdd(key, item))
+            {
+                yield return new KeyValuePair<DatEntry, DatEntry>(set[key], item);
+            }
+        }
+    }
 }
 

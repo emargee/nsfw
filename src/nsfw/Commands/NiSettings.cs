@@ -34,7 +34,14 @@ public class NiSettings : CommandSettings
     [Description("Filter by single letter.")]
     [DefaultValue(null)]
     public string? ByLetter { get; set; }
-
+    
+    [CommandOption("-s|--save-dat")]
+    [Description("If set, saves a dat of missing to this directory.")]
+    public string? SaveDatDirectory { get; set; }
+    
+    [CommandOption("--show-duplicates")]
+    [Description("If set, shows duplicate NSP files found in DATs.")]
+    public bool ShowDuplicates { get; set; }
     public override ValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(CdnDat))
