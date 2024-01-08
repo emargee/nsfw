@@ -46,6 +46,10 @@ public class NiSettings : CommandSettings
     [CommandOption("--show-duplicates")]
     [Description("If set, shows duplicate NSP files found in DATs.")]
     public bool ShowDuplicates { get; set; }
+    
+    [CommandOption("-X|--exclude-dlc")]
+    [Description("If set, excludes DLC NSP files from scan.")]
+    public bool ExcludeDlc { get; set; }
     public override ValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(CdnDat))

@@ -57,11 +57,15 @@ public static partial class NsfwUtilities
     {
         var cleanTitle = title
             .ReplaceLineEndings("")
+            .Replace(" <", " - ")
+            .Replace(">", string.Empty)
             .Replace("–","-")
             .Replace("“", "'")
             .Replace("*", "")
             .Replace("”", "'")
             .Replace('/', '-')
+            .Replace('︰',':')
+            .Replace("\uff5e", "-")
             .Replace(":||","-")
             .Replace(": ", " - ")
             .Replace(":", "-")
@@ -84,9 +88,12 @@ public static partial class NsfwUtilities
             .Replace("） (", ") (")
             .Replace(" dlc", " DLC")
             .Replace(" Of ", " of ")
-            .Replace("Digital Edition", "(Digital Edition)")
             .Replace("((((", "(")
             .Replace("))))", ")")
+            .Replace("(((", "(")
+            .Replace(")))",")")
+            .Replace("((","(")
+            .Replace("))",")")
             .TrimEnd();
         
         if(cleanTitle.EndsWith(" -"))

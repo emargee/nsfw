@@ -598,7 +598,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 if (nspInfo.IsDLC)
                 {
                     titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.TitleId)?.CleanTitle();
-                    nspInfo.DisplayParentTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.BaseTitleId)?.CleanTitle();
+                    nspInfo.DisplayParentTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.BaseTitleId)?.CleanTitle().RemoveBrackets();
                 }
                 else
                 {
@@ -615,7 +615,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                         }
                     }
                     
-                    nspInfo.DisplayTitle = titleDbTitle;
+                    nspInfo.DisplayTitle = titleDbTitle.RemoveBrackets();
                     nspInfo.DisplayTitleLookupSource = LookupSource.TitleDb;
                 }
             }

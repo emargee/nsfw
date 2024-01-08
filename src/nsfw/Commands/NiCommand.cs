@@ -87,8 +87,6 @@ public partial class NiCommand : Command<NiSettings>
             var key = $"{fileEntry.TitleId.ToLowerInvariant()}_{fileEntry.Version.ToLowerInvariant()}_{fileEntry.IsDLC}";
             if(!files.TryAdd(key, fileEntry))
             {
-                Console.WriteLine(files[key].FullName);
-                Console.WriteLine(key);
                 Log.Warning($"Duplicate file found: [green]{fileEntry.FullName.EscapeMarkup()}[/]");
                 return 1;
             }
@@ -113,7 +111,7 @@ public partial class NiCommand : Command<NiSettings>
                         Xml = x.Parent?.ToString() ?? string.Empty,
                         Id = x.Parent?.Attribute("id")?.Value,
                         Sha1 = x.Parent?.Descendants().Count() <= 4 ? x.Parent.Descendants("rom").First().Attribute("sha1")?.Value : null,
-                        IsDLC = name.Contains("(DLC)")
+                        IsDLC = name.Contains("(DLC") || name.Contains("DLC)")
                     };
                 return new DatEntry();
             })
@@ -160,6 +158,11 @@ public partial class NiCommand : Command<NiSettings>
 
             foreach (var game in searchList)
             {
+                if (game.IsDLC)
+                {
+                    continue;
+                }
+                
                 Debug.Assert(game.Name != null, "game.Name != null");
 
                 var version = "v0";
@@ -238,7 +241,7 @@ public partial class NiCommand : Command<NiSettings>
                     }
                     else
                     {
-                        Log.Error($"{game.TitleId.ToUpperInvariant()} -> [[[red]X[/]]] [red]{game.Name.EscapeMarkup()}[/] <- [red]{key.Replace("_True",string.Empty).Replace("_False", string.Empty)}[/] ([grey]{game.Type}[/])");
+                        Log.Error($"{game.TitleId.ToUpperInvariant()} -> [[[red]X[/]]] [red]{game.Name.EscapeMarkup()}[/] <- [red]{key.Replace("_True",string.Empty).Replace("_False", string.Empty)}[/] ([grey]{game.Type}[/])([grey]{game.Id}[/])");
                         missing.Add(game);
                         missingBuffer++;
                     }
@@ -256,13 +259,21 @@ public partial class NiCommand : Command<NiSettings>
             AnsiConsole.MarkupLine($"Missing        : [red]{missing.Count}[/] ");
             AnsiConsole.MarkupLine($"CDN Fixable    : [yellow]{missing.Count(x => x.Fixable)}[/] ");
             AnsiConsole.MarkupLine($"Total          : {correctCount + missing.Count}");
-            AnsiConsole.MarkupLine($"DAT Duplicates : {duplicateList.Count / 2}");
-            AnsiConsole.Write(new Rule());
+            AnsiConsole.MarkupLine($"DAT Duplicates : {duplicateList.Count}");
             
             if (settings.SaveDatDirectory != null)
             {
                 File.WriteAllText(Path.Combine(settings.SaveDatDirectory, "nsp_std_missing.dat"), CreateXml(missing));
             }
+            
+            AnsiConsole.Write(new Rule("Latest 20 Missing"));
+            
+            foreach (var missingEntry in missing.Where(x => x.Id != null && !x.Id.Contains('z')).OrderBy(x => x.Id).TakeLast(20))
+            {
+                Console.WriteLine(missingEntry.Id + " - " + missingEntry.TitleId.ToUpperInvariant() + " - " + missingEntry.Name);
+            }
+            
+            AnsiConsole.Write(new Rule());
         }
         else
         {
