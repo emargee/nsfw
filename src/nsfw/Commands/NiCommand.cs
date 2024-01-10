@@ -17,6 +17,7 @@ public class FileEntry
     public string Version { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
+    // ReSharper disable once InconsistentNaming
     public bool IsDLC { get; set; }
 }
 
@@ -27,7 +28,7 @@ public class DatEntry
     public string Version { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public string Xml { get; set; } = string.Empty;
-    public bool Fixable => Xml.Contains(".tik");
+    public bool Fixable => Xml.Contains(".tik")||Xml.Contains(".nsp");
     public string? Id { get; set; }
     public string? Sha1 { get; set; }
     public bool IsDLC { get; set; }
@@ -111,7 +112,7 @@ public partial class NiCommand : Command<NiSettings>
                         Xml = x.Parent?.ToString() ?? string.Empty,
                         Id = x.Parent?.Attribute("id")?.Value,
                         Sha1 = x.Parent?.Descendants().Count() <= 4 ? x.Parent.Descendants("rom").First().Attribute("sha1")?.Value : null,
-                        IsDLC = name.Contains("(DLC") || name.Contains("DLC)")
+                        IsDLC = name.Contains("(DLC") || name.Contains("DLC)") || name.Contains("Update, DLC Unlocker")
                     };
                 return new DatEntry();
             })
@@ -144,11 +145,11 @@ public partial class NiCommand : Command<NiSettings>
                 AnsiConsole.Write(new Rule());
             }
 
-            var duplicateList = new HashSet<string>(StringComparer.InvariantCulture);
+            var duplicateList = new Dictionary<string, string>(StringComparer.InvariantCulture);
 
             foreach (var duplicate in duplicates)
             {
-                duplicateList.Add(duplicate.Value.Name); // Key = first instance, Value = second instance (duplicate) - go with first
+                duplicateList.Add(duplicate.Value.Name, duplicate.Key.Name); // Key = first instance, Value = second instance (duplicate) - go with first
             }
 
             if(settings.ByLetter != null)
@@ -159,6 +160,11 @@ public partial class NiCommand : Command<NiSettings>
             foreach (var game in searchList)
             {
                 if (game.IsDLC)
+                {
+                    continue;
+                }
+                
+                if (!game.Fixable)
                 {
                     continue;
                 }
@@ -193,9 +199,9 @@ public partial class NiCommand : Command<NiSettings>
                         case false:
                             nameErrorCount++;
                             
-                            if (duplicateList.Contains(game.Name))
+                            if (duplicateList.ContainsKey(game.Name))
                             {
-                                Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [grey][[D]] {game.Name.EscapeMarkup()}[/] ([grey]{game.Type}[/])");
+                                Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [grey][[D]] {game.Name.EscapeMarkup()} -> {duplicateList[game.Name].EscapeMarkup()}[/] ([grey]{game.Type}[/])");
                                 break;
                             }
                             Log.Warning($"{game.TitleId.ToUpperInvariant()} -> [[[olive]R[/]]] [green]{gameTrimmed.EscapeMarkup()}[/] -> [olive]{file.Name.EscapeMarkup()}[/] ({game.Type}) ([grey]{file.FullName.EscapeMarkup()}[/])");
@@ -268,7 +274,7 @@ public partial class NiCommand : Command<NiSettings>
             
             AnsiConsole.Write(new Rule("Latest 20 Missing"));
             
-            foreach (var missingEntry in missing.Where(x => x.Id != null && !x.Id.Contains('z')).OrderBy(x => x.Id).TakeLast(20))
+            foreach (var missingEntry in missing.Where(x => x.Id != null && !x.Id.StartsWith('z') && !x.Id.StartsWith('x')).OrderBy(x => x.Id).TakeLast(20))
             {
                 Console.WriteLine(missingEntry.Id + " - " + missingEntry.TitleId.ToUpperInvariant() + " - " + missingEntry.Name);
             }

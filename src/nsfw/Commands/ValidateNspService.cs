@@ -607,16 +607,20 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                 if (!string.IsNullOrEmpty(titleDbTitle))
                 {
+                    var source = LookupSource.TitleDb;
+                    
                     if (nspInfo.DisplayTitleLookupSource == LookupSource.Control)
                     {
-                        if (titleDbTitle.Equals(nspInfo.DisplayTitle, StringComparison.InvariantCultureIgnoreCase))
+                        // Prefer English version from control if version from titledb is not english
+                        if ((titleDbTitle[0] > 122 && nspInfo.DisplayTitle[0] < 123) || titleDbTitle.Equals(nspInfo.DisplayTitle, StringComparison.InvariantCultureIgnoreCase))
                         {
                             titleDbTitle = nspInfo.DisplayTitle;
+                            source = LookupSource.Control;
                         }
                     }
                     
                     nspInfo.DisplayTitle = titleDbTitle.RemoveBrackets();
-                    nspInfo.DisplayTitleLookupSource = LookupSource.TitleDb;
+                    nspInfo.DisplayTitleLookupSource = source;
                 }
             }
 
