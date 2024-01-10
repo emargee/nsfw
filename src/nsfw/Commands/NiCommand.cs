@@ -263,7 +263,7 @@ public partial class NiCommand : Command<NiSettings>
             AnsiConsole.Write(new Rule());
             AnsiConsole.MarkupLine($"Correct        : [green]{correctCount}[/] ([olive]{nameErrorCount}[/]) ");
             AnsiConsole.MarkupLine($"Missing        : [red]{missing.Count}[/] ");
-            AnsiConsole.MarkupLine($"CDN Fixable    : [yellow]{missing.Count(x => x.Fixable)}[/] ");
+            AnsiConsole.MarkupLine($"CDN Fixable    : [yellow]{missing.Count(x => x.Fixable && x.Type == "CDN")}[/] ");
             AnsiConsole.MarkupLine($"Total          : {correctCount + missing.Count}");
             AnsiConsole.MarkupLine($"DAT Duplicates : {duplicateList.Count}");
             
