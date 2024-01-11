@@ -386,6 +386,177 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             nspInfo.MasterKeyRevision = Utilities.GetMasterKeyRevision(mainNca.Nca.Header.KeyGeneration);
         }
+        
+        // DISPLAY TITLE LOOKUP
+
+        var control = title.Control.Value;
+        
+        var nspLanguageId = -1;
+
+        if (control.Title.Items != null)
+        {
+            foreach (var titleItem in control.Title.Items)
+            {
+                nspLanguageId++;
+
+                if (titleItem.NameString.IsEmpty())
+                {
+                    continue;
+                }
+
+                var language = (NacpLanguage)nspLanguageId;
+
+                nspInfo.Titles.Add(language, new TitleInfo
+                {
+                    Title = titleItem.NameString.ToString() ?? "UNKNOWN",
+                    RegionLanguage = (NacpLanguage)nspLanguageId,
+                    Publisher = titleItem.PublisherString.ToString() ?? "UNKNOWN",
+                });
+
+                nspInfo.DisplayTitleLookupSource = LookupSource.Control;
+            }
+        }
+
+        if (nspInfo.DisplayTitleLookupSource == LookupSource.Control)
+        {
+            nspInfo.DisplayTitle = nspInfo.ControlTitle;
+        }
+
+        if (nspInfo.DisplayTitleLookupSource == LookupSource.Unknown)
+        {
+            nspInfo.DisplayTitle = nspInfo.FileName
+                .Replace("_", " ")
+                .Replace(".nsp", string.Empty);
+            nspInfo.DisplayTitleLookupSource = LookupSource.FileName;
+        }
+
+        if (nspInfo.OutputOptions.IsTitleDbAvailable)
+        {
+            if (settings.VerifyTitle || nspInfo.DisplayTitleLookupSource == LookupSource.FileName)
+            {
+                var titleDbTitle = string.Empty;
+
+                if (nspInfo.IsDLC)
+                {
+                    titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.TitleId)?.CleanTitle();
+                    nspInfo.DisplayParentTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.BaseTitleId)?.CleanTitle().RemoveBrackets();
+                }
+                else
+                {
+                    titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
+                }
+
+                if (!string.IsNullOrEmpty(titleDbTitle))
+                {
+                    var source = LookupSource.TitleDb;
+                    
+                    if (nspInfo.DisplayTitleLookupSource == LookupSource.Control)
+                    {
+                        // Prefer English version from control if version from titledb is not english
+                        if ((titleDbTitle[0] > 122 && nspInfo.DisplayTitle[0] < 123) || titleDbTitle.Equals(nspInfo.DisplayTitle, StringComparison.InvariantCultureIgnoreCase))
+                        {
+                            titleDbTitle = nspInfo.DisplayTitle;
+                            source = LookupSource.Control;
+                        }
+                    }
+                    
+                    nspInfo.DisplayTitle = titleDbTitle.RemoveBrackets();
+                    nspInfo.DisplayTitleLookupSource = source;
+                }
+            }
+
+            var releaseDate = NsfwUtilities.LookUpReleaseDate(nspInfo.OutputOptions.TitleDbPath, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
+            
+            if (releaseDate != null)
+            {
+                nspInfo.ReleaseDate = releaseDate;
+            }
+        }
+
+        if (nspInfo is { DisplayTitleLookupSource: LookupSource.FileName, IsDLC: true } && nspInfo.FileName.Contains('['))
+        {
+            var filenameParts = nspInfo.FileName.Split('[', StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
+
+            if (filenameParts.Length > 1)
+            {
+                nspInfo.DisplayTitle = filenameParts[0];
+
+                if (!char.IsDigit(filenameParts[1][0]) && filenameParts.Length > 2)
+                {
+                    nspInfo.DisplayTitle += " - " + filenameParts[1]
+                        .Replace("]", string.Empty)
+                        .Replace("dlc", "DLC").Trim();
+                }
+            }
+            
+            if(nspInfo.DisplayTitle.Contains('(') && nspInfo.DisplayTitle.Contains(')'))
+            {
+                var match = Regex.Match(nspInfo.DisplayTitle, @"\((.*?)\)");
+            
+                if (match.Success)
+                { 
+                    nspInfo.DisplayTitle = nspInfo.DisplayTitle
+                        .Replace(match.Value, string.Empty)
+                        .Replace("  "," ").Trim();
+                }
+            }
+        }
+
+        if (nspInfo is { IsDLC: true, OutputOptions.IsTitleDbAvailable: true })
+        {
+            var parentLanguages = NsfwUtilities.LookupLanguages(settings.TitleDbFile, nspInfo.BaseTitleId);
+            if (parentLanguages.Length > 0)
+            {
+                var parentLanguagesList = parentLanguages.Distinct()
+                        .Select(x => x switch
+                        { 
+                            "en" => NacpLanguage.AmericanEnglish,
+                            "ja" => NacpLanguage.Japanese,
+                            "fr" => NacpLanguage.French,
+                            "de" => NacpLanguage.German,
+                            "it" => NacpLanguage.Italian,
+                            "es" => NacpLanguage.Spanish,
+                            "zh" => NacpLanguage.SimplifiedChinese,
+                            "ko" => NacpLanguage.Korean,
+                            "nl" => NacpLanguage.Dutch,
+                            "pt" => NacpLanguage.Portuguese,
+                            "ru" => NacpLanguage.Russian,
+                            _ => NacpLanguage.AmericanEnglish
+                        });
+                nspInfo.DisplayParentLanguages = string.Join(',', parentLanguages.Select(x => string.Concat(x[0].ToString().ToUpper(), x.AsSpan(1))));
+                nspInfo.ParentLanguages = parentLanguagesList;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(control.DisplayVersionString.ToString()))
+        {
+            nspInfo.DisplayVersion = control.DisplayVersionString.ToString().Trim();
+        }
+
+        if (control.AttributeFlag.HasFlag(ApplicationControlProperty.AttributeFlagValue.Demo))
+        {
+            nspInfo.IsDemo = true;
+        }
+
+        if (control.AttributeFlag.HasFlag(ApplicationControlProperty.AttributeFlagValue.RetailInteractiveDisplay))
+        {
+            nspInfo.IsRetailDisplay = true;
+        }
+        
+        var outputName = settings.KeepFilename ? nspInfo.FileName : nspInfo.OutputName;
+
+        if (settings.Convert)
+        {
+            var targetName = Path.Combine(settings.NspDirectory, $"{outputName}.nsp");
+
+            if (File.Exists(targetName) && !settings.Overwrite)
+            {
+                Log.Error($"File already exists. ({targetName.EscapeMarkup()}). Use [grey]--overwrite[/] to overwrite an existing file.");
+                return 2;
+            }
+        }
+        
+        // VALIDATE NCAS
 
         phase = "[olive]Validate NCAs[/]";
 
@@ -546,162 +717,6 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.NcaFiles.Add(fsNca.Filename, ncaInfo);
         }
         
-        // DISPLAY TITLE LOOKUP
-
-        var control = title.Control.Value;
-        
-        var nspLanguageId = -1;
-
-        if (control.Title.Items != null)
-        {
-            foreach (var titleItem in control.Title.Items)
-            {
-                nspLanguageId++;
-
-                if (titleItem.NameString.IsEmpty())
-                {
-                    continue;
-                }
-
-                var language = (NacpLanguage)nspLanguageId;
-
-                nspInfo.Titles.Add(language, new TitleInfo
-                {
-                    Title = titleItem.NameString.ToString() ?? "UNKNOWN",
-                    RegionLanguage = (NacpLanguage)nspLanguageId,
-                    Publisher = titleItem.PublisherString.ToString() ?? "UNKNOWN",
-                });
-
-                nspInfo.DisplayTitleLookupSource = LookupSource.Control;
-            }
-        }
-
-        if (nspInfo.DisplayTitleLookupSource == LookupSource.Control)
-        {
-            nspInfo.DisplayTitle = nspInfo.ControlTitle;
-        }
-
-        if (nspInfo.DisplayTitleLookupSource == LookupSource.Unknown)
-        {
-            nspInfo.DisplayTitle = nspInfo.FileName
-                .Replace("_", " ")
-                .Replace(".nsp", string.Empty);
-            nspInfo.DisplayTitleLookupSource = LookupSource.FileName;
-        }
-
-        if (nspInfo.OutputOptions.IsTitleDbAvailable)
-        {
-            if (settings.VerifyTitle || nspInfo.DisplayTitleLookupSource == LookupSource.FileName)
-            {
-                var titleDbTitle = string.Empty;
-
-                if (nspInfo.IsDLC)
-                {
-                    titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.TitleId)?.CleanTitle();
-                    nspInfo.DisplayParentTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.BaseTitleId)?.CleanTitle().RemoveBrackets();
-                }
-                else
-                {
-                    titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
-                }
-
-                if (!string.IsNullOrEmpty(titleDbTitle))
-                {
-                    var source = LookupSource.TitleDb;
-                    
-                    if (nspInfo.DisplayTitleLookupSource == LookupSource.Control)
-                    {
-                        // Prefer English version from control if version from titledb is not english
-                        if ((titleDbTitle[0] > 122 && nspInfo.DisplayTitle[0] < 123) || titleDbTitle.Equals(nspInfo.DisplayTitle, StringComparison.InvariantCultureIgnoreCase))
-                        {
-                            titleDbTitle = nspInfo.DisplayTitle;
-                            source = LookupSource.Control;
-                        }
-                    }
-                    
-                    nspInfo.DisplayTitle = titleDbTitle.RemoveBrackets();
-                    nspInfo.DisplayTitleLookupSource = source;
-                }
-            }
-
-            var releaseDate = NsfwUtilities.LookUpReleaseDate(nspInfo.OutputOptions.TitleDbPath, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
-            
-            if (releaseDate != null)
-            {
-                nspInfo.ReleaseDate = releaseDate;
-            }
-        }
-
-        if (nspInfo is { DisplayTitleLookupSource: LookupSource.FileName, IsDLC: true } && nspInfo.FileName.Contains('['))
-        {
-            var filenameParts = nspInfo.FileName.Split('[', StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
-
-            if (filenameParts.Length > 1)
-            {
-                nspInfo.DisplayTitle = filenameParts[0];
-
-                if (!char.IsDigit(filenameParts[1][0]) && filenameParts.Length > 2)
-                {
-                    nspInfo.DisplayTitle += " - " + filenameParts[1]
-                        .Replace("]", string.Empty)
-                        .Replace("dlc", "DLC").Trim();
-                }
-            }
-            
-            if(nspInfo.DisplayTitle.Contains('(') && nspInfo.DisplayTitle.Contains(')'))
-            {
-                var match = Regex.Match(nspInfo.DisplayTitle, @"\((.*?)\)");
-            
-                if (match.Success)
-                { 
-                    nspInfo.DisplayTitle = nspInfo.DisplayTitle
-                        .Replace(match.Value, string.Empty)
-                        .Replace("  "," ").Trim();
-                }
-            }
-        }
-
-        if (nspInfo is { IsDLC: true, OutputOptions.IsTitleDbAvailable: true })
-        {
-            var parentLanguages = NsfwUtilities.LookupLanguages(settings.TitleDbFile, nspInfo.BaseTitleId);
-            if (parentLanguages.Length > 0)
-            {
-                var parentLanguagesList = parentLanguages.Distinct()
-                        .Select(x => x switch
-                        { 
-                            "en" => NacpLanguage.AmericanEnglish,
-                            "ja" => NacpLanguage.Japanese,
-                            "fr" => NacpLanguage.French,
-                            "de" => NacpLanguage.German,
-                            "it" => NacpLanguage.Italian,
-                            "es" => NacpLanguage.Spanish,
-                            "zh" => NacpLanguage.SimplifiedChinese,
-                            "ko" => NacpLanguage.Korean,
-                            "nl" => NacpLanguage.Dutch,
-                            "pt" => NacpLanguage.Portuguese,
-                            "ru" => NacpLanguage.Russian,
-                            _ => NacpLanguage.AmericanEnglish
-                        });
-                nspInfo.DisplayParentLanguages = string.Join(',', parentLanguages.Select(x => string.Concat(x[0].ToString().ToUpper(), x.AsSpan(1))));
-                nspInfo.ParentLanguages = parentLanguagesList;
-            }
-        }
-
-        if (!string.IsNullOrEmpty(control.DisplayVersionString.ToString()))
-        {
-            nspInfo.DisplayVersion = control.DisplayVersionString.ToString().Trim();
-        }
-
-        if (control.AttributeFlag.HasFlag(ApplicationControlProperty.AttributeFlagValue.Demo))
-        {
-            nspInfo.IsDemo = true;
-        }
-
-        if (control.AttributeFlag.HasFlag(ApplicationControlProperty.AttributeFlagValue.RetailInteractiveDisplay))
-        {
-            nspInfo.IsRetailDisplay = true;
-        }
-        
         // NCA ORDER CHECK
 
         if (NsfwUtilities.IsOrderCorrect(nspInfo.RawFileEntries.Values.ToArray()))
@@ -824,8 +839,6 @@ public class ValidateNspService(ValidateNspSettings settings)
         }
         
         // PROPERTIES
-        
-        var outputName = settings.KeepFilename ? nspInfo.FileName : nspInfo.OutputName;
 
         if (settings.LogLevel != LogLevel.Quiet)
         {
