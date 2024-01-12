@@ -622,6 +622,11 @@ public static partial class NsfwUtilities
             {
                 cleanTitle = cleanTitle[..^5];
             }
+
+            if (cleanTitle.ToUpperInvariant().EndsWith(" [DEMO VERSION]"))
+            {
+                cleanTitle = cleanTitle[..^15];
+            }
         }
 
         if (titleType is FixedContentMetaType.Patch)

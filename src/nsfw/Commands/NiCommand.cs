@@ -28,10 +28,12 @@ public class DatEntry
     public string Version { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public string Xml { get; set; } = string.Empty;
-    public bool Fixable => Xml.Contains(".tik")||Xml.Contains(".nsp");
+    public bool CdnFixable => Xml.Contains(".tik");
     public string? Id { get; set; }
     public string? Sha1 { get; set; }
+    // ReSharper disable once InconsistentNaming
     public bool IsDLC { get; set; }
+    public bool IsMia { get; set; }
 }
 
 public partial class NiCommand : Command<NiSettings>
@@ -101,19 +103,28 @@ public partial class NiCommand : Command<NiSettings>
             .Descendants("game_id")
             .Select(x =>
             {
-                var name = x.Parent?.Attribute("name")?.Value;
+                Debug.Assert(x.Parent != null, "x.Parent != null");
+                
+                var name = x.Parent.Attribute("name")?.Value;
+                var romName = x.Parent?.Descendants("rom").First().Attribute("name")?.Value;
+                var isNsp = romName != null && romName.EndsWith(".nsp");
+                
                 if (name != null)
+                {
                     return new DatEntry
                     {
                         Name = name,
                         TitleId = x.Value,
                         Version = VersionRegex().IsMatch(name) ? VersionRegex().Match(name).Value : "v0",
-                        Type = x.Parent?.Descendants().Count() <= 4 ? "NSP" : "CDN",
+                        Type = isNsp ? "NSP" : "CDN",
                         Xml = x.Parent?.ToString() ?? string.Empty,
                         Id = x.Parent?.Attribute("id")?.Value,
-                        Sha1 = x.Parent?.Descendants().Count() <= 4 ? x.Parent.Descendants("rom").First().Attribute("sha1")?.Value : null,
-                        IsDLC = name.Contains("(DLC") || name.Contains("DLC)") || name.Contains("Update, DLC Unlocker")
+                        Sha1 = isNsp ? x.Parent?.Descendants("rom").First().Attribute("sha1")?.Value : null,
+                        IsDLC = name.Contains("(DLC") || name.Contains("DLC)") || name.Contains("Update, DLC"),
+                        IsMia = isNsp && x.Parent?.Descendants("rom").First().Attribute("mia")?.Value == "yes"
                     };
+                }
+
                 return new DatEntry();
             })
             .DistinctBy(x => x.Name.ToUpperInvariant())
@@ -164,7 +175,7 @@ public partial class NiCommand : Command<NiSettings>
                     continue;
                 }
                 
-                if (!game.Fixable)
+                if (game is { Type: "CDN", CdnFixable: false })
                 {
                     continue;
                 }
@@ -247,9 +258,16 @@ public partial class NiCommand : Command<NiSettings>
                     }
                     else
                     {
-                        Log.Error($"{game.TitleId.ToUpperInvariant()} -> [[[red]X[/]]] [red]{game.Name.EscapeMarkup()}[/] <- [red]{key.Replace("_True",string.Empty).Replace("_False", string.Empty)}[/] ([grey]{game.Type}[/])([grey]{game.Id}[/])");
-                        missing.Add(game);
-                        missingBuffer++;
+                        if (game.IsMia)
+                        {
+                            Log.Error($"{game.TitleId.ToUpperInvariant()} -> [grey][[M]] {game.Name.EscapeMarkup()}[/] <- [grey]{key.Replace("_True", string.Empty).Replace("_False", string.Empty)}[/] ([grey]{game.Type}[/])([grey]{game.Id}[/])");
+                        }
+                        else
+                        {
+                            Log.Error($"{game.TitleId.ToUpperInvariant()} -> [[[red]X[/]]] [red]{game.Name.EscapeMarkup()}[/] <- [red]{key.Replace("_True", string.Empty).Replace("_False", string.Empty)}[/] ([grey]{game.Type}[/])([grey]{game.Id}[/])");
+                            missing.Add(game);
+                            missingBuffer++;
+                        }
                     }
                 }
 
@@ -263,7 +281,7 @@ public partial class NiCommand : Command<NiSettings>
             AnsiConsole.Write(new Rule());
             AnsiConsole.MarkupLine($"Correct        : [green]{correctCount}[/] ([olive]{nameErrorCount}[/]) ");
             AnsiConsole.MarkupLine($"Missing        : [red]{missing.Count}[/] ");
-            AnsiConsole.MarkupLine($"CDN Fixable    : [yellow]{missing.Count(x => x.Fixable && x.Type == "CDN")}[/] ");
+            AnsiConsole.MarkupLine($"CDN Fixable    : [yellow]{missing.Count(x => x is { CdnFixable: true, Type: "CDN" })}[/] ");
             AnsiConsole.MarkupLine($"Total          : {correctCount + missing.Count}");
             AnsiConsole.MarkupLine($"DAT Duplicates : {duplicateList.Count}");
             
