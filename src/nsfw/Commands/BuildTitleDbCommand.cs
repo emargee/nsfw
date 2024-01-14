@@ -92,6 +92,7 @@ public class BuildTitleDbCommand : AsyncCommand<BuildTitleDbSettings>
         
         var entries = new HashSet<string>();
         entries.Add(Path.Combine(settings.TitleDbDirectory, "US.en.json"));
+        entries.Add(Path.Combine(settings.TitleDbDirectory, "GB.en.json"));
         entries.Add(Path.Combine(settings.TitleDbDirectory, "JP.ja.json"));
         entries.Add(Path.Combine(settings.TitleDbDirectory, "DE.de.json"));
         entries.Add(Path.Combine(settings.TitleDbDirectory, "FR.fr.json"));
