@@ -627,6 +627,16 @@ public static partial class NsfwUtilities
             {
                 cleanTitle = cleanTitle[..^15];
             }
+            
+            if (cleanTitle.ToUpperInvariant().EndsWith(" (DEMO VERSION)"))
+            {
+                cleanTitle = cleanTitle[..^15];
+            }
+            
+            if (cleanTitle.ToUpperInvariant().EndsWith(" DEMO VERSION"))
+            {
+                cleanTitle = cleanTitle[..^13];
+            }
         }
 
         if (titleType is FixedContentMetaType.Patch)
@@ -695,7 +705,16 @@ public static partial class NsfwUtilities
     {
         if (nca.Header.ContentType != NcaContentType.Program) return Validity.Unchecked;
 
-        var pfs = nca.OpenFileSystem(NcaSectionType.Code, IntegrityCheckLevel.ErrorOnInvalid);
+        IFileSystem pfs;
+        
+        try
+        {
+            pfs = nca.OpenFileSystem(NcaSectionType.Code, IntegrityCheckLevel.ErrorOnInvalid);
+        }
+        catch
+        {
+            return Validity.Unchecked;
+        }
         
         if (!pfs.FileExists("/main.npdm")) return Validity.Unchecked;
         

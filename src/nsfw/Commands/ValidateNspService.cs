@@ -568,21 +568,32 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         foreach (var fsNca in nspStructure.NcaCollection.Values)
         {
+            var npdmValidity = NsfwUtilities.VerifyNpdm(fsNca.Nca);
+            
             var ncaInfo = new NcaInfo(fsNca)
             {
                 IsHeaderValid = fsNca.Nca.VerifyHeaderSignature() == Validity.Valid,
-                IsNpdmValid = NsfwUtilities.VerifyNpdm(fsNca.Nca) == Validity.Valid
+                IsNpdmValid = npdmValidity == Validity.Valid
             };
 
             if (!ncaInfo.IsHeaderValid)
             {
-                nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} - Header signature is invalid.");
+                nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} <- Header signature is invalid.");
                 nspInfo.CanProceed = false;
             }
             
             if(!ncaInfo.IsNpdmValid && fsNca.Nca.Header.ContentType == NcaContentType.Program)
             {
-                nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} - NPDM signature is invalid.");
+                switch (npdmValidity)
+                {
+                    case Validity.Unchecked:
+                        nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} <- Error opening NPDM.");
+                        break;
+                    case Validity.Invalid:
+                        nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} <- NPDM signature is invalid.");
+                        break;
+                }
+
                 nspInfo.CanProceed = false;
             }
 
