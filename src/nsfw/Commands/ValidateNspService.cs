@@ -71,6 +71,11 @@ public class ValidateNspService(ValidateNspSettings settings)
                 extra = " ([olive]Force[/])";
             }
             
+            if(settings.DeleteSource)
+            {
+                extra += " ([olive]Delete Source[/])";
+            }
+            
             Log.Information($"Output Mode <- [green]CONVERT[/]{extra}");
         }
 
@@ -1183,6 +1188,20 @@ public class ValidateNspService(ValidateNspSettings settings)
             }
 
             Log.Information($"Converted: [olive]{outputName.EscapeMarkup()}.nsp[/]");
+            
+            if (settings.DeleteSource)
+            {
+                try
+                {
+                    File.Delete(nspFullPath);
+                    Log.Information($"Cleaned  : [olive]{Path.GetFileName(nspFullPath.EscapeMarkup())}[/]");
+                }
+                catch (Exception exception)
+                {
+                    Log.Error($"Failed to delete file. {exception.Message}");
+                    return 1;
+                }
+            }
         }
 
         return 0;

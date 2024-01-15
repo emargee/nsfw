@@ -107,6 +107,10 @@ public class ValidateNspSettings : CommandSettings
     [Description("Keep original filename when converting to standard NSP.")]
     public bool KeepFilename { get; set; }
     
+    [CommandOption("-Z|--delete-source")]
+    [Description("Delete source NSP file after conversion.")]
+    public bool DeleteSource { get; set; }
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;
