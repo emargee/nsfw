@@ -10,4 +10,5 @@ public class NcaSectionInfo(int sectionId)
     public string ErrorMessage { get; set; } = string.Empty;
     public NcaEncryptionType EncryptionType { get; set; }
     public NcaFormatType FormatType { get; set; }
+    public bool IsSparse { get; set; }
 }

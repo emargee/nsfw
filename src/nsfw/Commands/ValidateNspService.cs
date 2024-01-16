@@ -141,6 +141,11 @@ public class ValidateNspService(ValidateNspSettings settings)
                     fs.OpenFile(ref file.Ref, cnmtPath.ToU8Span(), OpenMode.Read).ThrowIfFailure();
 
                     nspStructure.Metadata = new Cnmt(file.Release().AsStream());
+                    if (nspStructure.Metadata.ContentMetaAttributes.HasFlag(ContentMetaAttribute.Compacted))
+                    {
+                        nspInfo.HasSparseNcas = true;
+                        Log.Verbose("[olive]Read Metadata[/] <- Sparse NCAs detected.");
+                    }
                 }
             }
 
@@ -573,7 +578,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         foreach (var fsNca in nspStructure.NcaCollection.Values)
         {
-            var npdmValidity = NsfwUtilities.VerifyNpdm(fsNca.Nca);
+            var npdmValidity = !nspInfo.HasSparseNcas ? NsfwUtilities.VerifyNpdm(fsNca.Nca) : Validity.Unchecked;
             
             var ncaInfo = new NcaInfo(fsNca)
             {
@@ -592,14 +597,13 @@ public class ValidateNspService(ValidateNspSettings settings)
                 switch (npdmValidity)
                 {
                     case Validity.Unchecked:
-                        nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} <- Error opening NPDM.");
+                        if (!nspInfo.HasSparseNcas) nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} <- Error opening NPDM.");
                         break;
                     case Validity.Invalid:
                         nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} <- NPDM signature is invalid.");
+                        nspInfo.CanProceed = false;
                         break;
                 }
-
-                nspInfo.CanProceed = false;
             }
 
             ncaInfo.Type = fsNca.Nca.Header.ContentType;
@@ -642,10 +646,17 @@ public class ValidateNspService(ValidateNspSettings settings)
                     }
                     catch (Exception exception)
                     {
-                        sectionInfo.IsErrored = true;
-                        sectionInfo.ErrorMessage = $"Error opening file-system - {exception.Message}";
-                        nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} (Section {sectionInfo.SectionId}) <- Error opening file-system");
-                        nspInfo.CanProceed = false;
+                        if (!(fsNca.Nca.Header.ContentType == NcaContentType.Program && nspInfo.HasSparseNcas))
+                        {
+                            sectionInfo.IsErrored = true;
+                            sectionInfo.ErrorMessage = $"Error opening file-system - {exception.Message}";
+                            nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} (Section {sectionInfo.SectionId}) <- Error opening file-system");
+                            nspInfo.CanProceed = false;
+                        }
+                        else
+                        {
+                            sectionInfo.IsSparse = true;
+                        }
                     }
                 }
 

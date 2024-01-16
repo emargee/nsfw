@@ -187,6 +187,7 @@ public class NspInfo
     public bool IsOldTicketCrypto { get; set; }
     public bool IsDemo { get; set; }
     public bool IsRetailDisplay { get; set; }
+    public bool HasSparseNcas { get; set; }
 
     public NspInfo(string filePath)
     {

@@ -114,8 +114,9 @@ public static class RenderUtilities
                 }
                 else
                 {
+                    var sparse = section.IsSparse ? "[grey](Sparse)[/]" : string.Empty;
                     ncaNode.AddNode(
-                        $"{sectionStatus} Section {section.SectionId} [grey]({section.EncryptionType})[/]");
+                        $"{sectionStatus} Section {section.SectionId} [grey]({section.EncryptionType})[/]{sparse}");
                 }
 
             }
