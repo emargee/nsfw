@@ -50,6 +50,10 @@ public class NiSettings : CommandSettings
     [CommandOption("-X|--exclude-dlc")]
     [Description("If set, excludes DLC NSP files from scan.")]
     public bool ExcludeDlc { get; set; }
+    
+    [CommandOption("-T|--show-tik-missing")]
+    [Description("If set, shows CDN entries with missing tik files (unfixable).")]
+    public bool ShowTikMissing { get; set; }
     public override ValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(CdnDat))

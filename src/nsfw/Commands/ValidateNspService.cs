@@ -144,7 +144,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     if (nspStructure.Metadata.ContentMetaAttributes.HasFlag(ContentMetaAttribute.Compacted))
                     {
                         nspInfo.HasSparseNcas = true;
-                        Log.Verbose("[olive]Read Metadata[/] <- Sparse NCAs detected.");
+                        Log.Information("[olive]Read Metadata[/] <- Sparse NCAs detected.");
                     }
                 }
             }

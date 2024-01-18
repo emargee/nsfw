@@ -94,6 +94,17 @@ public partial class NiCommand : Command<NiSettings>
                 return 1;
             }
         }
+
+        // Find games without game_id
+        // var test = xml1
+        //     .Descendants("game")
+        //     .Where(x => !x.Descendants("game_id").Any());
+        //
+        // foreach (var element in test)
+        // {
+        //     var name = element.Attribute("name").Value;
+        //     Console.WriteLine(name);
+        // }
         
         //Combine and keep duplicates
         var sortedSet = xml1
@@ -170,13 +181,18 @@ public partial class NiCommand : Command<NiSettings>
 
             foreach (var game in searchList)
             {
-                if (game.IsDLC)
+                if (game.IsDLC && settings.ExcludeDlc)
                 {
                     continue;
                 }
                 
                 if (game is { Type: "CDN", CdnFixable: false })
                 {
+                    if (settings.ShowTikMissing)
+                    {
+                        Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [[[red]X[/]]] [[NO TIK]] [red]{game.Name.EscapeMarkup()}[/] <- ([grey]{game.Id}[/])");
+                    }
+
                     continue;
                 }
                 

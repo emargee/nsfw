@@ -307,6 +307,7 @@ public static class RenderUtilities
         {
             propertiesTable.AddRow("Release Date", nspInfo.ReleaseDate.Value.ToString("yyyy-MM-dd"));
         }
+        propertiesTable.AddRow("Has Sparse NCAs ?", nspInfo.HasSparseNcas ? "[olive]Yes[/]" : "No");
         propertiesTable.AddRow("Key Generation", nspInfo.DisplayKeyGeneration);
         propertiesTable.AddRow("NSP Version", nspInfo.DisplayVersion);
         propertiesTable.AddRow("Rights ID", nspInfo.RightsId);
