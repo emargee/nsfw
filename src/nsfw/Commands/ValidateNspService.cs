@@ -882,7 +882,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if(!nspInfo.CanProceed)
         {
-            Log.Fatal(!_batchMode && settings.LogLevel != LogLevel.Full
+            Log.Fatal(!_batchMode && !cdnMode && settings.LogLevel != LogLevel.Full
                 ? "NSP Validation failed. Use [grey]--full[/] to see more details."
                 : "NSP Validation failed.");
 

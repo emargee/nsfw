@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
@@ -147,6 +148,7 @@ public partial class NiCommand : Command<NiSettings>
             int nameErrorCount = 0;
             HashSet<DatEntry> missing = [];
             int missingBuffer = 0;
+            int miaCount = 0;
             
             var searchList = sortedSet.AsEnumerable();
             
@@ -186,16 +188,6 @@ public partial class NiCommand : Command<NiSettings>
                     continue;
                 }
                 
-                if (game is { Type: "CDN", CdnFixable: false })
-                {
-                    if (settings.ShowTikMissing)
-                    {
-                        Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [[[red]X[/]]] [[NO TIK]] [red]{game.Name.EscapeMarkup()}[/] <- ([grey]{game.Id}[/])");
-                    }
-
-                    continue;
-                }
-                
                 Debug.Assert(game.Name != null, "game.Name != null");
 
                 var version = "v0";
@@ -212,6 +204,14 @@ public partial class NiCommand : Command<NiSettings>
                     AnsiConsole.Write(new Rule());
                     continue;
                 }
+                
+                if (!long.TryParse(game.TitleId, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out _))
+                {
+                    AnsiConsole.Write(new Rule());
+                    Log.Fatal($"[red]!!DAT ERROR: Invalid Title ID -> {game.TitleId} -> {game.Name}[/]");
+                    AnsiConsole.Write(new Rule());
+                    continue;
+                }
 
                 var key = $"{game.TitleId.ToLowerInvariant()}_{version.ToLowerInvariant()}_{game.IsDLC}";
 
@@ -220,18 +220,27 @@ public partial class NiCommand : Command<NiSettings>
                     var gameTrimmed = game.Name.Split('(')[0].Trim();
                     var exactMatch = gameTrimmed.Equals(file.Name, StringComparison.InvariantCulture);
                     var newFileName = file.FullName.Replace(file.Name, gameTrimmed);
-                    
+
                     switch (exactMatch)
                     {
                         case false:
-                            nameErrorCount++;
                             
                             if (duplicateList.ContainsKey(game.Name))
                             {
-                                Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [grey][[D]] {game.Name.EscapeMarkup()} -> {duplicateList[game.Name].EscapeMarkup()}[/] ([grey]{game.Type}[/])");
+                                Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [[[grey]D[/]]] [grey]{game.Name.EscapeMarkup()} -> {duplicateList[game.Name].EscapeMarkup()}[/] ([grey]{game.Type}[/])");
                                 break;
                             }
-                            Log.Warning($"{game.TitleId.ToUpperInvariant()} -> [[[olive]R[/]]] [green]{gameTrimmed.EscapeMarkup()}[/] -> [olive]{file.Name.EscapeMarkup()}[/] ({game.Type}) ([grey]{file.FullName.EscapeMarkup()}[/])");
+
+                            if (game is { Type: "CDN", CdnFixable: false })
+                            {
+                                // Possible dupe between CDN and NSP (but different name)
+                                Log.Fatal(BuildErrorMessage("D", "grey", game.TitleId, gameTrimmed, key, game.Type, game.Id ?? string.Empty, "[grey] <- CDN/NSP[/]"));
+                                break;
+                            }
+                            
+                            nameErrorCount++;
+
+                            Log.Warning($"{game.TitleId.ToUpperInvariant()} -> [[[olive]R[/]]] [green]{file.Name.EscapeMarkup()}[/] -> [olive]{gameTrimmed.EscapeMarkup()}[/] ({game.Type}) ([grey]{file.FullName.EscapeMarkup()}[/])");
                             if (settings.CorrectName)
                             {
                                 if (AnsiConsole.Confirm($"Rename [green]{file.Name.EscapeMarkup()}[/] to [green]{gameTrimmed.EscapeMarkup()}[/] ?"))
@@ -250,16 +259,31 @@ public partial class NiCommand : Command<NiSettings>
                                         }
 
                                         File.Move(Path.Combine(settings.ScanDir, file.FullName), Path.Combine(settings.ScanDir, newFileName));
-                                        
+
                                     }
-                                    
+
                                     Log.Information($"Renamed [green]{file.FullName.EscapeMarkup()}[/] to [green]{newFileName.EscapeMarkup()}[/]");
                                 }
                             }
 
                             break;
                         case true when settings.ShowCorrect:
-                            Log.Information($"{game.TitleId.ToUpperInvariant()} -> [[[green]V[/]]] [green]{gameTrimmed.EscapeMarkup()}[/] ([grey]{file.FullName.EscapeMarkup()}[/])");
+
+                            var foundMessage = $"{game.TitleId.ToUpperInvariant()} -> [[[green]V[/]]] [green]{gameTrimmed.EscapeMarkup()}[/] ([grey]{file.FullName.EscapeMarkup()}[/])";
+                            
+                            if (game is { Type: "CDN", CdnFixable: false })
+                            {
+                                Log.Information($"{foundMessage} <- [[[olive]FOUND TIK![/]]]");
+                                break;
+                            }
+                            
+                            if (game.IsMia)
+                            {
+                                Log.Information($"{foundMessage} <- [[[olive]FOUND MIA![/]]]");
+                                break;
+                            }
+                            
+                            Log.Information(foundMessage);
                             break;
                     }
 
@@ -268,19 +292,30 @@ public partial class NiCommand : Command<NiSettings>
                 }
                 else
                 {
+                    if (game is { Type: "CDN", CdnFixable: false })
+                    {
+                        if (settings.ShowTikMissing)
+                        {
+                            Log.Fatal(BuildErrorMessage("X", "red", game.TitleId, game.Name, key, game.Type, game.Id ?? string.Empty, " <- [[[red]NO TIK[/]]]"));
+                        }
+
+                        continue;
+                    }
+                    
                     if (game.Name.Contains("[b]"))
                     {
-                        Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [grey][[B]] {game.Name.EscapeMarkup()}[/] <- [grey]{key.Replace("_True",string.Empty).Replace("_False", string.Empty)}[/] ([grey]{game.Type}[/])");
+                        Log.Fatal(BuildErrorMessage("B", "grey", game.TitleId, game.Name, key, game.Type, game.Id ?? string.Empty, string.Empty));
                     }
                     else
                     {
                         if (game.IsMia)
                         {
-                            Log.Error($"{game.TitleId.ToUpperInvariant()} -> [grey][[M]] {game.Name.EscapeMarkup()}[/] <- [grey]{key.Replace("_True", string.Empty).Replace("_False", string.Empty)}[/] ([grey]{game.Type}[/])([grey]{game.Id}[/])");
+                            Log.Error(BuildErrorMessage("M", "grey", game.TitleId, game.Name, key, game.Type, game.Id ?? string.Empty, string.Empty));
+                            miaCount++;
                         }
                         else
                         {
-                            Log.Error($"{game.TitleId.ToUpperInvariant()} -> [[[red]X[/]]] [red]{game.Name.EscapeMarkup()}[/] <- [red]{key.Replace("_True", string.Empty).Replace("_False", string.Empty)}[/] ([grey]{game.Type}[/])([grey]{game.Id}[/])");
+                            Log.Error(BuildErrorMessage("X", "red", game.TitleId, game.Name, key, game.Type, game.Id ?? string.Empty, string.Empty));
                             missing.Add(game);
                             missingBuffer++;
                         }
@@ -297,6 +332,7 @@ public partial class NiCommand : Command<NiSettings>
             AnsiConsole.Write(new Rule());
             AnsiConsole.MarkupLine($"Correct        : [green]{correctCount}[/] ([olive]{nameErrorCount}[/]) ");
             AnsiConsole.MarkupLine($"Missing        : [red]{missing.Count}[/] ");
+            AnsiConsole.MarkupLine($"MIA            : [red]{miaCount}[/] ");
             AnsiConsole.MarkupLine($"CDN Fixable    : [yellow]{missing.Count(x => x is { CdnFixable: true, Type: "CDN" })}[/] ");
             AnsiConsole.MarkupLine($"Total          : {correctCount + missing.Count}");
             AnsiConsole.MarkupLine($"DAT Duplicates : {duplicateList.Count}");
@@ -305,12 +341,15 @@ public partial class NiCommand : Command<NiSettings>
             {
                 File.WriteAllText(Path.Combine(settings.SaveDatDirectory, "nsp_std_missing.dat"), CreateXml(missing));
             }
-            
-            AnsiConsole.Write(new Rule("Latest 20 Missing"));
-            
-            foreach (var missingEntry in missing.Where(x => x.Id != null && !x.Id.StartsWith('z') && !x.Id.StartsWith('x')).OrderBy(x => x.Id).TakeLast(20))
+
+            if (settings.ShowMissing) 
             {
-                Console.WriteLine(missingEntry.Id + " - " + missingEntry.TitleId.ToUpperInvariant() + " - " + missingEntry.Name);
+                AnsiConsole.Write(new Rule("Latest 20 Missing"));
+
+                foreach (var missingEntry in missing.Where(x => x.Id != null && !x.Id.StartsWith('z') && !x.Id.StartsWith('x')).OrderBy(x => x.Id).TakeLast(20))
+                {
+                    Console.WriteLine(missingEntry.Id + " - " + missingEntry.TitleId.ToUpperInvariant() + " - " + missingEntry.Name);
+                }
             }
             
             AnsiConsole.Write(new Rule());
@@ -356,6 +395,11 @@ public partial class NiCommand : Command<NiSettings>
         builder.Append(footer);
 
         return builder.ToString();
+    }
+
+    public static string BuildErrorMessage(string status, string colour, string titleId, string gameName, string lookupKey, string gameType, string niId, string extra)
+    {
+        return $"{titleId.ToUpperInvariant()} -> [[[{colour}]{status}[/]]] [{colour}]{gameName.EscapeMarkup()}[/] <- [{colour}]{lookupKey.Replace("_True", string.Empty).Replace("_False", string.Empty)}[/] ([grey]{gameType}[/])([grey]{niId}[/]){extra}";
     }
 }
 

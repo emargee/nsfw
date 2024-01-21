@@ -54,6 +54,11 @@ public class NiSettings : CommandSettings
     [CommandOption("-T|--show-tik-missing")]
     [Description("If set, shows CDN entries with missing tik files (unfixable).")]
     public bool ShowTikMissing { get; set; }
+    
+    [CommandOption("-M|--show-missing")]
+    [Description("If set, list missing latest 20 NSP files in NI ID order.")]
+    public bool ShowMissing { get; set; }
+    
     public override ValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(CdnDat))
