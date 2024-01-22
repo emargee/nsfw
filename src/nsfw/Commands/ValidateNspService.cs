@@ -109,7 +109,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         var nspStructure = new NspStructure();
 
-        var phase = "[olive]Import Tickets[/]";
+        var phase = "[olive]Read NCAs[/]";
         
         foreach (var rawFile in fileSystem.EnumerateEntries("*.*", SearchOptions.RecurseSubdirectories))
         {
@@ -118,16 +118,29 @@ public class ValidateNspService(ValidateNspSettings settings)
                 var tikFile = new UniqueRef<IFile>();
                 fileSystem.OpenFile(ref tikFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
                 ImportTicket(new Ticket(tikFile.Get.AsStream()), _keySet, nspInfo);
-                Log.Verbose($"{phase} <- Ticket ({rawFile.Name}) imported.");
+                Log.Verbose($"Import Tickets <- Ticket ({rawFile.Name}) imported.");
             }
             
             if (rawFile.Name.EndsWith(".nca"))
             {
                 var ncaFile = new UniqueRef<IFile>();
                 fileSystem.OpenFile(ref ncaFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
-                var nca = new SwitchFsNca(new Nca(_keySet, ncaFile.Release().AsStorage()));
-                nca.Filename = rawFile.Name;
-                nca.NcaId = rawFile.Name[..32];
+
+                SwitchFsNca nca;
+                try
+                {
+                    nca = new SwitchFsNca(new Nca(_keySet, ncaFile.Release().AsStorage()))
+                    {
+                        Filename = rawFile.Name,
+                        NcaId = rawFile.Name[..32]
+                    };
+                }
+                catch (Exception e)
+                {
+                    Log.Fatal($"{phase} <- Error opening NCA ({rawFile.Name}) - {e.Message}");
+                    return 1;
+                }
+
                 nspStructure.NcaCollection.Add(nca.NcaId, nca);
                 
                 if(rawFile.Name.EndsWith(".cnmt.nca"))
@@ -144,7 +157,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     if (nspStructure.Metadata.ContentMetaAttributes.HasFlag(ContentMetaAttribute.Compacted))
                     {
                         nspInfo.HasSparseNcas = true;
-                        Log.Information("[olive]Read Metadata[/] <- Sparse NCAs detected.");
+                        Log.Information($"[olive]{phase}[/] <- Sparse NCAs detected.");
                     }
                 }
             }
