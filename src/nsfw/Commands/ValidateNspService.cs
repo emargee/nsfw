@@ -663,7 +663,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                         {
                             sectionInfo.IsErrored = true;
                             sectionInfo.ErrorMessage = $"Error opening file-system - {exception.Message}";
-                            nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} (Section {sectionInfo.SectionId}) <- Error opening file-system");
+                            nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} ({(ncaInfo.Type == NcaContentType.Data ? "Delta" : ncaInfo.Type)}) (Section {sectionInfo.SectionId}) <- Error opening file-system");
                             nspInfo.CanProceed = false;
                         }
                         else
@@ -893,7 +893,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             }
         }
         
-        if(!nspInfo.CanProceed)
+        if(!nspInfo.CanProceed && !(settings is { Extract: true, ForceExtract: true }))
         {
             Log.Fatal(!_batchMode && !cdnMode && settings.LogLevel != LogLevel.Full
                 ? "NSP Validation failed. Use [grey]--full[/] to see more details."

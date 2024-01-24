@@ -111,9 +111,14 @@ public class ValidateNspSettings : CommandSettings
     [Description("Delete source NSP file after conversion.")]
     public bool DeleteSource { get; set; }
     
+    [CommandOption("--force-extract")]
+    [Description("Force extraction of NSP contents (even if validation fails).")]
+    public bool ForceExtract { get; set; }
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;
+    
 
     public LogLevel LogLevel
     {

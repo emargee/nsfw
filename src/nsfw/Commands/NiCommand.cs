@@ -149,6 +149,8 @@ public partial class NiCommand : Command<NiSettings>
             HashSet<DatEntry> missing = [];
             int missingBuffer = 0;
             int miaCount = 0;
+            int noTikCount = 0;
+            int badCount = 0;
             
             var searchList = sortedSet.AsEnumerable();
             
@@ -190,11 +192,25 @@ public partial class NiCommand : Command<NiSettings>
                 
                 Debug.Assert(game.Name != null, "game.Name != null");
 
+                if (game.Name.Contains("(Homebrew)"))
+                {
+                    // Skip homebrew
+                    continue;
+                }
+                
                 var version = "v0";
 
                 if (game.Name.Contains("(v"))
                 {
                     version = VersionRegex().Match(game.Name).Value;
+                }
+
+                if (version.Contains('.'))
+                {
+                    AnsiConsole.Write(new Rule());
+                    Log.Fatal($"[red]!!ENTRY ERROR: Missing valid version -> {game.TitleId} -> {game.Name} -> {version}[/]");
+                    AnsiConsole.Write(new Rule());
+                    continue;
                 }
 
                 if (game.TitleId.Length != 16)
@@ -299,12 +315,14 @@ public partial class NiCommand : Command<NiSettings>
                             Log.Fatal(BuildErrorMessage("X", "red", game.TitleId, game.Name, key, game.Type, game.Id ?? string.Empty, " <- [[[red]NO TIK[/]]]"));
                         }
 
+                        noTikCount++;
                         continue;
                     }
                     
                     if (game.Name.Contains("[b]"))
                     {
                         Log.Fatal(BuildErrorMessage("B", "grey", game.TitleId, game.Name, key, game.Type, game.Id ?? string.Empty, string.Empty));
+                        badCount++;
                     }
                     else
                     {
@@ -333,6 +351,8 @@ public partial class NiCommand : Command<NiSettings>
             AnsiConsole.MarkupLine($"Correct        : [green]{correctCount}[/] ([olive]{nameErrorCount}[/]) ");
             AnsiConsole.MarkupLine($"Missing        : [red]{missing.Count}[/] ");
             AnsiConsole.MarkupLine($"MIA            : [red]{miaCount}[/] ");
+            AnsiConsole.MarkupLine($"Bad            : [red]{badCount}[/] ");
+            AnsiConsole.MarkupLine($"No TIK         : [red]{noTikCount}[/] ");
             AnsiConsole.MarkupLine($"CDN Fixable    : [yellow]{missing.Count(x => x is { CdnFixable: true, Type: "CDN" })}[/] ");
             AnsiConsole.MarkupLine($"Total          : {correctCount + missing.Count}");
             AnsiConsole.MarkupLine($"DAT Duplicates : {duplicateList.Count}");
@@ -380,7 +400,7 @@ public partial class NiCommand : Command<NiSettings>
         return 0;
     }
 
-    [GeneratedRegex("(v[0-9])\\w+")]
+    [GeneratedRegex("(v[0-9.]+)")]
     private static partial Regex VersionRegex();
 
     public static string CreateXml(HashSet<DatEntry> missingEntries)
