@@ -28,7 +28,7 @@ public class ValidateNspService(ValidateNspSettings settings)
     private readonly KeySet _keySet = ExternalKeyReader.ReadKeyFile(settings.KeysFile);
     private bool _batchMode;
 
-    public int Process(string nspFullPath, bool batchMode, bool cdnMode = false)
+    public (int returnValue, NspInfo? nspInfo) Process(string nspFullPath, bool batchMode, bool cdnMode = false)
     {
         _batchMode = batchMode;
         
@@ -100,7 +100,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (headerBuffer.ToHexString() != nspInfo.HeaderMagic)
         {
             Log.Error("Cannot mount file-system. Invalid NSP file.");
-            return 1;
+            return (1, null);
         }
 
         var fileStorage = new FileStorage(localFile);
@@ -138,9 +138,9 @@ public class ValidateNspService(ValidateNspSettings settings)
                 catch (Exception e)
                 {
                     Log.Fatal($"{phase} <- Error opening NCA ({rawFile.Name}) - {e.Message}");
-                    return 1;
+                    return (1,null);
                 }
-
+                
                 nspStructure.NcaCollection.Add(nca.NcaId, nca);
                 
                 if(rawFile.Name.EndsWith(".cnmt.nca"))
@@ -200,7 +200,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (cnmt == null)
         {
             Log.Error("Failed to open CNMT.");
-            return 1;
+            return (1, null);
         }
 
         nspInfo.TitleId = cnmt.TitleId.ToString("X16");
@@ -223,7 +223,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.TitleType != FixedContentMetaType.Delta && nspInfo.TitleType != FixedContentMetaType.AddOnContent && nspInfo.TitleType != FixedContentMetaType.DataPatch)
         {
             Log.Error($"{phase} - Unsupported content type {nspInfo.TitleType}");
-            return 1;
+            return (1, null);
         }
         
         foreach (var contentEntry in cnmt.ContentEntries)
@@ -239,7 +239,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (contentFile.NcaId != contentFile.Hash.Take(16).ToArray().ToHexString())
             {
                 Log.Error($"{phase} - Hash part should match NCA ID ({contentFile.NcaId}).");
-                return 1;
+                return (1, null);
             }
 
             if (!nspInfo.RawFileEntries.ContainsKey(contentFile.FileName))
@@ -287,7 +287,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (mainNca == null)
         {
             Log.Error($"{phase} - Failed to open Main NCA.");
-            return 1;
+            return (1, null);
         }
         
         if (!mainNca.Nca.Header.RightsId.IsZeros())
@@ -301,7 +301,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (mainNca.Nca.Header.DistributionType != DistributionType.Download)
         {
             Log.Error($"{phase} - Unsupported distribution type : {mainNca.Nca.Header.DistributionType}");
-            return -1;
+            return (1, null);
         }
 
         if (nspInfo is { HasTicket: true, HasTitleKeyCrypto: false, IsDLC: true })
@@ -322,7 +322,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (mainNca.Nca.Header.RightsId.IsZeros())
             {
                 Log.Error($"{phase} - NCA is encrypted but has empty rights ID.");
-                return 1;
+                return (1, null);
             }
 
             phase = "[olive]Validate Ticket[/]";
@@ -330,7 +330,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (nspInfo.Ticket.SignatureType != TicketSigType.Rsa2048Sha256)
             {
                 Log.Error($"{phase} - Unsupported ticket signature type {nspInfo.Ticket.SignatureType}");
-                return 1;
+                return (1, null);
             }
 
             var offset = BitConverter.GetBytes(nspInfo.Ticket.SectHeaderOffset);
@@ -575,7 +575,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (File.Exists(targetName) && !settings.Overwrite)
             {
                 Log.Error($"File already exists. ({targetName.EscapeMarkup()}). Use [grey]--overwrite[/] to overwrite an existing file.");
-                return 2;
+                return (2, null);
             }
         }
         
@@ -586,7 +586,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (nspStructure.NcaCollection.Count == 0)
         {
             Log.Error($"{phase} - No NCAs found.");
-            return 1;
+            return (1, null);
         }
 
         foreach (var fsNca in nspStructure.NcaCollection.Values)
@@ -598,6 +598,20 @@ public class ValidateNspService(ValidateNspSettings settings)
                 IsHeaderValid = fsNca.Nca.VerifyHeaderSignature() == Validity.Valid,
                 IsNpdmValid = npdmValidity == Validity.Valid
             };
+            
+            // Get encrypted keys from header
+            var ver = fsNca.Nca.Header.FormatVersion;
+            var kCount = ver == NcaVersion.Nca0 ? 2 : 4;
+
+            var encryptedKeys = new string[kCount];
+                
+            for (var i = 0; i < kCount; i++)
+            {
+                encryptedKeys[i] = fsNca.Nca.Header.GetEncryptedKey(i).ToArray().ToHexString();
+            }
+            
+            ncaInfo.EncryptedKeys = encryptedKeys;
+            ncaInfo.RawHeader = fsNca.Nca.OpenHeaderStorage(false).ToArray();
 
             if (!ncaInfo.IsHeaderValid)
             {
@@ -832,7 +846,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (settings.LogLevel == LogLevel.Full)
         {
-            AnsiConsole.Write(new Padder(RenderUtilities.RenderNcaTree(nspInfo.NcaFiles.Values)).PadLeft(1).PadTop(1).PadBottom(0));
+            AnsiConsole.Write(new Padder(RenderUtilities.RenderNcaTree(nspInfo.NcaFiles.Values, settings.ShowKeys)).PadLeft(1).PadTop(1).PadBottom(0));
         }
         
         // TICKET INFO
@@ -899,12 +913,12 @@ public class ValidateNspService(ValidateNspSettings settings)
                 ? "NSP Validation failed. Use [grey]--full[/] to see more details."
                 : "NSP Validation failed.");
 
-            return 1;
+            return (1, null);
         }
         
         if(settings is { Rename: false, Extract: false, Convert: false })
         {
-            return 0;
+            return (0, nspInfo);
         }
         
         // RENAME
@@ -917,7 +931,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (nspInfo.FileName ==  outputName+".nsp")
             {
                 Log.Information("Renaming skipped. Nothing to do. Filename matches already.");
-                return 0;
+                return (0, nspInfo);
             }
             
             var targetDirectory = Path.GetDirectoryName(nspFullPath);
@@ -925,7 +939,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if(targetDirectory == null || !Directory.Exists(targetDirectory))
             {
                 Log.Error($"Failed to open directory ({targetDirectory.EscapeMarkup()}).");
-                return 1;
+                return (1, null);
             }
             
             var targetName = Path.Combine(targetDirectory, outputName + ".nsp");
@@ -933,20 +947,20 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (targetName.Length > 254)
             {
                 Log.Error($"Path too long for Windows ({targetName.Length})");
-                return 1;
+                return (1, null);
             }
             
             if (File.Exists(targetName) && !settings.Overwrite)
             {
                 Log.Error($"File with the same name already exists. ({outputName.EscapeMarkup()}.nsp). Use [grey]--overwrite[/] to overwrite an existing file.");
-                return 2;
+                return (2, null);
             }
             
             if (settings.DryRun)
             {
                 Log.Information($"[[[green]DRYRUN[/]]] -> Rename FROM: [olive]{nspInfo.FileName.EscapeMarkup()}[/]");
                 Log.Information($"[[[green]DRYRUN[/]]] ->   Rename TO: [olive]{outputName.EscapeMarkup()}.nsp[/]");
-                return 0;
+                return (0, nspInfo);
             }
 
             try
@@ -956,11 +970,11 @@ public class ValidateNspService(ValidateNspSettings settings)
             catch (Exception exception)
             {
                 Log.Error($"Failed to rename file. {exception.Message}");
-                return 1;
+                return (1, null);
             }
 
             Log.Information($"Renamed TO: [olive]{outputName.EscapeMarkup()}[/]");
-            return 0;
+            return (0, null);
         }
         
         if (nspInfo is { Ticket: not null, HasTitleKeyCrypto: true } && (!nspInfo.IsTicketSignatureValid || nspInfo.GenerateNewTicket))
@@ -978,13 +992,13 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (outDir.Length > 254)
             {
                 Log.Error($"Path too long for Windows ({outDir.Length})");
-                return 1;
+                return (1, null);
             }
 
             if (Directory.Exists(outDir) && !settings.Overwrite)
             {
                 Log.Error($"Directory with the same name already exists. ({outDir.EscapeMarkup()}). Use [grey]--overwrite[/] to overwrite existing files.");
-                return 2;
+                return (2, null);
             }
             
             if(settings.DryRun)
@@ -1021,7 +1035,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 catch (Exception exception)
                 {
                     Log.Error($"Failed to extract file. {exception.Message}");
-                    return 1;
+                    return (1, null);
                 }
             }
 
@@ -1048,8 +1062,17 @@ public class ValidateNspService(ValidateNspSettings settings)
                     catch (Exception exception)
                     {
                         Log.Error($"Failed to extract file. {exception.Message}");
-                        return 1;
+                        return (1, null);
                     }
+                }
+            }
+
+            if (settings.DumpHeaders)
+            {
+                foreach (var info in nspInfo.NcaFiles.Values)
+                {
+                    var headerFilePath = Path.Combine(outDir, $"{info.FileName}.header");
+                    File.WriteAllBytes(headerFilePath, info.RawHeader);
                 }
             }
         
@@ -1063,7 +1086,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                      Log.Information($"[[[green]DRYRUN[/]]] -> Would extract: [olive]{decFile.EscapeMarkup()}[/]");
                      Log.Information($"[[[green]DRYRUN[/]]] -> Would extract: [olive]{encFile.EscapeMarkup()}[/]");
                      Log.Information($"[[[green]DRYRUN[/]]] -> Would extract: [olive]{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.tik[/]");
-                     return 0;
+                     return (0, nspInfo);
                  }
 
                  try
@@ -1075,7 +1098,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                  catch (Exception exception)
                  {
                      Log.Error($"Failed to extract ticket files. {exception.Message}");
-                     return 1;
+                     return (1, null);
                  }
             }
             
@@ -1089,7 +1112,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (nspInfo.IsStandardNsp && !settings.ForceConvert)
             {
                 Log.Information("File is already in Standard NSP format. Skipping conversion.");
-                return 0;
+                return (0, nspInfo);
             }
             
             if (settings.DryRun)
@@ -1208,7 +1231,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             
             if(buildStatus != 0)
             {
-                return buildStatus;
+                return (buildStatus, null);
             }
 
             Log.Information($"Converted: [olive]{outputName.EscapeMarkup()}.nsp[/]");
@@ -1223,12 +1246,12 @@ public class ValidateNspService(ValidateNspSettings settings)
                 catch (Exception exception)
                 {
                     Log.Error($"Failed to delete file. {exception.Message}");
-                    return 1;
+                    return (1, null);
                 }
             }
         }
 
-        return 0;
+        return (0, nspInfo);
     }
     
     private void ImportTicket(Ticket ticket, KeySet keySet, NspInfo nspInfo)

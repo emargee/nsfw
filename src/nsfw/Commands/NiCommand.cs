@@ -197,6 +197,12 @@ public partial class NiCommand : Command<NiSettings>
                     // Skip homebrew
                     continue;
                 }
+
+                if (game.Type == "CDN" && game.Name.Contains("(Alt)"))
+                {
+                    // Skip alts
+                    continue;
+                }
                 
                 var version = "v0";
 
@@ -233,7 +239,7 @@ public partial class NiCommand : Command<NiSettings>
 
                 if (files.TryGetValue(key, out var file))
                 {
-                    var gameTrimmed = game.Name.Split('(')[0].Trim();
+                    var gameTrimmed = game.Name.Split('(')[0].Trim().Replace("[", " ").Replace("]", " ").Trim();
                     var exactMatch = gameTrimmed.Equals(file.Name, StringComparison.InvariantCulture);
                     var newFileName = file.FullName.Replace(file.Name, gameTrimmed);
 
@@ -247,16 +253,15 @@ public partial class NiCommand : Command<NiSettings>
                                 break;
                             }
 
-                            if (game is { Type: "CDN", CdnFixable: false })
+                            if (game.Id != null && game.Id.ToLowerInvariant().StartsWith('z'))
                             {
-                                // Possible dupe between CDN and NSP (but different name)
-                                Log.Fatal(BuildErrorMessage("D", "grey", game.TitleId, gameTrimmed, key, game.Type, game.Id ?? string.Empty, "[grey] <- CDN/NSP[/]"));
+                                Log.Fatal($"{game.TitleId.ToUpperInvariant()} -> [[[grey]D[/]]] [grey]{game.Name.EscapeMarkup()} -> CDN/NSP -> {game.Id}[/] ([grey]{game.Type}[/])");
                                 break;
                             }
-                            
+
                             nameErrorCount++;
 
-                            Log.Warning($"{game.TitleId.ToUpperInvariant()} -> [[[olive]R[/]]] [green]{file.Name.EscapeMarkup()}[/] -> [olive]{gameTrimmed.EscapeMarkup()}[/] ({game.Type}) ([grey]{file.FullName.EscapeMarkup()}[/])");
+                            Log.Warning($"{game.TitleId.ToUpperInvariant()} -> [[[olive]R[/]]] [green]{file.Name.EscapeMarkup()}[/] -> [olive]{gameTrimmed.EscapeMarkup()}[/] ({game.Id}) ({game.Type}) ([grey]{file.FullName.EscapeMarkup()}[/])");
                             if (settings.CorrectName)
                             {
                                 if (AnsiConsole.Confirm($"Rename [green]{file.Name.EscapeMarkup()}[/] to [green]{gameTrimmed.EscapeMarkup()}[/] ?"))
@@ -279,6 +284,7 @@ public partial class NiCommand : Command<NiSettings>
                                     }
 
                                     Log.Information($"Renamed [green]{file.FullName.EscapeMarkup()}[/] to [green]{newFileName.EscapeMarkup()}[/]");
+                                    nameErrorCount--;
                                 }
                             }
 
@@ -308,11 +314,12 @@ public partial class NiCommand : Command<NiSettings>
                 }
                 else
                 {
-                    if (game is { Type: "CDN", CdnFixable: false })
+                    if (game is { Type: "CDN", CdnFixable: false } && !game.Name.Contains("[b]"))
                     {
                         if (settings.ShowTikMissing)
                         {
                             Log.Fatal(BuildErrorMessage("X", "red", game.TitleId, game.Name, key, game.Type, game.Id ?? string.Empty, " <- [[[red]NO TIK[/]]]"));
+                            missing.Add(game);
                         }
 
                         noTikCount++;
@@ -359,6 +366,7 @@ public partial class NiCommand : Command<NiSettings>
             
             if (settings.SaveDatDirectory != null)
             {
+                Console.WriteLine(missing.Count);
                 File.WriteAllText(Path.Combine(settings.SaveDatDirectory, "nsp_std_missing.dat"), CreateXml(missing));
             }
 

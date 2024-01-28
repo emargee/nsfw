@@ -57,8 +57,9 @@ public class Cdn2NspService
         
         Log.Information($"Processing Dir  : [olive]{new DirectoryInfo(currentDirectory).Name.EscapeMarkup()}[/]");
         Log.Information($"Processing CNMT : [olive]{metaNcaFileName}[/]");
-        
-        var nca = new Nca(_keySet, new LocalStorage(metaNcaFilePath, FileAccess.Read));
+
+        var metaFile = new LocalStorage(metaNcaFilePath, FileAccess.Read);
+        var nca = new Nca(_keySet, metaFile);
         
         if(!nca.CanOpenSection(0))
         {
@@ -95,8 +96,9 @@ public class Cdn2NspService
                 Log.Error($"[red]Cannot find {fileName}[/]");
                 return 1;
             }
-            
-            var contentNca = new Nca(_keySet, new LocalStorage(Path.Combine(currentDirectory, fileName), FileAccess.Read));
+
+            var localFile = new LocalStorage(Path.Combine(currentDirectory, fileName), FileAccess.Read);
+            var contentNca = new Nca(_keySet, localFile);
             if (contentNca.Header.HasRightsId && _titleKeyEnc.Length == 0)
             {
                 _hasRightsId = contentNca.Header.HasRightsId;
@@ -109,8 +111,8 @@ public class Cdn2NspService
                     return 1;
                 }
             }
-         
             _contentFiles.Add(Path.Combine(currentDirectory, $"{contentEntry.NcaId.ToHexString().ToLower()}.nca"), contentEntry.Size);
+            localFile.Dispose();
         }
         
         _contentFiles.Add(Path.GetFullPath(metaNcaFilePath), new FileInfo(Path.Combine(metaNcaFilePath)).Length);
@@ -121,6 +123,10 @@ public class Cdn2NspService
             File.Copy(_settings.CertFile, _certFile, true);
             _contentFiles.Add(_certFile, new FileInfo(_settings.CertFile).Length);
         }
+
+        metaFile.Dispose();
+        file.Destroy();
+        fs.Dispose();
         
         var nspFilename = $"{_titleId}.nsp";
         
@@ -169,11 +175,11 @@ public class Cdn2NspService
 
         var validateNspService = new ValidateNspService(settings);
         var result = validateNspService.Process(tempFilePath, false, true);
-        if (result != 1)
+        if (result.returnValue == 0)
         {
             File.Delete(tempFilePath);
         }
         
-        return result;
+        return result.returnValue;
     }
 }

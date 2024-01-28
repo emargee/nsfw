@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using Nsfw.Nsp;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.Spectre;
@@ -11,7 +12,7 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
 {
     public override int Execute([NotNull] CommandContext context, [NotNull] ValidateNspSettings settings)
     {
-        var result = 0;
+        (int, NspInfo?) result = (0, null);
         var logLevel = LogEventLevel.Verbose;
 
         if (settings.NspCollection.Length != 0)
@@ -43,7 +44,6 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
         }
         else
         {
-        
             if (settings.LogLevel != LogLevel.Quiet)
             {
                 DrawLogo();
@@ -58,7 +58,7 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
             AnsiConsole.Write(new Rule());
         }
 
-        return result;
+        return result.Item1;
     }
 
     private static void DrawLogo()

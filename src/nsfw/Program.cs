@@ -27,6 +27,8 @@ public static class Program
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, typeof(TicketPropertiesSettings))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, typeof(NiSettings))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, typeof(NiCommand))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, typeof(HashCommand))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, typeof(CompareCommand))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, "Spectre.Console.Cli.VersionCommand", "Spectre.Console.Cli")]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, "Spectre.Console.Cli.XmlDocCommand", "Spectre.Console.Cli")]
     [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicNestedTypes | DynamicallyAccessedMemberTypes.PublicProperties, "Spectre.Console.Cli.ExplainCommand", "Spectre.Console.Cli")]
@@ -65,6 +67,16 @@ public static class Program
                 .WithAlias("btdb");
 
             config.AddCommand<NiCommand>("ni")
+                .IsHidden();
+
+            config.AddCommand<HashCommand>("hash")
+                .WithDescription("Hash files for submission to DAT-o-MATIC.")
+                .WithAlias("h")
+                .IsHidden();
+            
+            config.AddCommand<CompareCommand>("cmp")
+                .WithDescription("Compare two NSP files.")
+                .WithAlias("c")
                 .IsHidden();
         });
 

@@ -31,6 +31,10 @@ public sealed class Cdn2NspSettings : CommandSettings
     [CommandOption("-d|--dryrun")]
     [Description("Process files but do not generate NSP.")]
     public bool DryRun { get; set; }
+    
+    [CommandOption("-Z|--delete-source")]
+    [Description("Delete source files after processing.")]
+    public bool DeleteSource { get; set; }
 
     public override ValidationResult Validate()
     {

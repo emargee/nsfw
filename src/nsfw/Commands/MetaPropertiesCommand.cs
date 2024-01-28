@@ -79,7 +79,7 @@ public class MetaPropertiesCommand : Command<MetaPropertiesSettings>
         propertiesTable.AddRow("Type", cnmt.Type.ToString());
         propertiesTable.AddRow("Title Version", cnmt.TitleVersion.ToString());
         propertiesTable.AddRow("Title Id", cnmt.TitleId.ToString("x16"));
-        propertiesTable.AddRow("Content Count", cnmt.ContentEntryCount.ToString());
+        propertiesTable.AddRow("Content Entry Count", cnmt.ContentEntryCount.ToString());
         propertiesTable.AddRow("Extended Data", (cnmt.ExtendedData == null).ToString());
         propertiesTable.AddRow("FieldD", "0x" + cnmt.FieldD.ToString("x8"));
         propertiesTable.AddRow("Table Offset",cnmt.TableOffset.ToString());
@@ -92,6 +92,7 @@ public class MetaPropertiesCommand : Command<MetaPropertiesSettings>
         propertiesTable.AddRow("Minimum App Version", cnmt.MinimumApplicationVersion?.ToString() ?? "NOT SET");
         propertiesTable.AddRow("Minimum System Version", cnmt.MinimumSystemVersion + " (0x" + cnmt.MinimumSystemVersion.Version.ToString("x8") + ")");
         propertiesTable.AddRow("Patch Title Id",cnmt.PatchTitleId.ToString("x8"));
+        propertiesTable.AddRow("Digest", cnmt.Hash.ToHexString());
         
         const string validationFail = "[red][[X]][/]";
         const string validationPass = "[green][[V]][/]";

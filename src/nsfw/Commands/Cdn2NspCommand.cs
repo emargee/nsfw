@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Serilog;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -38,7 +39,14 @@ public sealed class Cdn2NspCommand : Command<Cdn2NspSettings>
             }
             
             var cdn2NspService = new Cdn2NspService(settings);
-            cdn2NspService.Process(workingDirectory, Path.GetFileName(metaNcaFileFullPath));
+            var result = cdn2NspService.Process(workingDirectory, Path.GetFileName(metaNcaFileFullPath));
+            
+            if (result == 0 && settings.DeleteSource)
+            {
+                Log.Logger.Information($"Cleaning up : {workingDirectory}");
+                Directory.Delete(workingDirectory, true);
+            }
+            
         }
         
         AnsiConsole.WriteLine("----------------------------------------");

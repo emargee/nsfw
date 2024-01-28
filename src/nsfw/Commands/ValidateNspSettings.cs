@@ -115,6 +115,14 @@ public class ValidateNspSettings : CommandSettings
     [Description("Force extraction of NSP contents (even if validation fails).")]
     public bool ForceExtract { get; set; }
     
+    [CommandOption("--show-keys")]
+    [Description("Show NCA encryption keys")]
+    public bool ShowKeys { get; set; }
+    
+    [CommandOption("--dump-headers")]
+    [Description("When extracting, also dump NCA headers")]
+    public bool DumpHeaders { get; set; }
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;
@@ -179,7 +187,7 @@ public class ValidateNspSettings : CommandSettings
         
         if(attr.HasFlag(FileAttributes.Directory))
         {
-            NspCollection = Directory.EnumerateFiles(NspFile, "*.nsp").ToArray();
+            NspCollection = Directory.EnumerateFiles(NspFile, "*.nsp", SearchOption.AllDirectories).ToArray();
         }
         else
         {

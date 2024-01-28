@@ -13,4 +13,6 @@ public class NcaInfo(SwitchFsNca nca)
     public bool IsErrored => Sections.Any(x => x.Value.IsErrored) || !IsHeaderValid;
     public NcaContentType Type { get; set; }
     public HashMatchType HashMatch { get; set; } = HashMatchType.Missing;
+    public string[] EncryptedKeys { get; set; } = [];
+    public byte[] RawHeader { get; set; } = [];
 }

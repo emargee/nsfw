@@ -83,7 +83,7 @@ public static class RenderUtilities
         return titleDbTree;
     }
 
-    public static Tree RenderNcaTree(IEnumerable<NcaInfo> ncaFiles)
+    public static Tree RenderNcaTree(IEnumerable<NcaInfo> ncaFiles, bool showKeys)
     {
         var ncaTree = new Tree("NCAs:")
         {
@@ -104,21 +104,34 @@ public static class RenderUtilities
 
             foreach (var section in ncaFile.Sections.Values)
             {
-                var sectionStatus = section.IsErrored ? ValidationFail :
-                    section.IsPatchSection ? ValidationSkipped : ValidationPass;
+                var sectionStatus = section.IsErrored ? ValidationFail : section.IsPatchSection ? ValidationSkipped : ValidationPass;
 
                 if (section.IsErrored)
                 {
-                    ncaNode.AddNode(
-                        $"{sectionStatus} Section {section.SectionId} <- [red]{section.ErrorMessage}[/]");
+                    ncaNode.AddNode($"{sectionStatus} Section {section.SectionId} <- [red]{section.ErrorMessage}[/]");
                 }
                 else
                 {
                     var sparse = section.IsSparse ? "[grey](Sparse)[/]" : string.Empty;
-                    ncaNode.AddNode(
-                        $"{sectionStatus} Section {section.SectionId} [grey]({section.EncryptionType})[/]{sparse}");
+                    var subNode = new TreeNode(new Markup($"{sectionStatus} Section {section.SectionId} [grey]({section.EncryptionType})[/]{sparse}"));
+                    
+                    ncaNode.AddNode(subNode);
                 }
 
+            }
+
+            if (showKeys)
+            {
+                var keyNode = new TreeNode(new Markup("[grey][[KEYS]][/]"))
+                {
+                    Expanded = true
+                };
+                for (var i = 0; i < ncaFile.EncryptedKeys.Length; i++)
+                {
+                    keyNode.AddNode($"[grey][[{i}]] {ncaFile.EncryptedKeys[i]}[/]");
+                }
+                
+                ncaNode.AddNode(keyNode);
             }
 
             ncaTree.AddNode(ncaNode);
@@ -348,7 +361,11 @@ public static class RenderUtilities
             propertiesTable.AddRow("Minimum System Version", nspInfo.MinimumSystemVersion.Version == 0 ? "None" : nspInfo.MinimumSystemVersion.ToString());
         }
 
-        propertiesTable.AddRow("Output Name", $"[olive]{outputName.EscapeMarkup()}[/]");
+        if (!string.IsNullOrEmpty(outputName))
+        {
+            propertiesTable.AddRow("Output Name", $"[olive]{outputName.EscapeMarkup()}[/]");
+        }
+
         propertiesTable.AddRow("[olive]Validation[/]", nspInfo.CanProceed ? "[green]Passed[/]" : "[red]Failed[/]");
         propertiesTable.AddRow("[olive]Standard NSP?[/]", nspInfo.IsStandardNsp ? "[green]Passed[/]" : "[red]Failed[/]");
         
