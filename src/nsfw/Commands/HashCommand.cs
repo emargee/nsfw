@@ -1,9 +1,9 @@
-﻿using System.ComponentModel;
+﻿using System.Runtime.InteropServices.ComTypes;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using LibHac.Util;
-using Microsoft.VisualBasic;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.Spectre;
@@ -29,17 +29,71 @@ public class HashCommand : Command<HashSettings>
         Log.Information($"NSP Directory : [olive]{settings.NspDirectory}[/]");
         
         var allFiles = Directory.EnumerateFiles(settings.NspDirectory, "*.nsp").ToArray();
-        
-        Console.WriteLine(allFiles.Length + " files found.");
 
-        var entryCollection = new List<Entry>();
+        var extra = string.Empty;
         
-        //TODO: Check if file already exists + also if "Append" is set
+        if(settings.Overwrite)
+        {
+            extra = "(Overwrite) ";
+        }
+        
+        Log.Information($"Hashing {allFiles.Length} NSPs {extra}..");
+        
+        var datName = settings.DatName ?? $"Nintendo - Nintendo Switch (Digital) (Standard) ({DateTime.Now.ToString("yyyyMMdd-HHmmss")}).xml";
+        var datPath = Path.Combine(settings.OutputDirectory, datName);
+
+        var alreadyHashed = new Dictionary<string, string>();
+        if (File.Exists(datPath) && !settings.Overwrite)
+        {
+            var xDoc = XDocument.Load(datPath);
+            foreach (var rom in xDoc.Descendants("rom"))
+            {
+                var name = rom.Attribute("name");
+                if (name != null && rom.Parent != null)
+                {
+                    alreadyHashed.Add(name.Value, rom.Parent.ToString()); 
+                }
+            }
+            Log.Information($"Loaded {alreadyHashed.Count} existing entries from DAT..");
+        }
+        
+        Log.Warning("Press [green]ESC[/] to cancel (and save current progress).");
+        
+        AnsiConsole.Write(new Rule());
+        
+        var entryCollection = new List<Entry>();
+
+        var exitLoop = false;
 
         foreach (var file in allFiles)
         {
+            if (Console.KeyAvailable)
+            {
+                var key = Console.ReadKey(true);
+                switch (key.Key)
+                {
+                    case ConsoleKey.Escape:
+                        Log.Warning("Exiting..");
+                        exitLoop = true;
+                        break;
+                }
+            }
+            
+            if(exitLoop)
+            {
+                break;
+            }
+            
             var fileInfo = new FileInfo(file);
             var fileName = fileInfo.Name;
+            
+            if(!settings.Overwrite && alreadyHashed.TryGetValue(fileName, out var value))
+            {
+                entryCollection.Add(new XmlEntry { Xml = value });
+                Log.Warning($"Skipping [olive]{fileName.EscapeMarkup()}[/] as it already exists in the DAT.");
+                continue;
+            }
+            
             var blockCount = (int)BitUtil.DivideUp(fileInfo.Length, DefaultBlockSize);
             
             var squareRegEx = new Regex(@"\[([0-9.].*)\]\[([0-9A-F]{16})\]\[(v[0-9].*)\]\[(.*)\]");
@@ -49,21 +103,35 @@ public class HashCommand : Command<HashSettings>
             var titleId = match.Groups[2];
             var internalVersion = match.Groups[3];
             var type = match.Groups[4];
-
-            var titleRegEx = new Regex(@"(.*) \((.*)\)\((.*)\)");
-            var titleMatch = titleRegEx.Match(fileName);
+            var languages = "UNKNOWN";
+            var isDemo = false;
             
-            var trimmedTitle = titleMatch.Groups[1];
-            var region = titleMatch.Groups[2]; 
-            var languages = titleMatch.Groups[3];
+            var titleParts = fileName.Split('[')[0].Split('(', StringSplitOptions.TrimEntries);
+            var trimmedTitle = titleParts[0];
+            var region = titleParts[1].Replace(")",string.Empty);
+            
+            if (titleParts.Length == 2)
+            {
+                languages = "";
+            }
+            
+            if (titleParts.Length > 2)
+            {
+                languages = titleParts[2].Replace(")",string.Empty);
+            }
+            
+            if(titleParts.Length > 3)
+            {
+                isDemo = titleParts[3].Contains("Demo", StringComparison.InvariantCultureIgnoreCase);
+            }
             
             AnsiConsole.Progress()
                 .AutoClear(true) // Do not remove the task list when done
                 .HideCompleted(true) // Hide tasks as they are completed
-                .Columns(new SpinnerColumn(), new TaskDescriptionColumn(), new PercentageColumn(), new RemainingTimeColumn())
+                .Columns(new SpinnerColumn { Spinner = Spinner.Known.Ascii }, new TaskDescriptionColumn(), new ProgressBarColumn())
                 .Start(ctx =>
                 {
-                    var hashTask = ctx.AddTask($"Hashing [[{fileName.EscapeMarkup()}]]..", new ProgressTaskSettings { MaxValue = blockCount });
+                    var hashTask = ctx.AddTask($"{fileName.EscapeMarkup()}", new ProgressTaskSettings { MaxValue = blockCount });
 
                     while (!ctx.IsFinished)
                     {
@@ -92,6 +160,7 @@ public class HashCommand : Command<HashSettings>
                         
                         entryCollection.Add(new Entry
                         {
+                            File = file,
                             Name = fileName,
                             Sha256 = sha256.Hash.ToHexString(),
                             Sha1 = sha1.Hash.ToHexString(),
@@ -102,24 +171,39 @@ public class HashCommand : Command<HashSettings>
                             DisplayVersion = displayVersion.Value,
                             InternalVersion = internalVersion.Value,
                             Type = type.Value,
-                            Languages = languages.Value,
-                            TrimmedTitle = trimmedTitle.Value,
-                            Region = region.Value
-                        }); 
+                            Languages = languages,
+                            TrimmedTitle = trimmedTitle,
+                            Region = region,
+                            IsDemo = isDemo
+                        });
                     }
+                    
+                    Log.Information($"[green]{fileName.EscapeMarkup()}[/]");
                 });
         }
+        AnsiConsole.Write(new Rule());
         
-        var header = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard)</name><description>Nintendo - Nintendo Switch (Digital) (Standard)</description><version>{DateTime.Now.ToString()}</version><author>[mRg]</author></header>""";
+        var header = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard)</name><description>Nintendo - Nintendo Switch (Digital) (Standard)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author></header>""";
         var footer = "</datafile>";
 
         var builder = new StringBuilder();
-        builder.Append(header);
+        builder.AppendLine(header);
         builder.AppendJoin('\n', entryCollection.Select(x => x.ToString()));
         builder.Append(footer);
-        Console.WriteLine(builder.ToString());
-        
+        File.WriteAllText(datPath, builder.ToString());
+        Log.Information($"{entryCollection.Count} entries written to DAT successfully! ({datPath})");
+        AnsiConsole.Write(new Rule());
         return 0;
+    }
+}
+
+public class XmlEntry : Entry
+{
+    public string Xml { get; set; } = string.Empty;
+
+    public override string ToString()
+    {
+        return Xml;
     }
 }
 
@@ -138,51 +222,56 @@ public class Entry
     public string Languages { get; set; } = string.Empty;
     public string TrimmedTitle { get; set; } = string.Empty;
     public string Region { get; set; } = string.Empty;
-    
     public string DisplayType => Type switch
     {
-        "DLC" => "(DLC)",
-        "UPD" => "(Update)",
-        "DLCUPD" => "(DLC Update)",
+        "DLC" => " (DLC)",
+        "UPD" => " (Update)",
+        "DLCUPD" => " (DLC Update)",
         _ => ""
     };
+    public string File { get; set; } = string.Empty;
+    public bool IsDemo { get; set; }
 
     public override string ToString()
     {
-        var internalVersion = InternalVersion == "v0" ? "" : $"({InternalVersion})";
-        return $"<game name=\"{TrimmedTitle} ({Region}) ({Languages}) (v{DisplayVersion}) {internalVersion} {DisplayType}\">\n<game_id>{TitleId}</game_id>\n<version1>{InternalVersion}</version1>\n<version2>v{DisplayVersion}</version2>\n<languages>{Languages}</languages>\n<rom name=\"{Name}\" size=\"{Size}\" sha256=\"{Sha256}\" sha1=\"{Sha1}\" md5=\"{Md5}\" crc32=\"{Crc32}\"/></game>\n";
-    }
-}
+        var internalVersion = InternalVersion == "v0" ? "" : $" ({InternalVersion})";
+        var demo = IsDemo ? " (Demo)" : "";
 
-public class HashSettings : CommandSettings
-{
-
-    [CommandOption("-i|--nspdir <DIR>")]
-    [Description("Path to standardised NSP input directory.")]
-    [DefaultValue("./nsp")]
-    public string NspDirectory { get; set; } = string.Empty;
-    
-    [CommandOption("-o|--output <FILENAME>")]
-    [Description("Output filename for the DAT.")]
-    [DefaultValue("./nsfw-hashes.xml")]
-    public string OutputFile { get; set; } = string.Empty;
-    
-    public override ValidationResult Validate()
-    {
-        if(NspDirectory.StartsWith('~'))
+        var regionLanguages = Languages;
+        if (string.IsNullOrWhiteSpace(regionLanguages))
         {
-            NspDirectory = NspDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+           regionLanguages = Region.ToUpperInvariant() switch {
+                "KOREA" => "Ko",
+                "TAIWAN" => "Zh-Hant",
+                "CHINA" => "Zh-Hans",
+                "JAPAN" => "Jp",
+                "USA" => "En",
+                "FRENCH" => "Fr",
+                "CANADA" => "Fr-CA",
+                "UNITED KINGDOM" => "En-GB",
+                "NETHERLANDS" => "Nl",
+                "SPAIN" => "Es",
+                "ITALY" => "It",
+                "GERMANY" => "De",
+                "PORTUGAL" => "Pt",
+                "BRAZIL" => "Pt-BR",
+                "RUSSIA" => "Ru",
+                _ => ""
+            };
         }
         
-        NspDirectory = Path.GetFullPath(NspDirectory);
-        
-        var attr = File.GetAttributes(NspDirectory);
-        
-        if(!attr.HasFlag(FileAttributes.Directory) || !Directory.Exists(NspDirectory))
+        var category = Type switch
         {
-            return ValidationResult.Error($"NSP directory '{NspDirectory}' does not exist.");
-        }
+            "DLC" => "DLC",
+            "UPD" => "Update",
+            "DLCUPD" => "DLC Update",
+            _ => "Game"
+        };
+
+        var outputLanguages = string.IsNullOrWhiteSpace(Languages) ? " " : $" ({Languages}) ";
+
+        var name = $"{TrimmedTitle.Replace("&","&amp;")} ({Region}){outputLanguages}(v{DisplayVersion}){internalVersion}{demo}{DisplayType}";
         
-        return base.Validate();
+        return $"<game name=\"{name}\">\n<description>{name}</description>\n<game_id>{TitleId}</game_id>\n<version1>{InternalVersion}</version1>\n<version2>v{DisplayVersion}</version2>\n<languages>{regionLanguages}</languages>\n<isDemo>{IsDemo.ToString().ToLower()}</isDemo>\n<category>{category}</category>\n<rom name=\"{Name.Replace("&","&amp;")}\" size=\"{Size}\" sha256=\"{Sha256}\" sha1=\"{Sha1}\" md5=\"{Md5}\" crc32=\"{Crc32}\"/></game>\n";
     }
 }

@@ -63,7 +63,49 @@ public class QueryCommand : AsyncCommand<QuerySettings>
             variationTable.AddRow("NSU ID", result.NsuId.ToString());
                 
             var regions = await NsfwUtilities.LookUpRegions(settings.TitleDbFile, result.NsuId);
-            variationTable.AddRow("CDN Regions", string.Join(",", regions));
+            
+            var regionString = string.Join(",", regions);
+            
+            variationTable.AddRow("CDN Regions", regionString);
+
+            var region = "UNKNOWN";
+            regionString = regionString.ToUpperInvariant();
+
+            string[] americas = ["US.", "CA.", "MX."];
+            string[] europe = ["GB.","DE.","FR.","ES.", "IT.", "PT.", "CH.", "HU.", "LT.", "BE.", "BG.", "EE.", "LU.", "CH.", "HR.", "SI.", "AT.", "GR.", "LU.", "NO.", "DK.", "CZ.", "RO.", "ZA.", "NZ.", "BE.", "CH.", "LV.", "SK.", "SE.", "FI.", "IE.", "AU.", "MT.", "CY."];
+            string[] asia = ["HK.","KR.","JP"];
+            
+            if (americas.Any(regionString.Contains))
+            {
+                region = "Americas";
+            }
+            
+            if (europe.Any(regionString.Contains))
+            {
+                region = "Europe";
+            }
+            
+            if(asia.Any(regionString.Contains))
+            {
+                region = "Asia";
+            }
+            
+            if(regionString.Equals("KR.KO"))
+            {
+                region = "Korea";
+            }
+
+            if (regionString.Equals("JP.JA"))
+            {
+                region = "Japan";
+            }
+            
+            if(regionString.Equals("HK.ZH"))
+            {
+                region = "China";
+            }
+            
+            variationTable.AddRow("Region", region);
         }
         
         table.AddRow(new Text("eShop Variations"), variationTable);
