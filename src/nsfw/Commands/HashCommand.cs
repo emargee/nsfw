@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using LibHac.Util;
+using Nsfw.Nsp;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.Spectre;
@@ -34,7 +35,12 @@ public class HashCommand : Command<HashSettings>
         
         if(settings.Overwrite)
         {
-            extra = "(Overwrite) ";
+            extra += "(Overwrite) ";
+        }
+        
+        if(settings.IsBatchMode)
+        {
+            extra += $"(Batch of {settings.Batch}) ";
         }
         
         Log.Information($"Hashing {allFiles.Length} NSPs {extra}..");
@@ -65,6 +71,8 @@ public class HashCommand : Command<HashSettings>
 
         var exitLoop = false;
 
+        var batchCount = 0;
+
         foreach (var file in allFiles)
         {
             if (Console.KeyAvailable)
@@ -79,6 +87,12 @@ public class HashCommand : Command<HashSettings>
                 }
             }
             
+            if(batchCount >= settings.Batch && settings.IsBatchMode)
+            {
+                Log.Warning($"Batch mode enabled. Stopping after hashing {settings.Batch} files.");
+                break;
+            }
+            
             if(exitLoop)
             {
                 break;
@@ -86,15 +100,17 @@ public class HashCommand : Command<HashSettings>
             
             var fileInfo = new FileInfo(file);
             var fileName = fileInfo.Name;
-            
+            var fileNameParts = fileName.Split('[');
+
             if(!settings.Overwrite && alreadyHashed.TryGetValue(fileName, out var value))
             {
                 entryCollection.Add(new XmlEntry { Xml = value });
-                Log.Warning($"Skipping [olive]{fileName.EscapeMarkup()}[/] as it already exists in the DAT.");
+                Log.Warning($"Skipping [olive]{fileName.EscapeMarkup()}[/]..");
                 continue;
             }
             
             var blockCount = (int)BitUtil.DivideUp(fileInfo.Length, DefaultBlockSize);
+            var size = fileInfo.Length.BytesToHumanReadable();
             
             var squareRegEx = new Regex(@"\[([0-9.].*)\]\[([0-9A-F]{16})\]\[(v[0-9].*)\]\[(.*)\]");
             var match = squareRegEx.Match(fileName);
@@ -106,7 +122,7 @@ public class HashCommand : Command<HashSettings>
             var languages = "UNKNOWN";
             var isDemo = false;
             
-            var titleParts = fileName.Split('[')[0].Split('(', StringSplitOptions.TrimEntries);
+            var titleParts = fileNameParts[0].Split('(', StringSplitOptions.TrimEntries);
             var trimmedTitle = titleParts[0];
             var region = titleParts[1].Replace(")",string.Empty);
             
@@ -128,10 +144,10 @@ public class HashCommand : Command<HashSettings>
             AnsiConsole.Progress()
                 .AutoClear(true) // Do not remove the task list when done
                 .HideCompleted(true) // Hide tasks as they are completed
-                .Columns(new SpinnerColumn { Spinner = Spinner.Known.Ascii }, new TaskDescriptionColumn(), new ProgressBarColumn())
+                .Columns(new SpinnerColumn { Spinner = Spinner.Known.Ascii }, new TaskDescriptionColumn(), new ProgressBarColumn(), new RemainingTimeColumn())
                 .Start(ctx =>
                 {
-                    var hashTask = ctx.AddTask($"{fileName.EscapeMarkup()}", new ProgressTaskSettings { MaxValue = blockCount });
+                    var hashTask = ctx.AddTask($"{fileName.EscapeMarkup()} ({size})", new ProgressTaskSettings { MaxValue = blockCount });
 
                     while (!ctx.IsFinished)
                     {
@@ -179,6 +195,7 @@ public class HashCommand : Command<HashSettings>
                     }
                     
                     Log.Information($"[green]{fileName.EscapeMarkup()}[/]");
+                    batchCount++;
                 });
         }
         AnsiConsole.Write(new Rule());

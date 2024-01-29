@@ -24,6 +24,12 @@ public class HashSettings : CommandSettings
     [Description("Overwrite existing DAT file. Do not append to existing.")]
     public bool Overwrite { get; set; }
     
+    [CommandOption("-b|--batch")]
+    [Description("Batch mode. Hash a numbered batch and then exit.")]
+    public int Batch { get; set; } = 0;
+    
+    public bool IsBatchMode => Batch > 0;
+    
     public override ValidationResult Validate()
     {
         if(NspDirectory.StartsWith('~'))
