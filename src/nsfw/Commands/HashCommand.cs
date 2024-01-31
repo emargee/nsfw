@@ -100,7 +100,7 @@ public class HashCommand : Command<HashSettings>
             
             var fileInfo = new FileInfo(file);
             var fileName = fileInfo.Name;
-            var fileNameParts = fileName.Split('[');
+            var fileNameParts = fileName.Replace(".nsp",string.Empty).Split('[');
 
             if(!settings.Overwrite && alreadyHashed.TryGetValue(fileName, out var value))
             {
@@ -111,16 +111,30 @@ public class HashCommand : Command<HashSettings>
             
             var blockCount = (int)BitUtil.DivideUp(fileInfo.Length, DefaultBlockSize);
             var size = fileInfo.Length.BytesToHumanReadable();
+            var displayVersion = string.Empty;
+            var offset = 0;
             
-            var squareRegEx = new Regex(@"\[([0-9.].*)\]\[([0-9A-F]{16})\]\[(v[0-9].*)\]\[(.*)\]");
-            var match = squareRegEx.Match(fileName);
+            if (fileNameParts.Length == 5) // Game or Update
+            {
+               displayVersion = fileNameParts[1].Replace("]", string.Empty).Trim();
+            }
+
+            if (fileNameParts.Length == 4) // DLC has no display version
+            {
+                offset = 1;
+            }
             
-            var displayVersion = match.Groups[1];
-            var titleId = match.Groups[2];
-            var internalVersion = match.Groups[3];
-            var type = match.Groups[4];
+            var titleId = fileNameParts[2-offset].Replace("]", string.Empty).Trim();
+            var internalVersion = fileNameParts[3-offset].Replace("]", string.Empty).Trim();
+            var type = fileNameParts[4-offset].Replace("]", string.Empty).Trim();
+            
             var languages = "UNKNOWN";
             var isDemo = false;
+
+            if (displayVersion.StartsWith('v') || displayVersion.StartsWith('V') || displayVersion.StartsWith('b'))
+            {
+                displayVersion = displayVersion[1..];
+            }
             
             var titleParts = fileNameParts[0].Split('(', StringSplitOptions.TrimEntries);
             var trimmedTitle = titleParts[0];
@@ -139,6 +153,14 @@ public class HashCommand : Command<HashSettings>
             if(titleParts.Length > 3)
             {
                 isDemo = titleParts[3].Contains("Demo", StringComparison.InvariantCultureIgnoreCase);
+            }
+
+            if (fileNameParts.Length is < 4 or > 5)
+            {
+                AnsiConsole.Write(new Rule{ Style = Style.Parse("red")});
+                Log.Error($"[red]Unknown filename format [[{fileName.EscapeMarkup()}]][/] => Skipping..");
+                AnsiConsole.Write(new Rule{ Style = Style.Parse("red")});
+                continue;
             }
             
             AnsiConsole.Progress()
@@ -183,10 +205,10 @@ public class HashCommand : Command<HashSettings>
                             Md5 = md5.Hash.ToHexString(),
                             Crc32 = crc32.Hash.ToHexString(),
                             Size = fileInfo.Length,
-                            TitleId = titleId.Value,
-                            DisplayVersion = displayVersion.Value,
-                            InternalVersion = internalVersion.Value,
-                            Type = type.Value,
+                            TitleId = titleId,
+                            DisplayVersion = displayVersion,
+                            InternalVersion = internalVersion,
+                            Type = type,
                             Languages = languages,
                             TrimmedTitle = trimmedTitle,
                             Region = region,
@@ -198,6 +220,7 @@ public class HashCommand : Command<HashSettings>
                     batchCount++;
                 });
         }
+        
         AnsiConsole.Write(new Rule());
         
         var header = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard)</name><description>Nintendo - Nintendo Switch (Digital) (Standard)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author></header>""";
@@ -241,7 +264,7 @@ public class Entry
     public string Region { get; set; } = string.Empty;
     public string DisplayType => Type switch
     {
-        "DLC" => " (DLC)",
+        "DLC" => "(DLC)",
         "UPD" => " (Update)",
         "DLCUPD" => " (DLC Update)",
         _ => ""
@@ -251,6 +274,11 @@ public class Entry
 
     public override string ToString()
     {
+        if (string.IsNullOrWhiteSpace(TitleId))
+        {
+            throw new Exception("TitleId cannot be empty.");
+        }
+        
         var internalVersion = InternalVersion == "v0" ? "" : $" ({InternalVersion})";
         var demo = IsDemo ? " (Demo)" : "";
 
@@ -263,7 +291,7 @@ public class Entry
                 "CHINA" => "Zh-Hans",
                 "JAPAN" => "Jp",
                 "USA" => "En",
-                "FRENCH" => "Fr",
+                "FRANCE" => "Fr",
                 "CANADA" => "Fr-CA",
                 "UNITED KINGDOM" => "En-GB",
                 "NETHERLANDS" => "Nl",
@@ -272,6 +300,7 @@ public class Entry
                 "GERMANY" => "De",
                 "PORTUGAL" => "Pt",
                 "BRAZIL" => "Pt-BR",
+                "LATIN AMERICA" => "Es-XL",
                 "RUSSIA" => "Ru",
                 _ => ""
             };
@@ -286,9 +315,10 @@ public class Entry
         };
 
         var outputLanguages = string.IsNullOrWhiteSpace(Languages) ? " " : $" ({Languages}) ";
+        var displayVersion = string.IsNullOrWhiteSpace(DisplayVersion) ? "" : $"(v{DisplayVersion})";
 
-        var name = $"{TrimmedTitle.Replace("&","&amp;")} ({Region}){outputLanguages}(v{DisplayVersion}){internalVersion}{demo}{DisplayType}";
+        var name = $"{TrimmedTitle.Replace("&","&amp;")} ({Region}){outputLanguages}{displayVersion}{internalVersion}{demo}{DisplayType}";
         
-        return $"<game name=\"{name}\">\n<description>{name}</description>\n<game_id>{TitleId}</game_id>\n<version1>{InternalVersion}</version1>\n<version2>v{DisplayVersion}</version2>\n<languages>{regionLanguages}</languages>\n<isDemo>{IsDemo.ToString().ToLower()}</isDemo>\n<category>{category}</category>\n<rom name=\"{Name.Replace("&","&amp;")}\" size=\"{Size}\" sha256=\"{Sha256}\" sha1=\"{Sha1}\" md5=\"{Md5}\" crc=\"{Crc32}\"/></game>\n";
+        return $"<game name=\"{name}\">\n<description>{name}</description>\n<game_id>{TitleId}</game_id>\n<version1>{InternalVersion}</version1>\n<version2>{(!string.IsNullOrWhiteSpace(DisplayVersion)?$"v{DisplayVersion}":"")}</version2>\n<languages>{regionLanguages}</languages>\n<isDemo>{IsDemo.ToString().ToLower()}</isDemo>\n<category>{category}</category>\n<rom name=\"{Name.Replace("&","&amp;")}\" size=\"{Size}\" sha256=\"{Sha256}\" sha1=\"{Sha1}\" md5=\"{Md5}\" crc=\"{Crc32}\"/></game>\n";
     }
 }

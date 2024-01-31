@@ -554,6 +554,11 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (!string.IsNullOrEmpty(control.DisplayVersionString.ToString()))
         {
             nspInfo.DisplayVersion = control.DisplayVersionString.ToString().Trim();
+            
+            if (nspInfo.DisplayVersion.StartsWith('v') || nspInfo.DisplayVersion.StartsWith('V') || nspInfo.DisplayVersion.StartsWith('b'))
+            {
+                nspInfo.DisplayVersion = nspInfo.DisplayVersion[1..];
+            }
         }
 
         if (control.AttributeFlag.HasFlag(ApplicationControlProperty.AttributeFlagValue.Demo))
