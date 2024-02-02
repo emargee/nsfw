@@ -9,6 +9,7 @@ using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
 using LibHac.Util;
 using Nsfw.Commands;
+using Serilog;
 using Spectre.Console;
 using SQLite;
 using HierarchicalIntegrityVerificationStorage = LibHac.Tools.FsSystem.HierarchicalIntegrityVerificationStorage;
@@ -215,36 +216,36 @@ public static partial class NsfwUtilities
         };
     }
 
-    public static async Task<GameInfo[]> GetTitleDbInfo(string titledbPath, string titleId, string? region = null)
+    public static async Task<GameInfo[]> GetTitleDbInfo(SQLiteAsyncConnection dbConnection, string titleId, string? region = null)
     {
         var languageOrder = new List<string>()
         {
             "en", "ja", "de", "fr", "es", "it", "nl", "pt", "ko", "tw", "cn", "zh", "ru"
         };
-        var db = new SQLiteAsyncConnection(titledbPath);
+
         AsyncTableQuery<GameInfo> query;
 
         if (region != null)
         {
-            query = db.Table<GameInfo>().Where(x => x.Id == titleId && x.RegionLanguage == region);
+            query = dbConnection.Table<GameInfo>().Where(x => x.Id == titleId && x.RegionLanguage == region);
         }
         else
         {
-            query = db.Table<GameInfo>().Where(x => x.Id == titleId);
+            query = dbConnection.Table<GameInfo>().Where(x => x.Id == titleId);
         }
         
         if(await query.CountAsync() == 0)
         {
-            query = db.Table<GameInfo>().Where(x => x.Ids!.Contains(titleId));
+            query = dbConnection.Table<GameInfo>().Where(x => x.Ids!.Contains(titleId));
         }
         
         var result = await query.ToArrayAsync();
         return result.OrderBy(x => languageOrder.IndexOf(x.RegionLanguage)).ToArray();
     }
 
-    public static string? LookUpTitle(string titledbPath, string titleId)
+    public static string? LookUpTitle(SQLiteAsyncConnection dbConnection, string titleId)
     {
-        var titleNames = GetTitleDbInfo(titledbPath, titleId).Result;
+        var titleNames = GetTitleDbInfo(dbConnection, titleId).Result;
         
         if(titleNames.Length != 0)
         {
@@ -254,9 +255,9 @@ public static partial class NsfwUtilities
         return null;
     }
     
-    public static DateTime? LookUpReleaseDate(string titledbPath, string titleId)
+    public static DateTime? LookUpReleaseDate(SQLiteAsyncConnection dbConnection, string titleId)
     {
-        var titleNames = GetTitleDbInfo(titledbPath, titleId).Result;
+        var titleNames = GetTitleDbInfo(dbConnection, titleId).Result;
         
         if(titleNames.Length != 0)
         {
@@ -275,21 +276,19 @@ public static partial class NsfwUtilities
         return null;
     }
     
-    public static async Task<string[]> LookUpRelatedTitles(string titleDbPath, string titleId)
+    public static async Task<string[]> LookUpRelatedTitles(SQLiteAsyncConnection dbConnection, string titleId)
     {
-        var db = new SQLiteAsyncConnection(titleDbPath);
         var trimmedTitleId = titleId[..^3];
-        var query = db.Table<GameInfo>().Where(x => x.Id!.StartsWith(trimmedTitleId));
+        var query = dbConnection.Table<GameInfo>().Where(x => x.Id!.StartsWith(trimmedTitleId));
         
         var result = await query.ToArrayAsync();
         
         return result.Select(x => (x.Name ?? "UNKNOWN").RemoveBrackets().CleanTitle()).ToArray();
     }
     
-    public static string[] LookupLanguages(string titleDbPath, string titleId)
+    public static string[] LookupLanguages(SQLiteAsyncConnection dbConnection, string titleId)
     {
-        var db = new SQLiteAsyncConnection(titleDbPath);
-        var result = db.Table<GameInfo>().FirstOrDefaultAsync(x => x.Id == titleId).Result;
+        var result = dbConnection.Table<GameInfo>().FirstOrDefaultAsync(x => x.Id == titleId).Result;
         
         var languageOrder = new List<string>()
         {
@@ -303,19 +302,75 @@ public static partial class NsfwUtilities
         
         return result.Languages.Split(",",StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).OrderBy(x => languageOrder.IndexOf(x)).ToArray();
     }
-    
-    public static async Task<string[]> LookUpRegions(string titleDbPath, long nsuId)
+
+    public static async Task<Dictionary<long, (string, string)>> LookUpRegions(SQLiteAsyncConnection dbConnection, string titleId)
     {
-        var db = new SQLiteAsyncConnection(titleDbPath);
-        var result = await db.Table<TitleRegion>().Where(x => x.NsuId == nsuId).ToArrayAsync();
+        var gameInfos = await dbConnection.Table<GameInfo>().Where(x => x.Id == titleId).ToArrayAsync();
+        
+        var result = new Dictionary<long, (string, string)>();
+        
+        foreach (var nsuId in gameInfos.DistinctBy(x => x.NsuId).Select(x => x.NsuId))
+        {
+            var regions = await dbConnection.Table<TitleRegion>().Where(x => x.NsuId == nsuId).ToArrayAsync();
+            var regionArray = regions.Select(x => x.Region.ToUpperInvariant()).ToArray();
+            var region = "UNKNOWN";
+            
+            var regionList = string.Join(",", regionArray);
+            
+            string[] americas = ["US.", "CA.", "MX."];
+            string[] latinAmerica = ["BR.", "AR.", "CL.", "CO.", "CR.", "EC.", "GT.", "PE."];
+            string[] europe = ["GB.","DE.","FR.","ES.", "IT.", "PT.", "CH.", "HU.", "LT.", "BE.", "BG.", "EE.", "LU.", "CH.", "HR.", "SI.", "AT.", "GR.", "LU.", "NO.", "DK.", "CZ.", "RO.", "ZA.", "NZ.", "BE.", "CH.", "LV.", "SK.", "SE.", "FI.", "IE.", "AU.", "MT.", "CY."];
+            string[] asia = ["HK.","KR.","JP"];
+            
+            if(latinAmerica.Any(regionList.Contains))
+            {
+                region = "Latin America";
+            }
+            
+            if (americas.Any(regionList.Contains))
+            {
+                region = "North America";
+            }
+            
+            if (europe.Any(regionList.Contains))
+            {
+                region = "Europe";
+            }
+            
+            if(asia.Any(regionList.Contains))
+            {
+                region = "Asia";
+            }
+
+            region = regionList switch
+            {
+                "KR.KO" => "Korea",
+                "JP.JA" => "Japan",
+                "HK.ZH" => "China",
+                "US.EN" => "USA",
+                "DE.DE" => "Germany",
+                _ => region
+            };
+            
+            if(!result.TryAdd(nsuId, (region, regionList)))
+            {
+                Log.Error("Duplicate region key.");
+            }
+        }
+
+        return result;
+    }
+    
+    public static async Task<string[]> LookUpRegions(SQLiteAsyncConnection dbConnection, long nsuId)
+    {
+        var result = await dbConnection.Table<TitleRegion>().Where(x => x.NsuId == nsuId).ToArrayAsync();
         
         return result.Select(x => x.Region).ToArray();
     }
 
-    public static async Task<TitleVersions[]> LookUpUpdates(string titleDbPath, string titleId)
+    public static async Task<TitleVersions[]> LookUpUpdates(SQLiteAsyncConnection dbConnection, string titleId)
     {
-        var db = new SQLiteAsyncConnection(titleDbPath);
-        return await db.Table<TitleVersions>().Where(x => x.TitleId == titleId.ToLower()).ToArrayAsync();
+        return await dbConnection.Table<TitleVersions>().Where(x => x.TitleId == titleId.ToLower()).ToArrayAsync();
     }
     
     public static bool ValidateCommonCert(string certPath)
@@ -368,10 +423,9 @@ public static partial class NsfwUtilities
         return rawList.Equals(sortedList, StringComparison.InvariantCulture);
     }
 
-    public static CnmtInfo[] GetCnmtInfo(string titleDbPath, string titleId, string version)
+    public static CnmtInfo[] GetCnmtInfo(SQLiteAsyncConnection dbConnection, string titleId, string version)
     {
-        var db = new SQLiteAsyncConnection(titleDbPath);
-        return db.Table<CnmtInfo>().Where(x => x.TitleId.ToLower() == titleId.ToLower() && x.Version == version).ToArrayAsync().Result;
+        return dbConnection.Table<CnmtInfo>().Where(x => x.TitleId.ToLower() == titleId.ToLower() && x.Version == version).ToArrayAsync().Result;
     }
     
     private static Region GetRegion(NacpLanguage[] titles, ref string languageList)

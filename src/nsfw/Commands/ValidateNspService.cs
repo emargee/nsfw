@@ -17,6 +17,7 @@ using LibHac.Util;
 using Nsfw.Nsp;
 using Serilog;
 using Spectre.Console;
+using SQLite;
 using ContentType = LibHac.Ncm.ContentType;
 using NcaFsHeader = LibHac.Tools.FsSystem.NcaUtils.NcaFsHeader;
 using Path = System.IO.Path;
@@ -27,6 +28,8 @@ public class ValidateNspService(ValidateNspSettings settings)
 {
     private readonly KeySet _keySet = ExternalKeyReader.ReadKeyFile(settings.KeysFile);
     private bool _batchMode;
+    // ReSharper disable once NullableWarningSuppressionIsUsed
+    private SQLiteAsyncConnection _dbConnection = null!;
 
     public (int returnValue, NspInfo? nspInfo) Process(string nspFullPath, bool batchMode, bool cdnMode = false)
     {
@@ -49,7 +52,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (File.Exists(titleDbPath))
         {
             nspInfo.OutputOptions.IsTitleDbAvailable = true;
-            nspInfo.OutputOptions.TitleDbPath = titleDbPath;
+            _dbConnection = new SQLiteAsyncConnection(titleDbPath);
         }
 
         if (!cdnMode)
@@ -461,12 +464,12 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                 if (nspInfo.IsDLC)
                 {
-                    titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.TitleId)?.CleanTitle();
-                    nspInfo.DisplayParentTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.BaseTitleId)?.CleanTitle().RemoveBrackets();
+                    titleDbTitle = NsfwUtilities.LookUpTitle(_dbConnection, nspInfo.TitleId)?.CleanTitle();
+                    nspInfo.DisplayParentTitle = NsfwUtilities.LookUpTitle(_dbConnection, nspInfo.BaseTitleId)?.CleanTitle().RemoveBrackets();
                 }
                 else
                 {
-                    titleDbTitle = NsfwUtilities.LookUpTitle(nspInfo.OutputOptions.TitleDbPath, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
+                    titleDbTitle = NsfwUtilities.LookUpTitle(_dbConnection, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
                 }
 
                 if (!string.IsNullOrEmpty(titleDbTitle))
@@ -488,11 +491,27 @@ public class ValidateNspService(ValidateNspSettings settings)
                 }
             }
 
-            var releaseDate = NsfwUtilities.LookUpReleaseDate(nspInfo.OutputOptions.TitleDbPath, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
+            var releaseDate = NsfwUtilities.LookUpReleaseDate(_dbConnection, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
             
             if (releaseDate != null)
             {
                 nspInfo.ReleaseDate = releaseDate;
+            }
+            
+            var regions = NsfwUtilities.LookUpRegions(_dbConnection, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
+
+            if (regions.Count > 0)
+            {
+                if (regions.Count > 1)
+                {
+                    nspInfo.DistributionRegion = "World";
+                    nspInfo.DistributionRegionList = string.Join(",", regions.Select(x => x.Value.Item2));
+                }
+                else
+                {
+                    nspInfo.DistributionRegion = regions.Values.Single().Item1;
+                    nspInfo.DistributionRegionList = regions.Values.Single().Item2;
+                }
             }
         }
 
@@ -527,7 +546,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (nspInfo is { IsDLC: true, OutputOptions.IsTitleDbAvailable: true })
         {
-            var parentLanguages = NsfwUtilities.LookupLanguages(settings.TitleDbFile, nspInfo.BaseTitleId);
+            var parentLanguages = NsfwUtilities.LookupLanguages(_dbConnection, nspInfo.BaseTitleId);
             if (parentLanguages.Length > 0)
             {
                 var parentLanguagesList = parentLanguages.Distinct()
@@ -840,7 +859,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (settings is { LogLevel: LogLevel.Full, VerifyTitle: true } && nspInfo.OutputOptions.IsTitleDbAvailable)
         {
-            var titleDbCnmt = NsfwUtilities.GetCnmtInfo(settings.TitleDbFile, nspInfo.TitleId, nspInfo.TitleVersion[1..]);
+            var titleDbCnmt = NsfwUtilities.GetCnmtInfo(_dbConnection, nspInfo.TitleId, nspInfo.TitleVersion[1..]);
             if (titleDbCnmt.Length > 0)
             {
                 AnsiConsole.Write(new Padder(RenderUtilities.RenderTitleDbCnmtTree(titleDbCnmt,nspInfo.ContentFiles)).PadLeft(1).PadTop(1).PadBottom(0));
@@ -865,7 +884,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.RegionalTitles)
         {
-            var titleResults = NsfwUtilities.GetTitleDbInfo(settings.TitleDbFile, nspInfo.UseBaseTitleId && nspInfo.IsDLC ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
+            var titleResults = NsfwUtilities.GetTitleDbInfo(_dbConnection, nspInfo.UseBaseTitleId && nspInfo.IsDLC ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
         
             if (titleResults.Length > 0)
             {
@@ -877,7 +896,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.RelatedTitles && nspInfo.IsDLC)
         {
-            var relatedResults = NsfwUtilities.LookUpRelatedTitles(settings.TitleDbFile, nspInfo.TitleId).Result;
+            var relatedResults = NsfwUtilities.LookUpRelatedTitles(_dbConnection, nspInfo.TitleId).Result;
         
             if (relatedResults.Length > 0)
             {
@@ -889,7 +908,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo.OutputOptions.IsTitleDbAvailable && settings.Updates && nspInfo.TitleType is FixedContentMetaType.Application or FixedContentMetaType.Patch)
         {
-            var versions = NsfwUtilities.LookUpUpdates(settings.TitleDbFile, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
+            var versions = NsfwUtilities.LookUpUpdates(_dbConnection, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
             
             if (versions.Length > 0)
             {

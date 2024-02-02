@@ -1,4 +1,7 @@
 ﻿using System.ComponentModel;
+using Serilog;
+using Serilog.Events;
+using Serilog.Sinks.Spectre;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -8,8 +11,17 @@ public class CompareCommand : Command<CompareSettings>
 {
     public override int Execute(CommandContext context, CompareSettings settings)
     {
-        Console.WriteLine(settings.NspFileOne);
-        Console.WriteLine(settings.NspFileTwo);
+        var logLevel = LogEventLevel.Verbose;
+        
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Is(logLevel)
+            .WriteTo.Spectre(outputTemplate: "[{Level:u3}] {Message:lj} {NewLine}{Exception}{Elapsed}")
+            .CreateLogger();
+        
+        AnsiConsole.Write(new Rule($"[[[blue]N$FW[/]]][[{Program.GetVersion()}]]").LeftJustified());
+        
+        Log.Information($"File One: {settings.NspFileOne}");
+        Log.Information($"File Two: {settings.NspFileTwo}");
         
         var nspSettings = new ValidateNspSettings
         {
@@ -23,18 +35,31 @@ public class CompareCommand : Command<CompareSettings>
 
         var validateNspService = new ValidateNspService(nspSettings);
         var resultOne = validateNspService.Process(settings.NspFileOne, false, true);
-
-        if (resultOne is { returnValue: 0, nspInfo: not null })
+        var resultTwo = validateNspService.Process(settings.NspFileTwo, false, true);
+        
+        if(resultOne.returnValue != 0 || resultTwo.returnValue != 0 || resultOne.nspInfo == null || resultTwo.nspInfo == null)
         {
-            AnsiConsole.Write(new Padder(RenderUtilities.RenderProperties(resultOne.nspInfo, "")).PadLeft(1).PadTop(1).PadBottom(1));
+            Log.Error("One or more NSPs failed validation.");
+            return 1;
         }
         
-        var resultTwo = validateNspService.Process(settings.NspFileTwo, false, true);
+        var nspOne = resultOne.nspInfo;
+        var nspTwo = resultTwo.nspInfo;
+        
+        var countAreEqual = nspOne.NcaFiles.Count == nspTwo.NcaFiles.Count;
+        
 
-        if (resultTwo is { returnValue: 0, nspInfo: not null })
-        {
-            AnsiConsole.Write(new Padder(RenderUtilities.RenderProperties(resultTwo.nspInfo, "")).PadLeft(1).PadTop(1).PadBottom(1));
-        }
+        // if (resultOne is { returnValue: 0, nspInfo: not null })
+        // {
+        //     AnsiConsole.Write(new Padder(RenderUtilities.RenderProperties(resultOne.nspInfo, "")).PadLeft(1).PadTop(1).PadBottom(1));
+        // }
+        //
+        //
+        //
+        // if (resultTwo is { returnValue: 0, nspInfo: not null })
+        // {
+        //     AnsiConsole.Write(new Padder(RenderUtilities.RenderProperties(resultTwo.nspInfo, "")).PadLeft(1).PadTop(1).PadBottom(1));
+        // }
         
         return resultOne.returnValue;
     }

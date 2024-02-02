@@ -1,6 +1,7 @@
 ﻿using Nsfw.Nsp;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using SQLite;
 
 namespace Nsfw.Commands;
 
@@ -16,7 +17,9 @@ public class QueryCommand : AsyncCommand<QuerySettings>
             query = query[..^3] + "000";
         }
         
-        var results = await NsfwUtilities.GetTitleDbInfo(settings.TitleDbFile, query);
+        var dbConnection = new SQLiteAsyncConnection(settings.TitleDbFile);
+        
+        var results = await NsfwUtilities.GetTitleDbInfo(dbConnection, query);
         
         if(results.Length == 0)
         {
@@ -36,7 +39,7 @@ public class QueryCommand : AsyncCommand<QuerySettings>
         table.AddRow("Publisher",results[0].Publisher ?? "Unknown");
         table.AddRow("Description",results[0].Description ?? "Unknown");
         
-        var titleResults = Nsp.NsfwUtilities.GetTitleDbInfo(settings.TitleDbFile, settings.Query).Result;
+        var titleResults = NsfwUtilities.GetTitleDbInfo(dbConnection, settings.Query).Result;
         
         if (titleResults.Length > 0)
         {
@@ -62,7 +65,7 @@ public class QueryCommand : AsyncCommand<QuerySettings>
             
             variationTable.AddRow("NSU ID", result.NsuId.ToString());
                 
-            var regions = await NsfwUtilities.LookUpRegions(settings.TitleDbFile, result.NsuId);
+            var regions = await NsfwUtilities.LookUpRegions(dbConnection, result.NsuId);
             
             var regionString = string.Join(",", regions);
             
@@ -110,7 +113,7 @@ public class QueryCommand : AsyncCommand<QuerySettings>
         
         table.AddRow(new Text("eShop Variations"), variationTable);
         
-        var updates = await NsfwUtilities.LookUpUpdates(settings.TitleDbFile, query);
+        var updates = await NsfwUtilities.LookUpUpdates(dbConnection, query);
 
         if (updates.Length > 0)
         {
@@ -129,7 +132,7 @@ public class QueryCommand : AsyncCommand<QuerySettings>
             table.AddRow(new Text("Updates"), updateTable);
         }
         
-        var relatedResults = NsfwUtilities.LookUpRelatedTitles(settings.TitleDbFile, query).Result.Distinct().ToArray();
+        var relatedResults = NsfwUtilities.LookUpRelatedTitles(dbConnection, query).Result.Distinct().ToArray();
         
         if (relatedResults.Length > 1)
         {

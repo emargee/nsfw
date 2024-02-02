@@ -188,6 +188,8 @@ public class NspInfo
     public bool IsDemo { get; set; }
     public bool IsRetailDisplay { get; set; }
     public bool HasSparseNcas { get; set; }
+    public string DistributionRegion { get; set; } = string.Empty;
+    public string DistributionRegionList { get; set; } = string.Empty;
 
     public NspInfo(string filePath)
     {

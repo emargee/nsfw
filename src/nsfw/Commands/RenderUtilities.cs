@@ -299,6 +299,11 @@ public static class RenderUtilities
             propertiesTable.AddRow("Languages (Short)", string.Join(",", nspInfo.LanguagesShort));
         }
 
+        if (!string.IsNullOrWhiteSpace(nspInfo.DistributionRegion))
+        {
+            propertiesTable.AddRow("Distribution Region", nspInfo.DistributionRegion);
+        }
+
         if (nspInfo.IsDLC && nspInfo.DisplayParentLanguages != NspInfo.Unknown)
         {
             propertiesTable.AddRow("Parent Languages", nspInfo.DisplayParentLanguages + " (From TitleDb)");
