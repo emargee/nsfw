@@ -109,6 +109,14 @@ public class HashCommand : Command<HashSettings>
                 continue;
             }
             
+            if(!fileName.Contains('(') || !fileName.Contains('['))
+            {
+                AnsiConsole.Write(new Rule{ Style = Style.Parse("red")});
+                Log.Error($"[red]Cannot parse - non-standard filename [[{fileName.EscapeMarkup()}]][/] => Skipping..");
+                AnsiConsole.Write(new Rule{ Style = Style.Parse("red")});
+                continue;
+            }
+            
             var blockCount = (int)BitUtil.DivideUp(fileInfo.Length, DefaultBlockSize);
             var size = fileInfo.Length.BytesToHumanReadable();
             var displayVersion = string.Empty;
