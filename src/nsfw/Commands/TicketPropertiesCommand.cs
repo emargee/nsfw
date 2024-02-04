@@ -19,7 +19,7 @@ public class TicketPropertiesCommand : Command<TicketPropertiesSettings>
         var isNormalised = fixedSignature.ToHexString() == ticket.Signature.ToHexString();
         var isTicketSignatureValid = false;
         
-        if (isNormalised)
+        if (!isNormalised)
         {
             isTicketSignatureValid = Nsp.NsfwUtilities.ValidateTicket(ticket, settings.CertFile);
         }

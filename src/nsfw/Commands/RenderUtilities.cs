@@ -372,7 +372,7 @@ public static class RenderUtilities
         }
 
         propertiesTable.AddRow("[olive]Validation[/]", nspInfo.CanProceed ? "[green]Passed[/]" : "[red]Failed[/]");
-        propertiesTable.AddRow("[olive]Standard NSP?[/]", nspInfo.IsStandardNsp ? "[green]Passed[/]" : "[red]Failed[/]");
+        propertiesTable.AddRow("[olive]Standard NSP?[/]", nspInfo.IsStandardNsp ? "[green]Yes[/]" : "[red]No[/]");
         
         return propertiesTable;
     }

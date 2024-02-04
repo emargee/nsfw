@@ -284,8 +284,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 if (nspInfo.RawFileEntries[contentFile.FileName].Size != contentEntry.Size)
                 {
                     contentFile.SizeMismatch = true;
-                    nspInfo.Errors.Add(
-                        $"{phase} - NSP file-system contains files with sizes that do not match the CNMT.");
+                    nspInfo.Errors.Add($"{phase} - NSP file-system contains files with sizes that do not match the CNMT.");
                     nspInfo.CanProceed = false;
                 }
             }
@@ -293,9 +292,11 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.ContentFiles.Add(contentFile.FileName, contentFile);
         }
 
-        if (nspInfo.TitleType == FixedContentMetaType.AddOnContent && nspInfo.TitleVersion != "v0")
+        if (nspInfo.TitleType == FixedContentMetaType.DataPatch)
         {
-            nspInfo.TitleType = FixedContentMetaType.DataPatch; // Set to DLC UPDATE
+            AnsiConsole.Write(new Rule());
+            Log.Warning("DataPatch detected. This is a pure DLC update. This has not been spotted before!");
+            AnsiConsole.Write(new Rule());
         }
 
         Log.Verbose($"[olive]NSP Type[/] <- {nspInfo.DisplayType}" + (nspInfo.TitleType is FixedContentMetaType.Patch or FixedContentMetaType.DataPatch
@@ -423,11 +424,22 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (nspInfo.NormalisedSignature.ToHexString() == nspInfo.Ticket.Signature.ToHexString())
             {
                 nspInfo.IsNormalisedSignature = true;
+            }
+
+            if (nspInfo.TitleType is (FixedContentMetaType.Application or FixedContentMetaType.AddOnContent))
+            {
                 nspInfo.IsTicketSignatureValid = true;
             }
             else
             {
+                // For Updates and DLC Updates, we validate the ticket signature
                 nspInfo.IsTicketSignatureValid = NsfwUtilities.ValidateTicket(nspInfo.Ticket, settings.CertFile);
+            }
+            
+            if(!nspInfo.IsTicketSignatureValid)
+            {
+                nspInfo.Errors.Add($"{phase} - Ticket signature is invalid.");
+                nspInfo.CanProceed = false;
             }
 
             nspInfo.MasterKeyRevision = Utilities.GetMasterKeyRevision(mainNca.Nca.Header.KeyGeneration);

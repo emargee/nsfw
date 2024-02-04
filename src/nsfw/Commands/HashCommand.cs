@@ -142,6 +142,7 @@ public class HashCommand : Command<HashSettings>
             
             var languages = "UNKNOWN";
             var isDemo = false;
+            var altText = string.Empty;
 
             if (displayVersion.StartsWith('v') || displayVersion.StartsWith('V') || displayVersion.StartsWith('b'))
             {
@@ -164,7 +165,12 @@ public class HashCommand : Command<HashSettings>
             
             if(titleParts.Length > 3)
             {
+                //TODO: Handle "(Demo) (Alt)" etc.
                 isDemo = titleParts[3].Contains("Demo", StringComparison.InvariantCultureIgnoreCase);
+                if (titleParts[3].Contains("Alt", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    altText = titleParts[3];
+                }
             }
 
             if (fileNameParts.Length is < 4 or > 5)
@@ -224,7 +230,8 @@ public class HashCommand : Command<HashSettings>
                             Languages = languages,
                             TrimmedTitle = trimmedTitle,
                             Region = region,
-                            IsDemo = isDemo
+                            IsDemo = isDemo,
+                            AltText = altText
                         });
                     }
                     
@@ -283,6 +290,8 @@ public class Entry
     };
     public string File { get; set; } = string.Empty;
     public bool IsDemo { get; set; }
+    public string AltText { get; set; } = string.Empty;
+    public bool IsAlt => !string.IsNullOrWhiteSpace(AltText);
 
     public override string ToString()
     {
@@ -293,6 +302,7 @@ public class Entry
         
         var internalVersion = InternalVersion == "v0" ? "" : $" ({InternalVersion})";
         var demo = IsDemo ? " (Demo)" : "";
+        var alt = IsAlt ? $" ({AltText})" : "";
 
         var regionLanguages = Languages;
         if (string.IsNullOrWhiteSpace(regionLanguages))
@@ -329,7 +339,7 @@ public class Entry
         var outputLanguages = string.IsNullOrWhiteSpace(Languages) ? " " : $" ({Languages}) ";
         var displayVersion = string.IsNullOrWhiteSpace(DisplayVersion) ? "" : $"(v{DisplayVersion})";
 
-        var name = $"{TrimmedTitle.Replace("&","&amp;").Replace("'","&apos;")} ({Region}){outputLanguages}{displayVersion}{internalVersion}{demo}{DisplayType}";
+        var name = $"{TrimmedTitle.Replace("&","&amp;").Replace("'","&apos;")} ({Region}){outputLanguages}{displayVersion}{internalVersion}{demo}{alt}{DisplayType}";
         
         return $"<game name=\"{name}\">\n<description>{name}</description>\n<game_id>{TitleId}</game_id>\n<version1>{InternalVersion}</version1>\n<version2>{(!string.IsNullOrWhiteSpace(DisplayVersion)?$"v{DisplayVersion}":"")}</version2>\n<languages>{regionLanguages}</languages>\n<isDemo>{IsDemo.ToString().ToLower()}</isDemo>\n<category>{category}</category>\n<rom name=\"{Name.Replace("&","&amp;").Replace("'","&apos;")}\" size=\"{Size}\" sha256=\"{Sha256}\" sha1=\"{Sha1}\" md5=\"{Md5}\" crc=\"{Crc32}\"/></game>\n";
     }
