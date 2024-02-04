@@ -175,14 +175,14 @@ public class NspInfo
     public string OutputName => NsfwUtilities.BuildOutputName(
         OutputOptions.LanguageMode, LanguagesFullShort, LanguagesShort,
         Titles.Keys.ToArray(), DisplayTitle, DisplayParentTitle, DisplayVersion, TitleType, TitleVersion,
-        DisplayTypeShort, TitleId, ParentLanguages.ToArray(), DisplayParentLanguages, IsDLC, PossibleDlcUnlocker, IsDemo);
+        DisplayTypeShort, TitleId, ParentLanguages.ToArray(), DisplayParentLanguages, IsDLC, PossibleDlcUnlocker, IsDemo, DistributionRegion);
     public string DisplayParentLanguages { get; set; } = Unknown;
     public IEnumerable<NacpLanguage> ParentLanguages { get; set; } = [];
     public int DeltaCount { get; set; }
     public KeyGeneration KeyGeneration { get; set; }
     public bool HasLooseFiles { get; set; }
     public bool IsFileOrderCorrect { get; set; }
-    public bool IsStandardNsp => CanProceed && !GenerateNewTicket && !HasLooseFiles && IsFileOrderCorrect;
+    public bool IsStandardNsp => CanProceed && !GenerateNewTicket && !HasLooseFiles && IsFileOrderCorrect && !CopyNewCert;
     public DateTime? ReleaseDate { get; set; }
     public bool IsOldTicketCrypto { get; set; }
     public bool IsDemo { get; set; }
@@ -190,6 +190,7 @@ public class NspInfo
     public bool HasSparseNcas { get; set; }
     public string DistributionRegion { get; set; } = string.Empty;
     public string DistributionRegionList { get; set; } = string.Empty;
+    public bool CopyNewCert { get; set; }
 
     public NspInfo(string filePath)
     {

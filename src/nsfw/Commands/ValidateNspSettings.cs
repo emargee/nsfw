@@ -103,9 +103,9 @@ public class ValidateNspSettings : CommandSettings
     [Description("Overwrite any existing files.")]
     public bool Overwrite { get; set; }
     
-    [CommandOption("--keep-filename")]
-    [Description("Keep original filename when converting to standard NSP.")]
-    public bool KeepFilename { get; set; }
+    [CommandOption("--keep-name")]
+    [Description("Keep original name when converting to standard NSP.")]
+    public bool KeepName { get; set; }
     
     [CommandOption("-Z|--delete-source")]
     [Description("Delete source NSP file after conversion.")]
@@ -215,6 +215,11 @@ public class ValidateNspSettings : CommandSettings
         if(Convert && !Directory.Exists(NspDirectory))
         {
             Directory.CreateDirectory(NspDirectory);
+        }
+        
+        if(!Nsp.NsfwUtilities.ValidateCommonCert(CertFile))
+        {
+            return ValidationResult.Error($"Common cert '{CertFile}' is invalid.");
         }
         
         return base.Validate();

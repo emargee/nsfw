@@ -124,6 +124,26 @@ public class ValidateNspService(ValidateNspSettings settings)
                 Log.Verbose($"Import Tickets <- Ticket ({rawFile.Name}) imported.");
             }
             
+            if(rawFile.Name.EndsWith(".cert"))
+            {
+                if (rawFile.Size != NsfwUtilities.CommonCertSize)
+                {
+                    Log.Warning("Common certificate size is incorrect. Expected 0x700 bytes.");
+                    nspInfo.CopyNewCert = true;
+                }
+                else
+                {
+                    var certFile = new UniqueRef<IFile>();
+                    fileSystem.OpenFile(ref certFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
+                    var validCommonCert = NsfwUtilities.ValidateCommonCert(certFile.Get.AsStream());
+                    if (!validCommonCert)
+                    {
+                        Log.Warning("Common certificate has invalid SHA256");
+                        nspInfo.CopyNewCert = true;
+                    }
+                }
+            }
+            
             if (rawFile.Name.EndsWith(".nca"))
             {
                 var ncaFile = new UniqueRef<IFile>();
@@ -402,8 +422,8 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             if (nspInfo.NormalisedSignature.ToHexString() == nspInfo.Ticket.Signature.ToHexString())
             {
-                nspInfo.IsTicketSignatureValid = true;
                 nspInfo.IsNormalisedSignature = true;
+                nspInfo.IsTicketSignatureValid = true;
             }
             else
             {
@@ -456,9 +476,24 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.DisplayTitleLookupSource = LookupSource.FileName;
         }
 
+        if (settings.KeepName)
+        {
+            var titleName = nspInfo.FileName;
+            if (titleName.Contains('('))
+            {
+                nspInfo.DisplayTitle = titleName.Split('(', StringSplitOptions.TrimEntries)[0];
+                nspInfo.DisplayTitleLookupSource = LookupSource.FileTitle;
+            }
+            else
+            {
+                nspInfo.DisplayTitle = titleName.Replace(".nsp", string.Empty);
+                nspInfo.DisplayTitleLookupSource = LookupSource.FileName;
+            }
+        }
+
         if (nspInfo.OutputOptions.IsTitleDbAvailable)
         {
-            if (settings.VerifyTitle || nspInfo.DisplayTitleLookupSource == LookupSource.FileName)
+            if (!settings.KeepName && (settings.VerifyTitle || nspInfo.DisplayTitleLookupSource == LookupSource.FileName))
             {
                 var titleDbTitle = string.Empty;
 
@@ -590,7 +625,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.IsRetailDisplay = true;
         }
         
-        var outputName = settings.KeepFilename ? nspInfo.FileName : nspInfo.OutputName;
+        var outputName = nspInfo.OutputName;
 
         if (settings.Convert)
         {
@@ -808,17 +843,18 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         // VALIDATION CHECK
 
-        if (settings.SkipHash && !settings.Rename)
+        if (settings is { SkipHash: true, Rename: false })
         {
             Log.Information("[olive]Validation Complete[/] <- [olive]Unknown - Hashing skipped.[/]");
         }
         else
         {
-            if (nspInfo is { HasErrors: false, HeaderSignatureValidity: Validity.Valid } 
+            if (nspInfo is { HasErrors: false, HeaderSignatureValidity: Validity.Valid, CopyNewCert: false } 
                 && nspInfo.NcaFiles.Values.All(x => !x.IsErrored) 
                 && nspInfo.NcaFiles.Values.All(x => x.HashMatch != HashMatchType.Mismatch))
             {
                 Log.Information("[olive]Validation Complete[/] <- [green]No problems found[/]");
+                Log.Information("[olive]Is Standard NSP? [/] <- " + (nspInfo.IsStandardNsp ? "[green]Yes[/]" : "[red]No[/]"));
             }
             else
             {

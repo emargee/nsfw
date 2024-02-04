@@ -19,6 +19,8 @@ namespace Nsfw.Nsp;
 public static partial class NsfwUtilities
 {
     public static byte[] FixedSignature { get; } = Enumerable.Repeat((byte)0xFF, 0x100).ToArray();
+    public const int CommonCertSize = 0x700;
+    public const string CommonCertSha256 = "3c4f20dca231655e90c75b3e9689e4dd38135401029ab1f2ea32d1c2573f1dfe";
 
     public static bool ValidateTicket(Ticket ticket, string certPath)
     {
@@ -375,12 +377,9 @@ public static partial class NsfwUtilities
     
     public static bool ValidateCommonCert(string certPath)
     {
-        var commonCertSize = 0x700;
-        var commonCertSha256 = "3c4f20dca231655e90c75b3e9689e4dd38135401029ab1f2ea32d1c2573f1dfe";
-
         var fileBytes = File.ReadAllBytes(certPath);
         
-        if(fileBytes.Length != commonCertSize)
+        if(fileBytes.Length != CommonCertSize)
         {
             AnsiConsole.WriteLine("Common cert is invalid size");
             return false;
@@ -388,7 +387,13 @@ public static partial class NsfwUtilities
         
         var certSha256 = SHA256.HashData(fileBytes).ToHexString();
 
-        return certSha256 == commonCertSha256.ToUpperInvariant();
+        return certSha256.Equals(CommonCertSha256, StringComparison.InvariantCultureIgnoreCase);
+    }
+    
+    public static bool ValidateCommonCert(Stream certificate)
+    {
+        var certSha256 = SHA256.HashData(certificate).ToHexString();
+        return certSha256.Equals(CommonCertSha256, StringComparison.InvariantCultureIgnoreCase);
     }
 
     public static int? AssignPriority(string fileName)
@@ -597,7 +602,8 @@ public static partial class NsfwUtilities
         string displayParentLanguages,
         bool isDlc,
         bool possibleDlcUnlocker,
-        bool isDemo)
+        bool isDemo,
+        string distributionRegion)
     {
         var languageList = string.Empty;
 
@@ -644,6 +650,11 @@ public static partial class NsfwUtilities
             Region.Taiwan => "(Taiwan)",
             _ => string.Empty
         };
+
+        if (!string.IsNullOrWhiteSpace(distributionRegion))
+        {
+            displayRegion = $"({distributionRegion})";
+        }
 
         if (languageMode == LanguageMode.None)
         {
