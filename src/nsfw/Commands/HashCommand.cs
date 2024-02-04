@@ -48,16 +48,17 @@ public class HashCommand : Command<HashSettings>
         var datName = settings.DatName ?? $"Nintendo - Nintendo Switch (Digital) (Standard) ({DateTime.Now.ToString("yyyyMMdd-HHmmss")}).xml";
         var datPath = Path.Combine(settings.OutputDirectory, datName);
 
-        var alreadyHashed = new Dictionary<string, string>();
+        var alreadyHashed = new Dictionary<string, (string, string)>();
         if (File.Exists(datPath) && !settings.Overwrite)
         {
             var xDoc = XDocument.Load(datPath);
             foreach (var rom in xDoc.Descendants("rom"))
             {
                 var name = rom.Attribute("name");
-                if (name != null && rom.Parent != null)
+                var size = rom.Attribute("size");
+                if (name != null && size != null && rom.Parent != null)
                 {
-                    alreadyHashed.Add(name.Value, rom.Parent.ToString()); 
+                    alreadyHashed.Add(name.Value, (size.Value, rom.Parent.ToString())); 
                 }
             }
             Log.Information($"Loaded {alreadyHashed.Count} existing entries from DAT..");
@@ -104,9 +105,12 @@ public class HashCommand : Command<HashSettings>
 
             if(!settings.Overwrite && alreadyHashed.TryGetValue(fileName, out var value))
             {
-                entryCollection.Add(new XmlEntry { Xml = value });
-                Log.Warning($"Skipping [olive]{fileName.EscapeMarkup()}[/]..");
-                continue;
+                if (fileInfo.Length == long.Parse(value.Item1))
+                {
+                    entryCollection.Add(new XmlEntry { Xml = value.Item2 });
+                    Log.Warning($"Skipping [olive]{fileName.EscapeMarkup()}[/]..");
+                    continue;
+                }
             }
             
             if(!fileName.Contains('(') || !fileName.Contains('['))
