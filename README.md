@@ -71,7 +71,11 @@ OPTIONS:
         --keep-deltas                                 When creating a standard NSP, include Delta Fragment files
         --force-convert                               Force conversion of NSP to standard NSP (even if already in standard format)
         --overwrite                                   Overwrite any existing files
-        --keep-filename                               Keep original filename when converting to standard NSP
+        --keep-name                                   Keep original name (from filename) when converting to standard NSP
+    -Z, --delete-source                               DANGER! - Delete source NSP file after conversion
+        --force-extract                               Force extraction of NSP contents (even if validation fails)
+        --show-keys                                   Show NCA encryption keys
+        --dump-headers                                When extracting, also dump NCA headers as binary files
   ```
 
 ### Validate - Example Usage
@@ -178,6 +182,9 @@ Create "Standard NSP" - Short Languages + TitleDB Verify - Will use short langua
 
 `./nsfw v -s --sl -y <PATH_TO_NSP_FILE>`
 
+Create "Standard NSP" - Short Languages + TitleDB Verify + Delete source - Will use short language codes and verify title name against TitleDB (if available) this will also **DELETE** the original/source file if conversion is successful.
+
+`./nsfw v -s --sl -y -Z <PATH_TO_NSP_FILE>`
 ---
 
 ## Analyse Ticket (`t`)
