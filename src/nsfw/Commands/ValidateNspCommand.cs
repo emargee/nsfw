@@ -32,14 +32,34 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
         
         if (settings.NspCollection.Length != 0)
         {
+            var count = 1;
+            var fileList = settings.NspCollection;
+
+            if (settings is { Batch: > 0, Skip: > 0 })
+            {
+                fileList = fileList.Skip(settings.Skip).Take(settings.Batch).ToArray();
+            }
+            else if (settings.Batch > 0)
+            {
+                fileList = fileList.Take(settings.Batch).ToArray();
+            }
+            else if (settings.Skip > 0)
+            {
+                fileList = fileList.Skip(settings.Skip).ToArray();
+            }
+            
+            var total = fileList.Length;
+            
             DrawLogo();
-            AnsiConsole.MarkupLine($"-[[ Processing {settings.NspCollection.Length} NSPs ..");
+            AnsiConsole.MarkupLine($"-[[ Processing {total} NSPs ..");
             AnsiConsole.Write(new Rule());
-            foreach (var nsp in settings.NspCollection)
+            
+            foreach (var nsp in fileList)
             {
                 var service = new ValidateNspService(settings);
                 result = service.Process(nsp,true);
-                AnsiConsole.Write(new Rule());
+                AnsiConsole.Write(new Rule($"[[{count}/{total}]]"));
+                count++;
             }
         }
         else

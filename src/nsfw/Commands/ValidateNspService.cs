@@ -506,7 +506,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (nspInfo.OutputOptions.IsTitleDbAvailable)
         {
-            if (!settings.KeepName && (settings.VerifyTitle || nspInfo.DisplayTitleLookupSource == LookupSource.FileName))
+            if (settings.VerifyTitle || nspInfo.DisplayTitleLookupSource == LookupSource.FileName)
             {
                 var titleDbTitle = string.Empty;
 
@@ -520,7 +520,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     titleDbTitle = NsfwUtilities.LookUpTitle(_dbConnection, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId);
                 }
 
-                if (!string.IsNullOrEmpty(titleDbTitle))
+                if (!settings.KeepName && !string.IsNullOrEmpty(titleDbTitle))
                 {
                     var source = LookupSource.TitleDb;
                     

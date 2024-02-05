@@ -123,10 +123,17 @@ public class ValidateNspSettings : CommandSettings
     [Description("When extracting, also dump NCA headers")]
     public bool DumpHeaders { get; set; }
     
+    [CommandOption("-b|--batch")]
+    [Description("Process a certain number of files and then exit.")]
+    public int Batch { get; set; }
+    
+    [CommandOption("--skip")]
+    [Description("Skip a certain number of files before processing.")]
+    public int Skip { get; set; }
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;
-    
 
     public LogLevel LogLevel
     {
