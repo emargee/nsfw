@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using LibHac.Common;
 using LibHac.Common.Keys;
@@ -971,14 +972,6 @@ public class ValidateNspService(ValidateNspSettings settings)
             AnsiConsole.Write(new Padder(RenderUtilities.RenderProperties(nspInfo, outputName)).PadLeft(1).PadTop(1).PadBottom(1));
         }
         
-        if ((settings.Extract || settings.Convert || settings.Rename))
-        {
-            if (outputName.Length + 4 > 100)
-            {
-                Log.Warning($"Output name is looong ({outputName.Length + 4}).");
-            }
-        }
-        
         if(!nspInfo.CanProceed && !(settings is { Extract: true, ForceExtract: true }))
         {
             Log.Fatal(!_batchMode && !cdnMode && settings.LogLevel != LogLevel.Full
@@ -1016,7 +1009,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             
             var targetName = Path.Combine(targetDirectory, outputName + ".nsp");
             
-            if (targetName.Length > 254)
+            if (targetName.Length > 258 && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 Log.Error($"Path too long for Windows ({targetName.Length})");
                 return (1, null);
@@ -1062,11 +1055,12 @@ public class ValidateNspService(ValidateNspSettings settings)
             if(nspInfo is { IsTicketSignatureValid: false, TitleType: FixedContentMetaType.Patch or FixedContentMetaType.DataPatch })
             {
                 Log.Error("Unable to update ticket for an update where ticket signature is invalid.");
-                return (1, null);
             }
-            
-            nspInfo.Ticket = NsfwUtilities.CreateTicket(nspInfo.MasterKeyRevision, nspInfo.Ticket.RightsId, nspInfo.TitleKeyEncrypted, signature);
-            Log.Information("Generated new normalised ticket.");
+            else
+            {
+                nspInfo.Ticket = NsfwUtilities.CreateTicket(nspInfo.MasterKeyRevision, nspInfo.Ticket.RightsId, nspInfo.TitleKeyEncrypted, signature);
+                Log.Information("Generated new normalised ticket.");
+            }
         }
         
         // EXTRACT
