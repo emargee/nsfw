@@ -124,7 +124,7 @@ public static partial class NsfwUtilities
         return result.Trim();
     }
 
-    public static Ticket CreateTicket(int masterKeyRevision, byte[] rightsId, byte[] titleKeyEnc)
+    public static Ticket CreateTicket(int masterKeyRevision, byte[] rightsId, byte[] titleKeyEnc, byte[] signature)
     {
         var keyGen = 0;
         if (masterKeyRevision > 0)
@@ -135,7 +135,7 @@ public static partial class NsfwUtilities
         var ticket = new Ticket
         {
             SignatureType = TicketSigType.Rsa2048Sha256,
-            Signature = FixedSignature,
+            Signature = signature,
             Issuer = "Root-CA00000003-XS00000020",
             FormatVersion = 2,
             RightsId = rightsId,

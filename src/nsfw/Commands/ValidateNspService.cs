@@ -1051,7 +1051,21 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (nspInfo is { Ticket: not null, HasTitleKeyCrypto: true } && (!nspInfo.IsTicketSignatureValid || nspInfo.GenerateNewTicket))
         {
-            nspInfo.Ticket = NsfwUtilities.CreateTicket(nspInfo.MasterKeyRevision, nspInfo.Ticket.RightsId, nspInfo.TitleKeyEncrypted);
+            var signature = NsfwUtilities.FixedSignature;
+            
+            if(nspInfo is { IsTicketSignatureValid: true, TitleType: FixedContentMetaType.Patch or FixedContentMetaType.DataPatch })
+            {
+                Log.Warning("Attempting to modify ticket for an update.");
+                signature = nspInfo.Ticket.Signature;
+            }
+            
+            if(nspInfo is { IsTicketSignatureValid: false, TitleType: FixedContentMetaType.Patch or FixedContentMetaType.DataPatch })
+            {
+                Log.Error("Unable to update ticket for an update where ticket signature is invalid.");
+                return (1, null);
+            }
+            
+            nspInfo.Ticket = NsfwUtilities.CreateTicket(nspInfo.MasterKeyRevision, nspInfo.Ticket.RightsId, nspInfo.TitleKeyEncrypted, signature);
             Log.Information("Generated new normalised ticket.");
         }
         
