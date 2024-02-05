@@ -28,6 +28,14 @@ public class HashSettings : CommandSettings
     [Description("Batch mode. Hash a numbered batch and then exit.")]
     public int Batch { get; set; } = 0;
     
+    [CommandOption("-d|--dryrun")]
+    [Description("Prints actions to be performed but does not execute any of them.")]
+    public bool DryRun { get; set; }
+    
+    [CommandOption("-s|--skip-hash", IsHidden = true)]
+    [Description("Skip hashing. Only fix names on existing entries.")]
+    public bool SkipHash { get; set; }
+    
     public bool IsBatchMode => Batch > 0;
     
     public override ValidationResult Validate()

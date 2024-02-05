@@ -38,6 +38,16 @@ public class HashCommand : Command<HashSettings>
             extra += "(Overwrite) ";
         }
         
+        if(settings.SkipHash)
+        {
+            extra += "(Skip Hash) ";
+        }
+        
+        if(settings.DryRun)
+        {
+            extra += "(Dry Run) ";
+        }
+        
         if(settings.IsBatchMode)
         {
             extra += $"(Batch of {settings.Batch}) ";
@@ -49,6 +59,7 @@ public class HashCommand : Command<HashSettings>
         var datPath = Path.Combine(settings.OutputDirectory, datName);
 
         var alreadyHashed = new Dictionary<string, (string, string)>();
+        var nameCheck = new Dictionary<string, (string, string, string, string)>();
         if (File.Exists(datPath) && !settings.Overwrite)
         {
             var xDoc = XDocument.Load(datPath);
@@ -58,7 +69,13 @@ public class HashCommand : Command<HashSettings>
                 var size = rom.Attribute("size");
                 if (name != null && size != null && rom.Parent != null)
                 {
-                    alreadyHashed.Add(name.Value, (size.Value, rom.Parent.ToString())); 
+                    var parentXml = rom.Parent.ToString();
+                    alreadyHashed.Add(name.Value, (size.Value, parentXml));
+                    
+                    if (settings.SkipHash)
+                    {
+                        nameCheck.Add(name.Value.Split(")").Last().Trim(), (name.Value.Split("(")[0].Trim(), size.Value, parentXml, name.Value));
+                    }
                 }
             }
             Log.Information($"Loaded {alreadyHashed.Count} existing entries from DAT..");
@@ -181,6 +198,53 @@ public class HashCommand : Command<HashSettings>
                 continue;
             }
             
+            if (settings.SkipHash)
+            {
+                var target = fileName.Split(")").Last().Trim();
+
+                if (nameCheck.TryGetValue(target, out var existing))
+                {
+                    if (long.Parse(existing.Item2) == fileInfo.Length)
+                    {
+                        var element = XElement.Parse(existing.Item3);
+                        var romElement = element.Descendants("rom").First();
+                        var sha265 = romElement.Attribute("sha256");
+                        var sha1 = romElement.Attribute("sha1");
+                        var md5 = romElement.Attribute("md5");
+                        var crc32 = romElement.Attribute("crc");
+
+                        if(sha265 != null && sha1 != null && md5 != null && crc32 != null)
+                        {
+                            entryCollection.Add(new Entry
+                            {
+                                File = file,
+                                Name = fileName,
+                                Sha256 = sha265.Value,
+                                Sha1 = sha1.Value,
+                                Md5 = md5.Value,
+                                Crc32 = crc32.Value,
+                                Size = fileInfo.Length,
+                                TitleId = titleId,
+                                DisplayVersion = displayVersion,
+                                InternalVersion = internalVersion,
+                                Type = type,
+                                Languages = languages,
+                                TrimmedTitle = trimmedTitle,
+                                Region = region,
+                                IsDemo = isDemo,
+                                AltText = altText
+                            });
+                            
+                            Log.Warning($"Renaming [olive]{existing.Item4.Replace(".nsp",string.Empty).EscapeMarkup()}[/] => [blue]{fileName.Replace(".nsp",string.Empty).EscapeMarkup()}[/]..");
+                            
+                            continue;
+                        }
+                    }
+
+                    Log.Information("Wrong size .. re-hashing");
+                }
+            }
+
             AnsiConsole.Progress()
                 .AutoClear(true) // Do not remove the task list when done
                 .HideCompleted(true) // Hide tasks as they are completed
@@ -241,6 +305,12 @@ public class HashCommand : Command<HashSettings>
         }
         
         AnsiConsole.Write(new Rule());
+
+        if (settings.DryRun)
+        {
+            Log.Information($"[[[green]DRYRUN[/]]] -> Would have written {entryCollection.Count} entries to DAT..");
+            return 0;
+        }
         
         var header = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard)</name><description>Nintendo - Nintendo Switch (Digital) (Standard)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author></header>""";
         var footer = "</datafile>";
