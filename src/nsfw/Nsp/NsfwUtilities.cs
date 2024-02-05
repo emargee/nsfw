@@ -305,62 +305,72 @@ public static partial class NsfwUtilities
         return result.Languages.Split(",",StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).OrderBy(x => languageOrder.IndexOf(x)).ToArray();
     }
 
-    public static async Task<Dictionary<long, (string, string)>> LookUpRegions(SQLiteAsyncConnection dbConnection, string titleId)
+    public static async Task<(string, string)> LookUpRegions(SQLiteAsyncConnection dbConnection, string titleId)
     {
         var gameInfos = await dbConnection.Table<GameInfo>().Where(x => x.Id == titleId).ToArrayAsync();
-        
-        var result = new Dictionary<long, (string, string)>();
+
+        var regionCollection = new List<string>();
         
         foreach (var nsuId in gameInfos.DistinctBy(x => x.NsuId).Select(x => x.NsuId))
         {
             var regions = await dbConnection.Table<TitleRegion>().Where(x => x.NsuId == nsuId).ToArrayAsync();
             var regionArray = regions.Select(x => x.Region.ToUpperInvariant()).ToArray();
-            var region = "UNKNOWN";
             
-            var regionList = string.Join(",", regionArray);
-            
-            string[] americas = ["US.", "CA.", "MX."];
-            string[] latinAmerica = ["BR.", "AR.", "CL.", "CO.", "CR.", "EC.", "GT.", "PE."];
-            string[] europe = ["GB.","DE.","FR.","ES.", "IT.", "PT.", "CH.", "HU.", "LT.", "BE.", "BG.", "EE.", "LU.", "CH.", "HR.", "SI.", "AT.", "GR.", "LU.", "NO.", "DK.", "CZ.", "RO.", "ZA.", "NZ.", "BE.", "CH.", "LV.", "SK.", "SE.", "FI.", "IE.", "AU.", "MT.", "CY."];
-            string[] asia = ["HK.","KR.","JP"];
-            
-            if(latinAmerica.Any(regionList.Contains))
-            {
-                region = "Latin America";
-            }
-            
-            if (americas.Any(regionList.Contains))
-            {
-                region = "North America";
-            }
-            
-            if (europe.Any(regionList.Contains))
-            {
-                region = "Europe";
-            }
-            
-            if(asia.Any(regionList.Contains))
-            {
-                region = "Asia";
-            }
+            regionCollection.AddRange(regionArray);
+        }
+        
+        var regionList = string.Join(",",regionCollection.Distinct().ToArray());
+        var region = "UNKNOWN";
+        
+        //US.EN,CA.EN,CO.EN,PE.EN,BR.PT,MX.ES,AR.EN,AR.ES,CL.ES,MX.EN,US.ES,CA.FR,BR.EN,CO.ES
+        
+        string[] americas = ["US.", "CA.", "MX."];
+        string[] latinAmerica = ["BR.", "AR.", "CL.", "CO.", "CR.", "EC.", "GT.", "PE."];
+        string[] europe = ["GB.","DE.","FR.","ES.", "IT.", "PT.", "CH.", "HU.", "LT.", "BE.", "BG.", "EE.", "LU.", "CH.", "HR.", "SI.", "AT.", "GR.", "LU.", "NO.", "DK.", "CZ.", "RO.", "ZA.", "NZ.", "BE.", "CH.", "LV.", "SK.", "SE.", "FI.", "IE.", "AU.", "MT.", "CY."];
+        string[] asia = ["HK.","KR.","JP"];
 
-            region = regionList switch
-            {
-                "KR.KO" => "Korea",
-                "JP.JA" => "Japan",
-                "HK.ZH" => "China",
-                "US.EN" => "USA",
-                "DE.DE" => "Germany",
-                _ => region
-            };
+        var regionMatch = 0;
+        
+        if(latinAmerica.Any(regionList.Contains))
+        {
+            region = "Latin America";
+            regionMatch++;
+        }
             
-            if(!result.TryAdd(nsuId, (region, regionList)))
-            {
-                Log.Error("Duplicate region key.");
-            }
+        if (americas.Any(regionList.Contains))
+        {
+            region = "North America";
+            regionMatch++;
+        }
+            
+        if (europe.Any(regionList.Contains))
+        {
+            region = "Europe";
+            regionMatch++;
+        }
+            
+        if(asia.Any(regionList.Contains))
+        {
+            region = "Asia";
+            regionMatch++;
         }
 
-        return result;
+        region = regionList switch
+        {
+            "KR.KO" => "Korea",
+            "JP.JA" => "Japan",
+            "HK.ZH" => "China",
+            "US.EN" => "USA",
+            "DE.DE" => "Germany",
+            _ => region
+        };
+
+        if(regionMatch > 1)
+        {
+            region = "World";
+        }
+
+        return (region, regionList);
     }
     
     public static async Task<string[]> LookUpRegions(SQLiteAsyncConnection dbConnection, long nsuId)
@@ -603,7 +613,8 @@ public static partial class NsfwUtilities
         bool isDlc,
         bool possibleDlcUnlocker,
         bool isDemo,
-        string distributionRegion)
+        string distributionRegion,
+        bool keepName)
     {
         var languageList = string.Empty;
 
@@ -650,7 +661,7 @@ public static partial class NsfwUtilities
             Region.Taiwan => "(Taiwan)",
             _ => string.Empty
         };
-
+        
         if (!string.IsNullOrWhiteSpace(distributionRegion))
         {
             displayRegion = $"({distributionRegion})";
@@ -718,6 +729,11 @@ public static partial class NsfwUtilities
                 languageList = displayParentLanguages;
                 region = GetRegion(parentLanguages.ToArray(), ref languageList);
                 displayRegion = languageMode != LanguageMode.None ? $"({region})" : string.Empty;
+                
+                if (!string.IsNullOrWhiteSpace(displayRegion) && !string.IsNullOrWhiteSpace(distributionRegion))
+                {
+                    displayRegion = $"({distributionRegion})";
+                }
 
                 if (languageMode == LanguageMode.None)
                 {
@@ -743,12 +759,17 @@ public static partial class NsfwUtilities
                     cleanTitle = cleanTitle?.Replace(titlePart, string.Empty, StringComparison.InvariantCultureIgnoreCase).CleanTitle();
                 }
             }
-
+            
             var finalTitle = $"{cleanParentTitle} - {cleanTitle} {displayRegion}{languageList}".CleanTitle();
 
             if (possibleDlcUnlocker)
             {
                 finalTitle = $"{cleanParentTitle} - DLC Unlocker (Homebrew){displayRegion}{languageList}".CleanTitle();
+            }
+
+            if (keepName)
+            {
+                finalTitle = $"{displayTitle} {displayRegion}{languageList}".CleanTitle();
             }
 
             var formattedTitle = $"{finalTitle}[{titleId}][{titleVersion}][{displayTypeShort}]";

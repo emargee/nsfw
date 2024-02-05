@@ -175,7 +175,7 @@ public class NspInfo
     public string OutputName => NsfwUtilities.BuildOutputName(
         OutputOptions.LanguageMode, LanguagesFullShort, LanguagesShort,
         Titles.Keys.ToArray(), DisplayTitle, DisplayParentTitle, DisplayVersion, TitleType, TitleVersion,
-        DisplayTypeShort, TitleId, ParentLanguages.ToArray(), DisplayParentLanguages, IsDLC, PossibleDlcUnlocker, IsDemo, DistributionRegion);
+        DisplayTypeShort, TitleId, ParentLanguages.ToArray(), DisplayParentLanguages, IsDLC, PossibleDlcUnlocker, IsDemo, DistributionRegion, OutputOptions.KeepName);
     public string DisplayParentLanguages { get; set; } = Unknown;
     public IEnumerable<NacpLanguage> ParentLanguages { get; set; } = [];
     public int DeltaCount { get; set; }

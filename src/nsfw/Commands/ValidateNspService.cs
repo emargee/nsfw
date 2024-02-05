@@ -48,6 +48,11 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.OutputOptions.LanguageMode = LanguageMode.Short;
         }
 
+        if (settings.KeepName)
+        {
+            nspInfo.OutputOptions.KeepName = true;
+        }
+
         var titleDbPath = Path.GetFullPath(settings.TitleDbFile);
 
         if (File.Exists(titleDbPath))
@@ -546,20 +551,12 @@ public class ValidateNspService(ValidateNspSettings settings)
                 nspInfo.ReleaseDate = releaseDate;
             }
             
-            var regions = NsfwUtilities.LookUpRegions(_dbConnection, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
+            var region = NsfwUtilities.LookUpRegions(_dbConnection, nspInfo.UseBaseTitleId ? nspInfo.BaseTitleId : nspInfo.TitleId).Result;
 
-            if (regions.Count > 0)
+            if (region.Item1 != "UNKNOWN")
             {
-                if (regions.Count > 1)
-                {
-                    nspInfo.DistributionRegion = "World";
-                    nspInfo.DistributionRegionList = string.Join(",", regions.Select(x => x.Value.Item2));
-                }
-                else
-                {
-                    nspInfo.DistributionRegion = regions.Values.Single().Item1;
-                    nspInfo.DistributionRegionList = regions.Values.Single().Item2;
-                }
+                nspInfo.DistributionRegion = region.Item1;
+                nspInfo.DistributionRegionList = region.Item2;
             }
         }
 

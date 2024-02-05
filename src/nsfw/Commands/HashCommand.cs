@@ -1,7 +1,5 @@
-﻿using System.Runtime.InteropServices.ComTypes;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using LibHac.Util;
 using Nsfw.Nsp;
@@ -124,7 +122,8 @@ public class HashCommand : Command<HashSettings>
             {
                 if (fileInfo.Length == long.Parse(value.Item1))
                 {
-                    entryCollection.Add(new XmlEntry { Xml = value.Item2 });
+                    var description = XElement.Parse(value.Item2).Descendants("description").First().Value;
+                    entryCollection.Add(new XmlEntry { Xml = value.Item2, Description = description});
                     Log.Warning($"Skipping [olive]{fileName.EscapeMarkup()}[/]..");
                     continue;
                 }
@@ -317,7 +316,23 @@ public class HashCommand : Command<HashSettings>
 
         var builder = new StringBuilder();
         builder.AppendLine(header);
-        builder.AppendJoin('\n', entryCollection.Select(x => x.ToString()));
+        var last = string.Empty; 
+        foreach (var entry in entryCollection)
+        {
+            if (last.Equals(entry.Description, StringComparison.InvariantCultureIgnoreCase))
+            {
+                if(entry.GetType() == typeof(XmlEntry))
+                {
+                    Log.Warning($"Skipping XML duplicate entry: {entry.Description}. Please re-scan.");
+                    continue;
+                }
+
+                entry.Description += $" ({entry.TitleId.ToUpperInvariant()})";
+
+            }
+            builder.AppendLine(entry.ToString());
+            last = entry.Description;
+        }
         builder.Append(footer);
         File.WriteAllText(datPath, builder.ToString());
         Log.Information($"{entryCollection.Count} entries written to DAT successfully! ({datPath})");
@@ -353,7 +368,7 @@ public class Entry
     public string Region { get; set; } = string.Empty;
     public string DisplayType => Type switch
     {
-        "DLC" => "(DLC)",
+        "DLC" => " (DLC)",
         "UPD" => " (Update)",
         "DLCUPD" => " (DLC Update)",
         _ => ""
@@ -363,6 +378,29 @@ public class Entry
     public string AltText { get; set; } = string.Empty;
     public bool IsAlt => !string.IsNullOrWhiteSpace(AltText);
 
+    private string _description = string.Empty;
+    
+    public string Description
+    {
+        get
+        {
+            if(string.IsNullOrWhiteSpace(_description))
+            {
+                var internalVersion = InternalVersion == "v0" ? "" : $" ({InternalVersion})";
+                var demo = IsDemo ? " (Demo)" : "";
+                var alt = IsAlt ? $" ({AltText})" : "";
+                var outputLanguages = string.IsNullOrWhiteSpace(Languages) ? "" : $" ({Languages})";
+                var displayVersion = string.IsNullOrWhiteSpace(DisplayVersion) ? "" : $" (v{DisplayVersion})";
+                
+                _description = $"{TrimmedTitle} ({Region}){outputLanguages}{displayVersion}{internalVersion}{demo}{alt}{DisplayType}";
+            }
+            
+            return _description;
+        }
+        
+        set => _description = value;
+    }
+
     public override string ToString()
     {
         if (string.IsNullOrWhiteSpace(TitleId))
@@ -370,14 +408,10 @@ public class Entry
             throw new Exception("TitleId cannot be empty.");
         }
         
-        var internalVersion = InternalVersion == "v0" ? "" : $" ({InternalVersion})";
-        var demo = IsDemo ? " (Demo)" : "";
-        var alt = IsAlt ? $" ({AltText})" : "";
-
         var regionLanguages = Languages;
         if (string.IsNullOrWhiteSpace(regionLanguages))
         {
-           regionLanguages = Region.ToUpperInvariant() switch {
+            regionLanguages = Region.ToUpperInvariant() switch {
                 "KOREA" => "Ko",
                 "TAIWAN" => "Zh-Hant",
                 "CHINA" => "Zh-Hans",
@@ -406,10 +440,7 @@ public class Entry
             _ => "Game"
         };
 
-        var outputLanguages = string.IsNullOrWhiteSpace(Languages) ? " " : $" ({Languages}) ";
-        var displayVersion = string.IsNullOrWhiteSpace(DisplayVersion) ? "" : $"(v{DisplayVersion})";
-
-        var name = $"{TrimmedTitle.Replace("&","&amp;").Replace("'","&apos;")} ({Region}){outputLanguages}{displayVersion}{internalVersion}{demo}{alt}{DisplayType}";
+        var name = Description.Replace("&", "&amp;").Replace("'", "&apos;");
         
         return $"<game name=\"{name}\">\n<description>{name}</description>\n<game_id>{TitleId}</game_id>\n<version1>{InternalVersion}</version1>\n<version2>{(!string.IsNullOrWhiteSpace(DisplayVersion)?$"v{DisplayVersion}":"")}</version2>\n<languages>{regionLanguages}</languages>\n<isDemo>{IsDemo.ToString().ToLower()}</isDemo>\n<category>{category}</category>\n<rom name=\"{Name.Replace("&","&amp;").Replace("'","&apos;")}\" size=\"{Size}\" sha256=\"{Sha256}\" sha1=\"{Sha1}\" md5=\"{Md5}\" crc=\"{Crc32}\"/></game>\n";
     }
