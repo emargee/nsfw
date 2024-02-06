@@ -144,17 +144,26 @@ public class Cdn2NspService
                 ctx.Spinner(Spinner.Known.Ascii);
                 var builder = new PartitionFileSystemBuilder();
 
+                var referenceCollection = new List<LocalFile>();
+                
                 foreach (var contentFile in _contentFiles)
                 {
-                    builder.AddFile(Path.GetFileName(contentFile.Key), new LocalFile(contentFile.Key, OpenMode.Read));
+                    var localFile = new LocalFile(contentFile.Key, OpenMode.Read);
+                    referenceCollection.Add(localFile);
+                    builder.AddFile(Path.GetFileName(contentFile.Key), localFile);
                 }
                 
                 using var outStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.ReadWrite);
                 var builtPfs = builder.Build(PartitionFileSystemType.Standard);
                 builtPfs.GetSize(out var pfsSize).ThrowIfFailure();
                 builtPfs.CopyToStream(outStream, pfsSize);
-        
+                
                 outStream.Close();
+                foreach (var localFile in referenceCollection)
+                {
+                    localFile.Dispose();
+                }
+                builtPfs.Dispose();
             });
 
         // Perform default validation / conversion

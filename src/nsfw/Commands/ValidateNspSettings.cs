@@ -229,6 +229,11 @@ public class ValidateNspSettings : CommandSettings
             return ValidationResult.Error($"Common cert '{CertFile}' is invalid.");
         }
         
+        if(NspCollection.Length == 0 && !File.Exists(NspFile))
+        {
+            return ValidationResult.Error("No NSP files found.");
+        }
+        
         return base.Validate();
     }
 }

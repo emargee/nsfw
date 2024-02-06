@@ -44,7 +44,15 @@ public sealed class Cdn2NspCommand : Command<Cdn2NspSettings>
             if (result == 0 && settings.DeleteSource)
             {
                 Log.Logger.Information($"Cleaning up : {workingDirectory}");
-                Directory.Delete(workingDirectory, true);
+                try
+                {
+                    Directory.Delete(workingDirectory, true);
+                }
+                catch (Exception e)
+                {
+                    Log.Logger.Error(e, "Failed to delete directory");
+                    return 1;
+                }
             }
             
         }

@@ -9,7 +9,6 @@ using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
 using LibHac.Util;
 using Nsfw.Commands;
-using Serilog;
 using Spectre.Console;
 using SQLite;
 using HierarchicalIntegrityVerificationStorage = LibHac.Tools.FsSystem.HierarchicalIntegrityVerificationStorage;

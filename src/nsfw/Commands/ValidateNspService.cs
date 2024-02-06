@@ -147,6 +147,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                         Log.Warning("Common certificate has invalid SHA256");
                         nspInfo.CopyNewCert = true;
                     }
+                    certFile.Destroy();
                 }
             }
             
@@ -1196,6 +1197,10 @@ public class ValidateNspService(ValidateNspSettings settings)
             {
                 Log.Information($"[[[green]DRYRUN[/]]] -> Would create: [olive]{outputName.EscapeMarkup()}.nsp[/]");
             }
+            
+            
+            var certFile = new LocalFile(settings.CertFile, OpenMode.Read);
+            var ticketFile = nspInfo.Ticket != null ? new MemoryStorage(nspInfo.Ticket.GetBytes()).AsFile(OpenMode.Read) : null;
 
             var buildStatus = 0;
             
@@ -1259,8 +1264,8 @@ public class ValidateNspService(ValidateNspSettings settings)
                         }
                         else
                         {
-                            builder.AddFile($"{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.tik", new MemoryStorage(nspInfo.Ticket.GetBytes()).AsFile(OpenMode.Read));
-                            builder.AddFile($"{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.cert", new LocalFile(settings.CertFile, OpenMode.Read));
+                            builder.AddFile($"{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.tik", ticketFile);
+                            builder.AddFile($"{nspInfo.Ticket.RightsId.ToHexString().ToLower()}.cert", certFile);
                         }
                     }
 
@@ -1305,7 +1310,9 @@ public class ValidateNspService(ValidateNspSettings settings)
             
             fileSystem.Dispose();
             localFile.Dispose();
-            
+            certFile.Dispose();
+            ticketFile?.Dispose();
+
             if(buildStatus != 0)
             {
                 return (buildStatus, null);
