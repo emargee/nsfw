@@ -436,6 +436,11 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (nspInfo.TitleType is (FixedContentMetaType.Application or FixedContentMetaType.AddOnContent))
             {
                 nspInfo.IsTicketSignatureValid = true;
+                if (!nspInfo.IsNormalisedSignature)
+                {
+                    nspInfo.Warnings.Add($"{phase} - Ticket signature is not normalised.");
+                    nspInfo.GenerateNewTicket = true;
+                }
             }
             else
             {

@@ -86,6 +86,8 @@ public partial class NiCommand : Command<NiSettings>
             };
         });
 
+        var versionMap = new Dictionary<string, string[]>(); // TitleId -> [Version]
+
         foreach (var fileEntry in fileEntries)
         {
             var key = $"{fileEntry.TitleId.ToLowerInvariant()}_{fileEntry.Version.ToLowerInvariant()}_{fileEntry.IsDLC}";
@@ -93,6 +95,21 @@ public partial class NiCommand : Command<NiSettings>
             {
                 Log.Warning($"Duplicate file found: [green]{fileEntry.FullName.EscapeMarkup()}[/]");
                 return 1;
+            }
+
+            var title = fileEntry.TitleId.ToLowerInvariant();
+            var internalVersion = fileEntry.Version;
+            
+            if (versionMap.TryGetValue(title, out var versions))
+            {
+                if (!versions.Contains(internalVersion))
+                {
+                    versionMap[title] = versions.Append(internalVersion).ToArray();
+                }
+            }
+            else
+            {
+                versionMap.Add(title, new[] { internalVersion });
             }
         }
 
@@ -320,6 +337,19 @@ public partial class NiCommand : Command<NiSettings>
                         {
                             Log.Fatal(BuildErrorMessage("X", "red", game.TitleId, game.Name, key, game.Type, game.Id ?? string.Empty, " <- [[[red]NO TIK[/]]]"));
                             missing.Add(game);
+
+                            if (versionMap.ContainsKey(game.TitleId.ToLowerInvariant()))
+                            {
+                                foreach (var internalVersion in versionMap[game.TitleId.ToLowerInvariant()])
+                                {
+                                    var versionKey = $"{game.TitleId.ToLowerInvariant()}_{internalVersion}_{game.IsDLC}";
+
+                                    if (files.TryGetValue(versionKey, out var matchedFile))
+                                    {
+                                        Log.Information($"------------------> [[[green]![/]]] Possible reconstruction match: [olive]{matchedFile.FullName.EscapeMarkup()}[/]");
+                                    }
+                                }
+                            }
                         }
 
                         noTikCount++;
