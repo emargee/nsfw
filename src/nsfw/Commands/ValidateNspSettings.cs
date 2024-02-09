@@ -131,6 +131,10 @@ public class ValidateNspSettings : CommandSettings
     [Description("Skip a certain number of files before processing.")]
     public int Skip { get; set; }
     
+    [CommandOption("--wait")]
+    [Description("Wait for a key press before returning.")]
+    public bool Wait { get; set; }
+    
     [CommandArgument(0, "<NSP_FILE>")]
     [Description("Path to NSP file.")]
     public string NspFile { get; set; } = string.Empty;

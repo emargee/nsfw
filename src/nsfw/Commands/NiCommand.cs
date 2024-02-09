@@ -75,12 +75,20 @@ public partial class NiCommand : Command<NiSettings>
         {
             var parts = x.Split('[');
             var offset = parts.Length > 4 ? 2 : 1;
+            var filename = Path.GetFileName(x);
+            
+            if(!filename.Contains('[') && !filename.Contains('('))
+            {
+                Log.Error("Unable to process filename for comparison: [red]{filename}[/]");
+                throw new InvalidOperationException($"Unable to process filename ({filename}) for comparison");
+            }
+            
             return new FileEntry
             {
                 TitleId = parts[offset].TrimEnd(']').Trim(),
                 Version = parts[offset+1].TrimEnd(']').Trim(),
                 FullName = Path.GetFileName(x),
-                Name = Path.GetFileName(x).Split('(')[0].Trim(),
+                Name = filename.Contains('(') ? filename.Split('(')[0].Trim() : filename.Split('[')[0].Trim(),
                 Type = x.Contains("[BASE]") ? "GAME" : x.Contains("[UPD]") ? "UPD" : x.Contains("[DLC]") ? "DLC" : x.Contains("[DLCUPD]") ? "DLCUPD" : "UNKNOWN",
                 IsDLC = x.Contains("[DLC]") || x.Contains("[DLCUPD]")
             };

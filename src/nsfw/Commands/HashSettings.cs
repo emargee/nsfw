@@ -36,6 +36,10 @@ public class HashSettings : CommandSettings
     [Description("Skip hashing. Only fix names on existing entries.")]
     public bool SkipHash { get; set; }
     
+    [CommandOption("-l|--latest", IsHidden = true)]
+    [Description("Dont skip files modified in the last X hours.")]
+    public int Latest { get; set; }
+    
     public bool IsBatchMode => Batch > 0;
     
     public override ValidationResult Validate()

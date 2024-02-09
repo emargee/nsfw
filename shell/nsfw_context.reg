@@ -1,0 +1,5 @@
+Windows Registry Editor Version 5.00
+
+; Setup context menu item for click on right panel:
+[HKEY_CURRENT_USER\Software\Classes\*\shell\NSFW Validate\command]
+@="C:\\Source\\github\\emargee\\nsfw\\src\\nsfw\\bin\\Debug\\net8.0\\nsfw v -V \"%1\" --wait"

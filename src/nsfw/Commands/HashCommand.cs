@@ -117,8 +117,9 @@ public class HashCommand : Command<HashSettings>
             var fileInfo = new FileInfo(file);
             var fileName = fileInfo.Name;
             var fileNameParts = fileName.Replace(".nsp",string.Empty).Split('[');
-
-            if(!settings.Overwrite && alreadyHashed.TryGetValue(fileName, out var value))
+            var isInModifiedScope = settings.Latest > 0 && fileInfo.LastWriteTime > DateTime.Now.Subtract(new TimeSpan(settings.Latest, 0,0));
+            
+            if(!settings.Overwrite && alreadyHashed.TryGetValue(fileName, out var value) && !isInModifiedScope)
             {
                 if (fileInfo.Length == long.Parse(value.Item1))
                 {
@@ -197,7 +198,7 @@ public class HashCommand : Command<HashSettings>
                 continue;
             }
             
-            if (settings.SkipHash)
+            if (settings.SkipHash && !isInModifiedScope)
             {
                 var target = fileName.Split(")").Last().Trim();
 
@@ -311,7 +312,7 @@ public class HashCommand : Command<HashSettings>
             return 0;
         }
         
-        var header = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard)</name><description>Nintendo - Nintendo Switch (Digital) (Standard)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author></header>""";
+        var header = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard)</name><description>Nintendo - Nintendo Switch (Digital) (Standard)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
         var footer = "</datafile>";
 
         var builder = new StringBuilder();

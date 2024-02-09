@@ -76,6 +76,7 @@ public static partial class NsfwUtilities
             .Replace(" ~", " - ")
             .Replace("~ ", " - ")
             .Replace(" - - ", " - ")
+            .Replace("- - ", " - ")
             .Replace(" -  - ", " - ")
             .Replace(" - ：", " - ")
             .Replace("|", string.Empty)
@@ -666,9 +667,15 @@ public static partial class NsfwUtilities
             displayRegion = $"({distributionRegion})";
         }
 
+        if (string.IsNullOrWhiteSpace(languageList))
+        {
+            languageList = "(Unknown)";
+        }
+
         if (languageMode == LanguageMode.None)
         {
             displayRegion = string.Empty;
+            languageList = string.Empty;
         }
 
         var cleanTitle = displayTitle.CleanTitle();
@@ -760,12 +767,7 @@ public static partial class NsfwUtilities
             }
             
             var finalTitle = $"{cleanParentTitle} - {cleanTitle} {displayRegion}{languageList}".CleanTitle();
-
-            if (possibleDlcUnlocker)
-            {
-                finalTitle = $"{cleanParentTitle} - DLC Unlocker (Homebrew){displayRegion}{languageList}".CleanTitle();
-            }
-
+            
             if (keepName)
             {
                 finalTitle = $"{displayTitle} {displayRegion}{languageList}".CleanTitle();

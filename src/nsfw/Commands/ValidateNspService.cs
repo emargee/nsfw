@@ -134,7 +134,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             {
                 if (rawFile.Size != NsfwUtilities.CommonCertSize)
                 {
-                    Log.Warning("Common certificate size is incorrect. Expected 0x700 bytes.");
+                    Log.Warning($"Certificate ({rawFile.Name}) size is incorrect. Expected 0x700 bytes.");
                     nspInfo.CopyNewCert = true;
                 }
                 else
@@ -144,7 +144,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     var validCommonCert = NsfwUtilities.ValidateCommonCert(certFile.Get.AsStream());
                     if (!validCommonCert)
                     {
-                        Log.Warning("Common certificate has invalid SHA256");
+                        Log.Warning($"Certificate ({rawFile.Name}) does not match common certificate SHA256.");
                         nspInfo.CopyNewCert = true;
                     }
                     certFile.Destroy();
@@ -506,6 +506,11 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (titleName.Contains('('))
             {
                 nspInfo.DisplayTitle = titleName.Split('(', StringSplitOptions.TrimEntries)[0];
+                nspInfo.DisplayTitleLookupSource = LookupSource.FileTitle;
+            }
+            else if (titleName.Contains('['))
+            {
+                nspInfo.DisplayTitle = titleName.Split('[', StringSplitOptions.TrimEntries)[0];
                 nspInfo.DisplayTitleLookupSource = LookupSource.FileTitle;
             }
             else

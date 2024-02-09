@@ -78,6 +78,12 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
             AnsiConsole.Write(new Rule());
         }
 
+        if (settings.Wait)
+        {
+            AnsiConsole.MarkupLine("Press ENTER to continue ..");
+            Console.ReadLine();
+        }
+
         return result.Item1;
     }
 
