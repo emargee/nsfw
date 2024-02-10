@@ -598,8 +598,8 @@ public static partial class NsfwUtilities
     }
     
     public static string BuildOutputName(LanguageMode languageMode,
-        IEnumerable<string> languagesFullShort,
-        IEnumerable<string> languagesShort,
+        string[] languagesFullShort,
+        string[] languagesShort,
         NacpLanguage[] titles,
         string displayTitle,
         string? displayParentTitle,
@@ -627,7 +627,12 @@ public static partial class NsfwUtilities
         {
             languageList = string.Join(",", languagesShort);
         }
-
+        
+        if (string.IsNullOrWhiteSpace(languageList))
+        {
+            languageList = "(Unknown)";
+        }
+        
         if (languageMode == LanguageMode.None)
         {
             languageList = string.Empty;
@@ -665,11 +670,10 @@ public static partial class NsfwUtilities
         if (!string.IsNullOrWhiteSpace(distributionRegion))
         {
             displayRegion = $"({distributionRegion})";
-        }
-
-        if (string.IsNullOrWhiteSpace(languageList))
-        {
-            languageList = "(Unknown)";
+            if(displayRegion == "(World)" && languagesShort.Length == 1)
+            {
+                languageList = $"({string.Join(",", languagesShort)})";
+            }
         }
 
         if (languageMode == LanguageMode.None)

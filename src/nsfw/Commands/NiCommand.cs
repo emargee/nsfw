@@ -95,14 +95,15 @@ public partial class NiCommand : Command<NiSettings>
         });
 
         var versionMap = new Dictionary<string, string[]>(); // TitleId -> [Version]
-
+        var hasDuplicates = false;
+        
         foreach (var fileEntry in fileEntries)
         {
             var key = $"{fileEntry.TitleId.ToLowerInvariant()}_{fileEntry.Version.ToLowerInvariant()}_{fileEntry.IsDLC}";
             if(!files.TryAdd(key, fileEntry))
             {
-                Log.Warning($"Duplicate file found: [green]{fileEntry.FullName.EscapeMarkup()}[/]");
-                return 1;
+                Log.Warning($"Duplicate file found: [green]{fileEntry.FullName.EscapeMarkup()}[/] => {files[key].FullName.EscapeMarkup()}");
+                hasDuplicates = true;
             }
 
             var title = fileEntry.TitleId.ToLowerInvariant();
@@ -119,6 +120,11 @@ public partial class NiCommand : Command<NiSettings>
             {
                 versionMap.Add(title, new[] { internalVersion });
             }
+        }
+
+        if (hasDuplicates)
+        {
+            return 1;
         }
 
         // Find games without game_id

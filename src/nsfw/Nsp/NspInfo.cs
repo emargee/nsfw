@@ -173,7 +173,7 @@ public class NspInfo
     public string RightsId { get; set; } = Empty;
 
     public string OutputName => NsfwUtilities.BuildOutputName(
-        OutputOptions.LanguageMode, LanguagesFullShort, LanguagesShort,
+        OutputOptions.LanguageMode, LanguagesFullShort.ToArray(), LanguagesShort.ToArray(),
         Titles.Keys.ToArray(), DisplayTitle, DisplayParentTitle, DisplayVersion, TitleType, TitleVersion,
         DisplayTypeShort, TitleId, ParentLanguages.ToArray(), DisplayParentLanguages, IsDLC, PossibleDlcUnlocker, IsDemo, DistributionRegion, OutputOptions.KeepName);
     public string DisplayParentLanguages { get; set; } = Unknown;
