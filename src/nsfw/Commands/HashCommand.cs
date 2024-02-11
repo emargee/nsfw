@@ -177,7 +177,15 @@ public class HashCommand : Command<HashSettings>
             
             if (titleParts.Length > 2)
             {
-                languages = titleParts[2].Replace(")",string.Empty);
+                if (titleParts[2].Contains("Demo", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    isDemo = true;
+                    languages = "";
+                }
+                else
+                {
+                    languages = titleParts[2].Replace(")",string.Empty);
+                }
             }
             
             if(titleParts.Length > 3)
@@ -320,14 +328,14 @@ public class HashCommand : Command<HashSettings>
         var last = string.Empty; 
         foreach (var entry in entryCollection)
         {
-            if (last.Equals(entry.Description, StringComparison.InvariantCultureIgnoreCase))
+            if (last.StartsWith(entry.Description, StringComparison.InvariantCultureIgnoreCase) && !last.EndsWith("(Demo)"))
             {
                 if(entry.GetType() == typeof(XmlEntry))
                 {
                     Log.Warning($"Skipping XML duplicate entry: {entry.Description}. Please re-scan.");
                     continue;
                 }
-
+                Log.Information($"Duplicate description: {entry.Description}");
                 entry.Description += $" ({entry.TitleId.ToUpperInvariant()})";
 
             }
