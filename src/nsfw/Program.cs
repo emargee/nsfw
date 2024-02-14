@@ -75,8 +75,7 @@ public static class Program
 
             config.AddCommand<HashCommand>("hash")
                 .WithDescription("Hash files for submission to DAT-o-MATIC.")
-                .WithAlias("h")
-                .IsHidden();
+                .WithAlias("h");
             
             config.AddCommand<CompareCommand>("cmp")
                 .WithDescription("Compare two NSP files.")

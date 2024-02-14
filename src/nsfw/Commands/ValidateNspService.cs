@@ -684,13 +684,17 @@ public class ValidateNspService(ValidateNspSettings settings)
             var kCount = ver == NcaVersion.Nca0 ? 2 : 4;
 
             var encryptedKeys = new string[kCount];
+            var decryptedKeys = new string[kCount];
                 
             for (var i = 0; i < kCount; i++)
             {
                 encryptedKeys[i] = fsNca.Nca.Header.GetEncryptedKey(i).ToArray().ToHexString();
+                decryptedKeys[i] = fsNca.Nca.GetDecryptedKey(i).ToArray().ToHexString();
             }
-            
+
+            ncaInfo.EncryptionKeyIndex = fsNca.Nca.Header.KeyAreaKeyIndex;
             ncaInfo.EncryptedKeys = encryptedKeys;
+            ncaInfo.DecryptedKeys = decryptedKeys;
             ncaInfo.RawHeader = fsNca.Nca.OpenHeaderStorage(false).ToArray();
 
             if (!ncaInfo.IsHeaderValid)

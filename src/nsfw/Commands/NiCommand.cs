@@ -290,6 +290,12 @@ public partial class NiCommand : Command<NiSettings>
                                 break;
                             }
 
+                            if (game.Name.StartsWith("zzzUNK"))
+                            {
+                                Log.Information($"{game.TitleId.ToUpperInvariant()} -> [[[grey]SKIP[/]]] [grey]{game.Name.EscapeMarkup()}[/] ([grey]{game.Type}[/])");
+                                break;
+                            }
+
                             nameErrorCount++;
 
                             Log.Warning($"{game.TitleId.ToUpperInvariant()} -> [[[olive]R[/]]] [green]{file.Name.EscapeMarkup()}[/] -> [olive]{gameTrimmed.EscapeMarkup()}[/] ({game.Id}) ({game.Type}) ([grey]{file.FullName.EscapeMarkup()}[/])");

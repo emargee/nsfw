@@ -703,28 +703,39 @@ public static partial class NsfwUtilities
         
         var demo = string.Empty;
         
+        if (cleanTitle.ToUpperInvariant().EndsWith(" DEMO"))
+        {
+            cleanTitle = cleanTitle[..^5];
+            isDemo = true;
+        }
+
+        if (cleanTitle.ToUpperInvariant().EndsWith(" [DEMO VERSION]"))
+        {
+            cleanTitle = cleanTitle[..^15];
+            isDemo = true;
+        }
+            
+        if (cleanTitle.ToUpperInvariant().EndsWith(" (DEMO VERSION)"))
+        {
+            cleanTitle = cleanTitle[..^15];
+            isDemo = true;
+        }
+            
+        if (cleanTitle.ToUpperInvariant().EndsWith(" DEMO VERSION"))
+        {
+            cleanTitle = cleanTitle[..^13];
+            isDemo = true;
+        }
+            
+        if (cleanTitle.ToUpperInvariant().EndsWith(" DEMO VER."))
+        {
+            cleanTitle = cleanTitle[..^10];
+            isDemo = true;
+        }
+        
         if (isDemo)
         {
             demo = "(Demo)";
-            if (cleanTitle.ToUpperInvariant().EndsWith(" DEMO"))
-            {
-                cleanTitle = cleanTitle[..^5];
-            }
-
-            if (cleanTitle.ToUpperInvariant().EndsWith(" [DEMO VERSION]"))
-            {
-                cleanTitle = cleanTitle[..^15];
-            }
-            
-            if (cleanTitle.ToUpperInvariant().EndsWith(" (DEMO VERSION)"))
-            {
-                cleanTitle = cleanTitle[..^15];
-            }
-            
-            if (cleanTitle.ToUpperInvariant().EndsWith(" DEMO VERSION"))
-            {
-                cleanTitle = cleanTitle[..^13];
-            }
         }
 
         if (titleType is FixedContentMetaType.Patch)

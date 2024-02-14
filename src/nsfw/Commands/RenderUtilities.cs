@@ -122,13 +122,14 @@ public static class RenderUtilities
 
             if (showKeys)
             {
-                var keyNode = new TreeNode(new Markup("[grey][[KEYS]][/]"))
+                var keyNode = new TreeNode(new Markup("[grey][[KEY AREA]][/]"))
                 {
                     Expanded = true
                 };
+                keyNode.AddNode($"[grey]Encryption Key Index: {ncaFile.EncryptionKeyIndex}[/]");
                 for (var i = 0; i < ncaFile.EncryptedKeys.Length; i++)
                 {
-                    keyNode.AddNode($"[grey][[{i}]] {ncaFile.EncryptedKeys[i]}[/]");
+                    keyNode.AddNode($"[grey][[{i}]] Enc: {ncaFile.EncryptedKeys[i]} / Dec: {ncaFile.DecryptedKeys[i]}[/]");
                 }
                 
                 ncaNode.AddNode(keyNode);

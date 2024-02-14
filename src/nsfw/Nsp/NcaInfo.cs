@@ -15,4 +15,6 @@ public class NcaInfo(SwitchFsNca nca)
     public HashMatchType HashMatch { get; set; } = HashMatchType.Missing;
     public string[] EncryptedKeys { get; set; } = [];
     public byte[] RawHeader { get; set; } = [];
+    public int EncryptionKeyIndex { get; set; }
+    public string[] DecryptedKeys { get; set; } = [];
 }

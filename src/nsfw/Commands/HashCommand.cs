@@ -88,6 +88,11 @@ public class HashCommand : Command<HashSettings>
         var exitLoop = false;
 
         var batchCount = 0;
+        
+        var skipCount = 0;
+        var renameCount = 0;
+        var hashCount = 0;
+        var errorCount = 0;
 
         foreach (var file in allFiles)
         {
@@ -126,6 +131,7 @@ public class HashCommand : Command<HashSettings>
                     var description = XElement.Parse(value.Item2).Descendants("description").First().Value;
                     entryCollection.Add(new XmlEntry { Xml = value.Item2, Description = description});
                     Log.Warning($"Skipping [olive]{fileName.EscapeMarkup()}[/]..");
+                    skipCount++;
                     continue;
                 }
             }
@@ -135,6 +141,7 @@ public class HashCommand : Command<HashSettings>
                 AnsiConsole.Write(new Rule{ Style = Style.Parse("red")});
                 Log.Error($"[red]Cannot parse - non-standard filename [[{fileName.EscapeMarkup()}]][/] => Skipping..");
                 AnsiConsole.Write(new Rule{ Style = Style.Parse("red")});
+                errorCount++;
                 continue;
             }
             
@@ -203,6 +210,7 @@ public class HashCommand : Command<HashSettings>
                 AnsiConsole.Write(new Rule{ Style = Style.Parse("red")});
                 Log.Error($"[red]Unknown filename format [[{fileName.EscapeMarkup()}]][/] => Skipping..");
                 AnsiConsole.Write(new Rule{ Style = Style.Parse("red")});
+                errorCount++;
                 continue;
             }
             
@@ -244,7 +252,7 @@ public class HashCommand : Command<HashSettings>
                             });
                             
                             Log.Warning($"Renaming [olive]{existing.Item4.Replace(".nsp",string.Empty).EscapeMarkup()}[/] => [blue]{fileName.Replace(".nsp",string.Empty).EscapeMarkup()}[/]..");
-                            
+                            renameCount++;
                             continue;
                         }
                     }
@@ -308,9 +316,18 @@ public class HashCommand : Command<HashSettings>
                     }
                     
                     Log.Information($"[green]{fileName.EscapeMarkup()}[/]");
+                    hashCount++;
                     batchCount++;
                 });
         }
+        
+        AnsiConsole.Write(new Rule());
+        
+        AnsiConsole.WriteLine($"Total: {entryCollection.Count}");
+        AnsiConsole.MarkupLine("Skip: [yellow]{0}[/]", skipCount);
+        AnsiConsole.MarkupLine("Rename: [blue]{0}[/]", renameCount);
+        AnsiConsole.MarkupLine("Hash: [green]{0}[/]", hashCount);
+        AnsiConsole.MarkupLine("Error: [red]{0}[/]", errorCount);
         
         AnsiConsole.Write(new Rule());
 
