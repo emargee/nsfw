@@ -32,6 +32,10 @@ public class HashSettings : CommandSettings
     [Description("Prints actions to be performed but does not execute any of them.")]
     public bool DryRun { get; set; }
     
+    [CommandOption("-a|--all")]
+    [Description("Show all output. Otherwise only show updated.")]
+    public bool ShowAll { get; set; }
+    
     [CommandOption("-s|--skip-hash", IsHidden = true)]
     [Description("Skip hashing. Only fix names on existing entries.")]
     public bool SkipHash { get; set; }

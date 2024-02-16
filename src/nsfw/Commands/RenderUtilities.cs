@@ -1,4 +1,5 @@
-﻿using LibHac.Common;
+﻿using System.Collections;
+using LibHac.Common;
 using LibHac.Ncm;
 using LibHac.Tools.Es;
 using LibHac.Util;
@@ -21,7 +22,7 @@ public static class RenderUtilities
     private const string PlainValid = "[green]Valid[/]";
     private const string PlainInValid = "[red]Invalid[/]";
     
-    public static Tree RenderRawFilesTree(IEnumerable<RawContentFileInfo> rawFileValues)
+    public static Tree RenderRawFilesTree(IEnumerable<RawContentFileInfo> rawFileValues, string[]? highlight = null)
     {
         var rawFileTree = new Tree("PFS0:")
         {
@@ -38,7 +39,14 @@ public static class RenderUtilities
             }
             else
             {
-                rawFileTree.AddNode($"{displayLine}");
+                if (highlight != null && highlight.Contains(rawFile.Name))
+                {
+                    rawFileTree.AddNode($"[olive]{displayLine}[/]");  
+                }
+                else
+                {
+                    rawFileTree.AddNode($"{displayLine}");
+                }
             }
         }
 
@@ -122,23 +130,35 @@ public static class RenderUtilities
 
             if (showKeys)
             {
-                var keyNode = new TreeNode(new Markup("[grey][[KEY AREA]][/]"))
-                {
-                    Expanded = true
-                };
-                keyNode.AddNode($"[grey]Encryption Key Index: {ncaFile.EncryptionKeyIndex}[/]");
-                for (var i = 0; i < ncaFile.EncryptedKeys.Length; i++)
-                {
-                    keyNode.AddNode($"[grey][[{i}]] Enc: {ncaFile.EncryptedKeys[i]} / Dec: {ncaFile.DecryptedKeys[i]}[/]");
-                }
-                
-                ncaNode.AddNode(keyNode);
+                ncaNode.AddNode(RenderNcaKeys(ncaFile));
             }
 
             ncaTree.AddNode(ncaNode);
         }
 
         return ncaTree;
+    }
+
+    public static TreeNode RenderNcaKeys(NcaInfo ncaFile, NcaInfo? compare = null)
+    {
+        var keyNode = new TreeNode(new Markup("[grey][[KEY AREA]][/]"))
+        {
+            Expanded = true
+        };
+        keyNode.AddNode($"[grey]Encryption Key Index: {ncaFile.EncryptionKeyIndex}[/]");
+        for (var i = 0; i < ncaFile.EncryptedKeys.Length; i++)
+        {
+            if(compare != null && ncaFile.EncryptedKeys[i] != compare.EncryptedKeys[i])
+            {
+                keyNode.AddNode($"[red][[{i}]] {ncaFile.DecryptedKeys[i]}[/]");
+            }
+            else
+            {
+                keyNode.AddNode($"[grey][[{i}]] {ncaFile.DecryptedKeys[i]}[/]");
+            }
+        }
+        
+        return keyNode;
     }
 
     public static Table RenderTicket(Ticket ticket, bool isNormalised, bool isTicketSignatureValid, bool? isOldTicketCrypto)
@@ -377,5 +397,21 @@ public static class RenderUtilities
         propertiesTable.AddRow("[olive]Standard NSP?[/]", nspInfo.IsStandardNsp ? "[green]Yes[/]" : "[red]No[/]");
         
         return propertiesTable;
+    }
+    
+    public static Table RenderResultTable(string propertyName, string fileOneValue, string fileTwoValue)
+    {
+        var resultTable = new Table { ShowHeaders = true };
+        resultTable.AddColumns("Property","File One", "File Two");
+        resultTable.AddRow(propertyName, fileOneValue, fileTwoValue);
+        return resultTable;
+    }
+    
+    public static Table RenderResultTable(string propertyName, Tree treeOne, Tree treeTwo)
+    {
+        var resultTable = new Table { ShowHeaders = true };
+        resultTable.AddColumns("Property","File One", "File Two");
+        resultTable.AddRow(new TableRow(new IRenderable[]{new Text(propertyName), treeOne, treeTwo}));
+        return resultTable;
     }
 }

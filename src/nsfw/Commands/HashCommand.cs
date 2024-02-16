@@ -130,7 +130,10 @@ public class HashCommand : Command<HashSettings>
                 {
                     var description = XElement.Parse(value.Item2).Descendants("description").First().Value;
                     entryCollection.Add(new XmlEntry { Xml = value.Item2, Description = description});
-                    Log.Warning($"Skipping [olive]{fileName.EscapeMarkup()}[/]..");
+                    if(settings.ShowAll)
+                    {
+                        Log.Warning($"Skipping [olive]{fileName.EscapeMarkup()}[/]..");
+                    }
                     skipCount++;
                     continue;
                 }
