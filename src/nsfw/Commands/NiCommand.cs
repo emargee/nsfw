@@ -20,6 +20,7 @@ public class FileEntry
     public string Type { get; set; } = string.Empty;
     // ReSharper disable once InconsistentNaming
     public bool IsDLC { get; set; }
+    public bool IsAlt { get; set; }
 }
 
 public class DatEntry
@@ -35,6 +36,7 @@ public class DatEntry
     // ReSharper disable once InconsistentNaming
     public bool IsDLC { get; set; }
     public bool IsMia { get; set; }
+    public bool IsAlt { get; set; }
 }
 
 public partial class NiCommand : Command<NiSettings>
@@ -76,6 +78,8 @@ public partial class NiCommand : Command<NiSettings>
             var parts = x.Split('[');
             var offset = parts.Length > 4 ? 2 : 1;
             var filename = Path.GetFileName(x);
+            var version = parts[offset+1].TrimEnd(']').Trim();
+            var displayVersion = parts[offset-1].TrimEnd(']').Trim();
             
             if(!filename.Contains('[') && !filename.Contains('('))
             {
@@ -86,11 +90,12 @@ public partial class NiCommand : Command<NiSettings>
             return new FileEntry
             {
                 TitleId = parts[offset].TrimEnd(']').Trim(),
-                Version = parts[offset+1].TrimEnd(']').Trim(),
+                Version = version,
                 FullName = Path.GetFileName(x),
                 Name = filename.Contains('(') ? filename.Split('(')[0].Trim() : filename.Split('[')[0].Trim(),
                 Type = x.Contains("[BASE]") ? "GAME" : x.Contains("[UPD]") ? "UPD" : x.Contains("[DLC]") ? "DLC" : x.Contains("[DLCUPD]") ? "DLCUPD" : "UNKNOWN",
-                IsDLC = x.Contains("[DLC]") || x.Contains("[DLCUPD]")
+                IsDLC = x.Contains("[DLC]") || x.Contains("[DLCUPD]"),
+                IsAlt = displayVersion.EndsWith("-ALT")
             };
         });
 
@@ -99,7 +104,8 @@ public partial class NiCommand : Command<NiSettings>
         
         foreach (var fileEntry in fileEntries)
         {
-            var key = $"{fileEntry.TitleId.ToLowerInvariant()}_{fileEntry.Version.ToLowerInvariant()}_{fileEntry.IsDLC}";
+            var key = $"{fileEntry.TitleId.ToLowerInvariant()}_{fileEntry.Version.ToLowerInvariant()}_{fileEntry.IsDLC}_{fileEntry.IsAlt}";
+            
             if(!files.TryAdd(key, fileEntry))
             {
                 Log.Warning($"Duplicate file found: [green]{fileEntry.FullName.EscapeMarkup()}[/] => {files[key].FullName.EscapeMarkup()}");
@@ -154,17 +160,19 @@ public partial class NiCommand : Command<NiSettings>
                 
                 if (name != null)
                 {
+                    var version = VersionRegex().IsMatch(name) ? VersionRegex().Match(name).Value : "v0";
                     return new DatEntry
                     {
                         Name = name,
                         TitleId = x.Value,
-                        Version = VersionRegex().IsMatch(name) ? VersionRegex().Match(name).Value : "v0",
+                        Version = version,
                         Type = isNsp ? "NSP" : "CDN",
                         Xml = x.Parent?.ToString() ?? string.Empty,
                         Id = x.Parent?.Attribute("id")?.Value,
                         Sha1 = isNsp ? x.Parent?.Descendants("rom").First().Attribute("sha1")?.Value : null,
                         IsDLC = name.Contains("(DLC") || name.Contains("DLC)") || name.Contains("Update, DLC"),
-                        IsMia = isNsp && x.Parent?.Descendants("rom").First().Attribute("mia")?.Value == "yes"
+                        IsMia = isNsp && x.Parent?.Descendants("rom").First().Attribute("mia")?.Value == "yes",
+                        IsAlt = false
                     };
                 }
 
@@ -266,7 +274,7 @@ public partial class NiCommand : Command<NiSettings>
                     continue;
                 }
 
-                var key = $"{game.TitleId.ToLowerInvariant()}_{version.ToLowerInvariant()}_{game.IsDLC}";
+                var key = $"{game.TitleId.ToLowerInvariant()}_{version.ToLowerInvariant()}_{game.IsDLC}_{game.IsAlt}";
 
                 if (files.TryGetValue(key, out var file))
                 {
