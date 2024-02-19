@@ -91,7 +91,7 @@ public static partial class NsfwUtilities
             .Replace("）", ") ")
             .Replace("） (", ") (")
             .Replace(" dlc", " DLC")
-            .Replace(" Of ", " of ")
+            .Replace(" of ", " Of ")
             .Replace("((((", "(")
             .Replace("))))", ")")
             .Replace("(((", "(")
@@ -119,7 +119,11 @@ public static partial class NsfwUtilities
         var result = input.Replace(" (", " - ")
             .Replace(")", " ")
             .Replace("[", " ")
-            .Replace("]", " ");
+            .Replace("]", " ")
+            .Replace("}", " ")
+            .Replace("{", " ")
+            .Replace("<", " ")
+            .Replace(">", " ");
 
         return result.Trim();
     }
@@ -740,7 +744,7 @@ public static partial class NsfwUtilities
 
         if (titleType is FixedContentMetaType.Patch)
         {
-            return $"{cleanTitle} {displayRegion}{languageList}{demo}[{displayVersion}][{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
+            return $"{cleanTitle.RemoveBrackets()} {displayRegion}{languageList}{demo}[{displayVersion}][{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
         }
 
         if (isDlc && !string.IsNullOrEmpty(displayParentTitle))
@@ -781,11 +785,11 @@ public static partial class NsfwUtilities
                 }
             }
             
-            var finalTitle = $"{cleanParentTitle} - {cleanTitle} {displayRegion}{languageList}".CleanTitle();
+            var finalTitle = $"{cleanParentTitle.RemoveBrackets()} - {cleanTitle.RemoveBrackets()} {displayRegion}{languageList}".CleanTitle();
             
             if (keepName)
             {
-                finalTitle = $"{displayTitle} {displayRegion}{languageList}".CleanTitle();
+                finalTitle = $"{displayTitle.RemoveBrackets()} {displayRegion}{languageList}".CleanTitle();
             }
 
             var formattedTitle = $"{finalTitle}[{titleId}][{titleVersion}][{displayTypeShort}]";
@@ -802,7 +806,7 @@ public static partial class NsfwUtilities
             displayVersion = $"[{displayVersion}]";
         }
 
-        return $"{cleanTitle} {displayRegion}{languageList}{demo}{displayVersion}[{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
+        return $"{cleanTitle.RemoveBrackets()} {displayRegion}{languageList}{demo}{displayVersion}[{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
     }
     
     public static Validity VerifyNpdm(Nca nca)
