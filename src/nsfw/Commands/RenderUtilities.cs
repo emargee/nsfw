@@ -170,7 +170,10 @@ public static class RenderUtilities
         tikTable.AddColumn("Property");
         tikTable.AddColumn("Value");
         
-        if (isNormalised)
+        var titleId = ticket.RightsId.ToHexString()[..16];
+        var isGame = titleId.EndsWith("000");
+        
+        if (isNormalised && isGame)
         {
             tikTable.AddRow("Ticket Signature", "[green]Normalised[/]");
         }
@@ -362,25 +365,22 @@ public static class RenderUtilities
             propertiesTable.AddRow("TitleKey (Enc)", nspInfo.TitleKeyEncrypted.ToHexString());
             propertiesTable.AddRow("TitleKey (Dec)", nspInfo.TitleKeyDecrypted.ToHexString());
 
-            if (nspInfo.IsNormalisedSignature)
+            if (nspInfo.IsNormalisedSignature && nspInfo.TitleType == FixedContentMetaType.Application)
             {
                 propertiesTable.AddRow("Ticket Signature", "[green]Normalised[/]");
             }
             else
             {
-                propertiesTable.AddRow("Ticket Signature",
-                    nspInfo.IsTicketSignatureValid
-                        ? PlainValid
-                        : PlainInValid + " (Signature Mismatch) - Will generate new ticket.");
+                propertiesTable.AddRow("Ticket Signature", !nspInfo.IsTicketSignatureValid ? PlainInValid : PlainValid);
             }
 
             if (nspInfo.GenerateNewTicket)
             {
-                propertiesTable.AddRow("Ticket Validation", "[red]Non-Standard[/] - Will generate new ticket.");
+                propertiesTable.AddRow("Ticket Properties", "[red]Non-Standard[/] - Will generate new ticket.");
             }
             else
             {
-                propertiesTable.AddRow("Ticket Validation", "[green]Passed[/]");
+                propertiesTable.AddRow("Ticket Properties", "[green]Passed[/]");
             }
 
             propertiesTable.AddRow("MasterKey Revision", nspInfo.MasterKeyRevision.ToString());
