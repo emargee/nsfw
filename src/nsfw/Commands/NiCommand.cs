@@ -449,6 +449,8 @@ public partial class NiCommand : Command<NiSettings>
                 var key = $"{item.TitleId.ToUpperInvariant()}_{(string.IsNullOrWhiteSpace(item.Version) ? "v0" : item.Version)}";
                 finalSet.TryAdd(key, item);
             }
+
+            var foundExtra = 0;
             
             foreach (var file in files.Values)
             {
@@ -457,10 +459,12 @@ public partial class NiCommand : Command<NiSettings>
                 if (!finalSet.ContainsKey(key) && !finalSet.ContainsKey($"{file.TitleId}_v0"))
                 {
                     Log.Information($"[olive]{file.FullName.EscapeMarkup()}[/]");
+                    foundExtra++;
                 }
             }
             
             AnsiConsole.Write(new Rule());
+            AnsiConsole.MarkupLine($"Found Extra       : [green]{foundExtra}[/]");
         }
 
         return 0;

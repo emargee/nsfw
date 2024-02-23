@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System.Runtime.InteropServices.ComTypes;
+using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using LibHac.Util;
@@ -340,17 +341,36 @@ public class HashCommand : Command<HashSettings>
         var last = string.Empty; 
         foreach (var entry in entryCollection)
         {
-            if (last.StartsWith(entry.Description, StringComparison.InvariantCultureIgnoreCase) && !last.EndsWith("(Demo)") && !last.EndsWith("(Alt)"))
+            var isDupe = false;
+            
+            if (last.StartsWith(entry.Description, StringComparison.InvariantCultureIgnoreCase))
             {
-                if(entry.GetType() == typeof(XmlEntry))
+                isDupe = true;
+                
+                if(last.Contains("(Alt)") && !entry.IsAlt)
+                {
+                    isDupe = false;
+                }
+                
+                if (last.Contains("(Demo)") && !entry.IsDemo)
+                {
+                    isDupe = false;    
+                }
+            }
+
+            if (isDupe)
+            {
+                if (entry.GetType() == typeof(XmlEntry))
                 {
                     Log.Warning($"Skipping XML duplicate entry: {entry.Description}. Please re-scan.");
                     continue;
                 }
+                
                 Log.Information($"Duplicate description: {entry.Description}");
-                entry.Description += $" ({entry.TitleId.ToUpperInvariant()})";
-
+                
+                entry.Description += $" ({entry.TitleId.ToUpperInvariant()})";  
             }
+            
             builder.AppendLine(entry.ToString());
             last = entry.Description;
         }

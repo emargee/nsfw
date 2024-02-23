@@ -447,7 +447,7 @@ public static partial class NsfwUtilities
         return dbConnection.Table<CnmtInfo>().Where(x => x.TitleId.ToLower() == titleId.ToLower() && x.Version == version).ToArrayAsync().Result;
     }
     
-    private static Region GetRegion(NacpLanguage[] titles, ref string languageList)
+    private static Region GetRegion(NacpLanguage[] titles)
     {
         var region = Region.Unknown;
 
@@ -461,91 +461,76 @@ public static partial class NsfwUtilities
             if (titles is [NacpLanguage.AmericanEnglish])
             {
                 region = Region.USA;
-                languageList = string.Empty;
             }
 
             if (titles is [NacpLanguage.Japanese])
             {
                 region = Region.Japan;
-                languageList = string.Empty;
             }
 
             if (titles is [NacpLanguage.Korean])
             {
                 region = Region.Korea;
-                languageList = string.Empty;
             }
 
             if (titles is [NacpLanguage.Russian])
             {
                 region = Region.Russia;
-                languageList = string.Empty;
             }
 
             if (titles is [NacpLanguage.TraditionalChinese])
             {
                 region = Region.Taiwan;
-                languageList = string.Empty;
             }
 
             if (titles is [NacpLanguage.SimplifiedChinese])
             {
                 region = Region.China;
-                languageList = string.Empty;
             }
 
             if (titles is [NacpLanguage.BritishEnglish])
             {
                 region = Region.UnitedKingdom;
-                languageList = string.Empty;
             }
             
             if(titles is [NacpLanguage.LatinAmericanSpanish])
             {
                 region = Region.LatinAmerica;
-                languageList = string.Empty;
             }
             
             if(titles is [NacpLanguage.BrazilianPortuguese])
             {
                 region = Region.Brazil;
-                languageList = string.Empty;
             }
             
             if(titles is [NacpLanguage.Dutch])
             {
                 region = Region.Netherlands;
-                languageList = string.Empty;
             }
             
             if(titles is [NacpLanguage.Portuguese])
             {
                 region = Region.Portugal;
-                languageList = string.Empty;
             }
             
             if(titles is [NacpLanguage.French])
             {
                 region = Region.France;
-                languageList = string.Empty;
             }
             
             if(titles is [NacpLanguage.German])
             {
                 region = Region.Germany;
-                languageList = string.Empty;
             }
             
             if(titles is [NacpLanguage.Italian])
             {
                 region = Region.Italy;
-                languageList = string.Empty;
             }
             
             if(titles is [NacpLanguage.Spanish])
             {
                 region = Region.Spain;
-                languageList = string.Empty;
             }
             
             if(region != Region.Unknown)
@@ -647,7 +632,7 @@ public static partial class NsfwUtilities
             languageList = $"({languageList})";
         }
 
-        var region = GetRegion(titles, ref languageList);
+        var region = GetRegion(titles);
         
         var displayRegion = region switch {
             Region.USA => "(USA)",
@@ -674,10 +659,6 @@ public static partial class NsfwUtilities
         if (!string.IsNullOrWhiteSpace(distributionRegion))
         {
             displayRegion = $"({distributionRegion})";
-            if(displayRegion == "(World)" && languagesShort.Length == 1)
-            {
-                languageList = $"({string.Join(",", languagesShort)})";
-            }
         }
 
         if (languageMode == LanguageMode.None)
@@ -752,7 +733,7 @@ public static partial class NsfwUtilities
             if (parentLanguages.Any())
             {
                 languageList = displayParentLanguages;
-                region = GetRegion(parentLanguages.ToArray(), ref languageList);
+                region = GetRegion(parentLanguages.ToArray());
                 displayRegion = languageMode != LanguageMode.None ? $"({region})" : string.Empty;
                 
                 if (!string.IsNullOrWhiteSpace(displayRegion) && !string.IsNullOrWhiteSpace(distributionRegion))
@@ -785,7 +766,7 @@ public static partial class NsfwUtilities
                 }
             }
             
-            var finalTitle = $"{cleanParentTitle.RemoveBrackets()} - {cleanTitle.RemoveBrackets()} {displayRegion}{languageList}".CleanTitle();
+            var finalTitle = $"{cleanParentTitle.RemoveBrackets()} - {cleanTitle?.RemoveBrackets()} {displayRegion}{languageList}".CleanTitle();
             
             if (keepName)
             {
