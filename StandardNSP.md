@@ -5,7 +5,7 @@ Version: *0.2*
 Currently, NSPs are *non-deterministic*, meaning that 2 or more people could dump the same NSP (Game/Update/DLC etc) and end up with different results.
 This is not great for preservation as it makes it harder to verify a known dump and we end up with situations like this:
 
-![image](https://gist.github.com/assets/221695/7bb2c331-be4b-486d-9dee-090e05b45021)
+![image](https://github.com/emargee/nsfw/assets/221695/90f2ad33-12a2-4126-98e8-cb4a4c3f0ba1)
 
 Where the same item dumped by different people gets different results and one is not objectively "better" than the other, so we DAT all of them.
 (**Note**: Yes, of course there will be times when there are actual differences but we can get into that later on!)
