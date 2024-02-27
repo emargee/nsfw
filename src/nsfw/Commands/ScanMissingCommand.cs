@@ -147,8 +147,15 @@ public class ScanMissingCommand : AsyncCommand<ScanMissingSettings>
             
             if(cnmtQuery.Result != null)
             {
-                Log.Information($"[[{pair.Key}]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
-                withCnmt++;
+                if (pair.Value.Name.ToLowerInvariant().EndsWith("demo") || pair.Value.Name.ToLowerInvariant().EndsWith("(demo)") || pair.Value.Name.ToLowerInvariant().EndsWith("(trial version)"))
+                {
+                    Log.Information($"[[{pair.Key}]] [[DEMO]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
+                }
+                else
+                {
+                    Log.Information($"[[{pair.Key}]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
+                    withCnmt++;
+                }
             }
             else
             {

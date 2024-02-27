@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using System.Security.Cryptography;
+using Diacritics.Extensions;
 using LibHac.Common;
 using LibHac.Fs;
 using LibHac.Fs.Fsa;
@@ -91,7 +92,6 @@ public static partial class NsfwUtilities
             .Replace("）", ") ")
             .Replace("） (", ") (")
             .Replace(" dlc", " DLC")
-            .Replace(" of ", " Of ")
             .Replace("((((", "(")
             .Replace("))))", ")")
             .Replace("(((", "(")
@@ -110,7 +110,12 @@ public static partial class NsfwUtilities
         {
             cleanTitle = cleanTitle[1..];
         }
-        
+
+        if (cleanTitle.HasDiacritics())
+        {
+            cleanTitle = cleanTitle.RemoveDiacritics();
+        }
+
         return cleanTitle;
     }
 

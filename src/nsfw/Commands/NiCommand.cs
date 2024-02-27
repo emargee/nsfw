@@ -148,16 +148,15 @@ public partial class NiCommand : Command<NiSettings>
         var sortedSet = xml1
             .Descendants("game")
             .Concat(xml2.Descendants("game"))
-            .Concat(xml3.Descendants("game"))
             .Descendants("game_id")
             .Select(x =>
             {
                 Debug.Assert(x.Parent != null, "x.Parent != null");
-                
+
                 var name = x.Parent.Attribute("name")?.Value;
                 var romName = x.Parent?.Descendants("rom").First().Attribute("name")?.Value;
                 var isNsp = romName != null && romName.EndsWith(".nsp");
-                
+
                 if (name != null)
                 {
                     var version = VersionRegex().IsMatch(name) ? VersionRegex().Match(name).Value : "v0";
@@ -177,7 +176,40 @@ public partial class NiCommand : Command<NiSettings>
                 }
 
                 return new DatEntry();
-            })
+            });
+        
+        var dlcSet = xml3
+            .Descendants("game")
+            .Select(x =>
+            {
+                Debug.Assert(x.Parent != null, "x.Parent != null");
+
+                var name = x.Parent.Attribute("name")?.Value;
+                var romName = x.Parent?.Descendants("rom").First().Attribute("name")?.Value;
+                var isNsp = romName != null && romName.EndsWith(".nsp");
+
+                if (name != null)
+                {
+                    var version = VersionRegex().IsMatch(name) ? VersionRegex().Match(name).Value : "v0";
+                    return new DatEntry
+                    {
+                        Name = name,
+                        TitleId = x.Value,
+                        Version = version,
+                        Type = isNsp ? "NSP" : "CDN",
+                        Xml = x.Parent?.ToString() ?? string.Empty,
+                        Id = x.Parent?.Attribute("id")?.Value,
+                        Sha1 = isNsp ? x.Parent?.Descendants("rom").First().Attribute("sha1")?.Value : null,
+                        IsDLC = true,
+                        IsMia = isNsp && x.Parent?.Descendants("rom").First().Attribute("mia")?.Value == "yes",
+                        IsAlt = false
+                    };
+                }
+
+                return new DatEntry();
+            });
+        
+        sortedSet = sortedSet.Concat(dlcSet)
             .DistinctBy(x => x.Name.ToUpperInvariant())
             .OrderBy(x => x.Name, StringComparer.InvariantCultureIgnoreCase);
         
