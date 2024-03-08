@@ -1,6 +1,6 @@
-﻿using System.Runtime.InteropServices.ComTypes;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using LibHac.Util;
 using Nsfw.Nsp;
@@ -12,9 +12,12 @@ using Spectre.Console.Cli;
 
 namespace Nsfw.Commands;
 
-public class HashCommand : Command<HashSettings>
+public partial class HashCommand : Command<HashSettings>
 {
     public readonly int DefaultBlockSize = 0x8000;
+    
+    [GeneratedRegex("(v[0-9.]+)")]
+    private static partial Regex VersionRegex();
     
     public override int Execute(CommandContext context, HashSettings settings)
     {
@@ -52,10 +55,51 @@ public class HashCommand : Command<HashSettings>
             extra += $"(Batch of {settings.Batch}) ";
         }
         
+        var dlcXml = XDocument.Load(settings.DlcDat);
+        Log.Information($"DLC Dat Loaded : [olive]{settings.DlcDat}[/]");
+
+        // Key -> (Name, Id, TitleId)
+        var dlcLookup = new Dictionary<string, (string, string, string)>();
+        var dlcCount = 0;
+        
+        foreach (var game in dlcXml.Descendants("game"))
+        {
+            dlcCount++;
+            var nameAttribute = game.Attribute("name");
+            var name = nameAttribute != null ? nameAttribute.Value : string.Empty;
+            var id = game.Attribute("id")?.Value;
+            var gameId = game.Descendants("game_id").FirstOrDefault();
+            var titleId = gameId != null ? gameId.Value : string.Empty;
+            var version = VersionRegex().IsMatch(name) ? VersionRegex().Match(name).Value : "v0";
+            var key = $"{titleId}_{version}".ToLowerInvariant();
+
+            if (string.IsNullOrWhiteSpace(titleId))
+            {
+                Log.Warning($"[[[red]NO TITLE ID[/]]] => {name}");
+                continue;
+            }
+            
+            if (!string.IsNullOrWhiteSpace(name) && id != null && !string.IsNullOrWhiteSpace(titleId))
+            {
+                if (dlcLookup.ContainsKey(key))
+                {
+                    Log.Warning($"DUPE {id} + {dlcLookup[titleId].Item2} have same TitleId => {titleId} => {name} / {dlcLookup[titleId].Item1}");
+                }
+                else
+                {
+                    dlcLookup.Add(key, (name, id, titleId));
+                }
+            }
+        }
+
+        Log.Information($"Loaded {dlcLookup.Count}/{dlcCount} entries from DLC Dat..");
+        
         Log.Information($"Hashing {allFiles.Length} NSPs {extra}..");
         
         var datName = settings.DatName ?? $"Nintendo - Nintendo Switch (Digital) (Standard) ({DateTime.Now.ToString("yyyyMMdd-HHmmss")}).xml";
         var datPath = Path.Combine(settings.OutputDirectory, datName);
+        var dlcDatPath = Path.Combine(settings.OutputDirectory, datName.Replace(".xml", "_dlc.xml"));
+        var gameDatPath = Path.Combine(settings.OutputDirectory, datName.Replace(".xml", "_games.xml"));
 
         var alreadyHashed = new Dictionary<string, (string, string)>();
         var nameCheck = new Dictionary<string, (string, string, string, string)>();
@@ -66,8 +110,29 @@ public class HashCommand : Command<HashSettings>
             {
                 var name = rom.Attribute("name");
                 var size = rom.Attribute("size");
+                var gameId = rom.Parent?.Descendants("game_id").FirstOrDefault()?.Value.ToLower();
+                var internalVersion = rom.Parent?.Descendants("version1").FirstOrDefault()?.Value.ToLower();
+                
                 if (name != null && size != null && rom.Parent != null)
                 {
+                    if(!string.IsNullOrWhiteSpace(gameId) && !(gameId.EndsWith("000") || gameId.EndsWith("800")))
+                    {
+                        var domElement = new XElement("dom_id", "UNKNOWN");
+                        
+                        // Match DLC DAT so add id
+                        if(dlcLookup.TryGetValue($"{gameId}_{internalVersion}".ToLowerInvariant(), out var value))
+                        {
+                            domElement.Value = value.Item2;
+                        }
+                        
+                        if(rom.Parent.Descendants("dom_id").Any())
+                        {
+                            rom.Parent.Descendants("dom_id").Remove();
+                        }
+                        
+                        rom.Parent.Add(domElement);
+                    }
+
                     var parentXml = rom.Parent.ToString();
                     alreadyHashed.Add(name.Value, (size.Value, parentXml));
                     
@@ -129,8 +194,10 @@ public class HashCommand : Command<HashSettings>
             {
                 if (fileInfo.Length == long.Parse(value.Item1))
                 {
-                    var description = XElement.Parse(value.Item2).Descendants("description").First().Value;
-                    entryCollection.Add(new XmlEntry { Xml = value.Item2, Description = description});
+                    var element = XElement.Parse(value.Item2);
+                    var description = element.Descendants("description").First().Value;
+                    var isDlc = element.Descendants("category").First().Value == "DLC";
+                    entryCollection.Add(new XmlEntry { Xml = value.Item2, Description = description, IsDlc = isDlc});
                     if(settings.ShowAll)
                     {
                         Log.Warning($"Skipping [olive]{fileName.EscapeMarkup()}[/]..");
@@ -333,12 +400,20 @@ public class HashCommand : Command<HashSettings>
             return 0;
         }
         
-        var header = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard)</name><description>Nintendo - Nintendo Switch (Digital) (Standard)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
+        var header     = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard)</name><description>Nintendo - Nintendo Switch (Digital) (Standard)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
+        var headerDlc  = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard) (DLC)</name><description>Nintendo - Nintendo Switch (Digital) (Standard) (DLC)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
+        var headerGame = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard) (Games + Updates)</name><description>Nintendo - Nintendo Switch (Digital) (Standard) (Games + Updates)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
         var footer = "</datafile>";
 
         var builder = new StringBuilder();
+        var dlcBuilder = new StringBuilder();
+        var gameBuilder = new StringBuilder();
         builder.AppendLine(header);
+        dlcBuilder.AppendLine(headerDlc);
+        gameBuilder.AppendLine(headerGame);
+        
         var last = string.Empty; 
+        var oneGameOneUpdate = new Dictionary<string, Dictionary<int, string>>();
         foreach (var entry in entryCollection)
         {
             var isDupe = false;
@@ -370,14 +445,93 @@ public class HashCommand : Command<HashSettings>
                 
                 entry.Description += $" ({entry.TitleId.ToUpperInvariant()})";  
             }
+
+            if (entry.GetType() == typeof(XmlEntry))
+            {
+                if (((XmlEntry)entry).IsDlc)
+                {
+                    dlcBuilder.AppendLine(entry.ToString());
+                }
+                else
+                {
+                    gameBuilder.AppendLine(entry.ToString());
+                }
+            }
+            
+            if (settings.OneGameOneUpdate && entry.GetType() == typeof(XmlEntry))
+            {
+                var entryString = entry.ToString();
+                var parsedEntry = XElement.Parse(entryString);
+                var titleId = parsedEntry.Descendants("game_id").First().Value.ToLower();
+                var internalVersion = parsedEntry.Descendants("version1").First().Value.Replace("v", string.Empty);
+                
+                if(titleId.EndsWith("000") || titleId.EndsWith("800"))
+                {
+                    try
+                    {
+                        if(titleId.EndsWith("800"))
+                        {
+                            titleId = titleId[..^3] + "000";
+                        }
+                        
+                        if (oneGameOneUpdate.TryGetValue(titleId, out var value))
+                        {
+                            var intVersion = int.Parse(internalVersion);
+                            value.TryAdd(intVersion, entryString);
+                        }
+                        else
+                        {
+                            oneGameOneUpdate.Add(titleId, new Dictionary<int, string> { { int.Parse(internalVersion), entryString } });
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error($"{titleId}/{internalVersion}/{e.Message}");
+                    }
+                }
+            }
             
             builder.AppendLine(entry.ToString());
             last = entry.Description;
         }
         builder.Append(footer);
+        dlcBuilder.Append(footer);
+        gameBuilder.Append(footer);
         File.WriteAllText(datPath, builder.ToString());
+        File.WriteAllText(dlcDatPath, dlcBuilder.ToString());
+        File.WriteAllText(gameDatPath, gameBuilder.ToString());
         Log.Information($"{entryCollection.Count} entries written to DAT successfully! ({datPath})");
         AnsiConsole.Write(new Rule());
+
+        if (settings.OneGameOneUpdate)
+        {
+            Log.Information("Generating OneGameOneUpdate DAT..");
+            var oneBuilder = new StringBuilder();
+            var oneGameOneUpdateHeader = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard) (1G1U)</name><description>Nintendo - Nintendo Switch (Digital) (Standard) (1G1U)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
+            oneBuilder.AppendLine(oneGameOneUpdateHeader);
+
+            foreach (var game in oneGameOneUpdate)
+            {
+                var latestUpdate = game.Value.MaxBy(x => x.Key);
+                var hasGame = game.Value.ContainsKey(0);
+                
+                if (latestUpdate.Key > 0)
+                {
+                    oneBuilder.AppendLine(latestUpdate.Value);
+                }
+                
+                if(hasGame)
+                {
+                    oneBuilder.AppendLine(game.Value[0]);
+                } 
+            }
+            
+            oneBuilder.Append(footer);
+            File.WriteAllText(Path.Combine(settings.OutputDirectory, datName.Replace(".xml","_1g1u.xml")), oneBuilder.ToString());
+            Log.Information($"{oneGameOneUpdate.Count} entries written to 1G1U DAT successfully!");
+            AnsiConsole.Write(new Rule());
+        }
+        
         return 0;
     }
 }
@@ -385,6 +539,8 @@ public class HashCommand : Command<HashSettings>
 public class XmlEntry : Entry
 {
     public string Xml { get; set; } = string.Empty;
+    
+    public bool IsDlc { get; set; }
 
     public override string ToString()
     {

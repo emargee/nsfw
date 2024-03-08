@@ -147,7 +147,7 @@ public class ScanMissingCommand : AsyncCommand<ScanMissingSettings>
             
             if(cnmtQuery.Result != null)
             {
-                if (pair.Value.Name.ToLowerInvariant().EndsWith("demo") || pair.Value.Name.ToLowerInvariant().EndsWith("(demo)") || pair.Value.Name.ToLowerInvariant().EndsWith("(trial version)"))
+                if (pair.Value.Name.ToLowerInvariant().EndsWith("demo") || pair.Value.Name.ToLowerInvariant().EndsWith("trial edition") || pair.Value.Name.ToLowerInvariant().StartsWith("demo:") || pair.Value.Name.ToLowerInvariant().EndsWith("(demo)") || pair.Value.Name.ToLowerInvariant().EndsWith("(trial version)"))
                 {
                     Log.Information($"[[{pair.Key}]] [[DEMO]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
                 }
@@ -159,7 +159,7 @@ public class ScanMissingCommand : AsyncCommand<ScanMissingSettings>
             }
             else
             {
-                Log.Warning($"[[{pair.Key}]] [[NO CMNT]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
+                //Log.Warning($"[[{pair.Key}]] [[NO CMNT]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
             }
         }
         

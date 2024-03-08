@@ -44,10 +44,26 @@ public class HashSettings : CommandSettings
     [Description("Dont skip files modified in the last X hours.")]
     public int Latest { get; set; }
     
+    [CommandOption("-z|--one-game-one-update", IsHidden = true)]
+    [Description("Only hash one game and one update.")]
+    public bool OneGameOneUpdate { get; set; }
+    
+    [CommandOption("--dlc <FILE>")]
+    [Description("Path to NI DLC Dat file.")]
+    public string DlcDat { get; set; } = string.Empty;
+    
     public bool IsBatchMode => Batch > 0;
     
     public override ValidationResult Validate()
     {
+        if (!string.IsNullOrWhiteSpace(DlcDat))
+        {
+            if(!File.Exists(DlcDat))
+            {
+                return ValidationResult.Error("DLC Dat file does not exist.");
+            }
+        }
+        
         if(NspDirectory.StartsWith('~'))
         {
             NspDirectory = NspDirectory.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));

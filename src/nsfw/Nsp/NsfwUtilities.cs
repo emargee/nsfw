@@ -122,6 +122,8 @@ public static partial class NsfwUtilities
     public static string RemoveBrackets(this string input)
     {
         var result = input.Replace(" (", " - ")
+            .Replace("( ", " - ")
+            .Replace("(", " - ")
             .Replace(")", " ")
             .Replace("[", " ")
             .Replace("]", " ")
