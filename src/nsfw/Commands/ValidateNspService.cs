@@ -1219,7 +1219,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             var buildStatus = 0;
             
             AnsiConsole.Status()
-                .Start("Building Standard NSP...", ctx =>
+                .Start($"Building Standard NSP => [olive]{outputName.EscapeMarkup()}[/]", ctx =>
                 {
                     ctx.Spinner(Spinner.Known.Ascii);
                     
