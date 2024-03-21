@@ -124,7 +124,7 @@ public partial class NiCommand : Command<NiSettings>
             }
             else
             {
-                versionMap.Add(title, new[] { internalVersion });
+                versionMap.Add(title, [internalVersion]);
             }
         }
 
@@ -169,7 +169,7 @@ public partial class NiCommand : Command<NiSettings>
                         Xml = x.Parent?.ToString() ?? string.Empty,
                         Id = x.Parent?.Attribute("id")?.Value,
                         Sha1 = isNsp ? x.Parent?.Descendants("rom").First().Attribute("sha1")?.Value : null,
-                        IsDLC = name.Contains("(DLC") || name.Contains("DLC)") || name.Contains("Update, DLC"),
+                        IsDLC = false,
                         IsMia = isNsp && x.Parent?.Descendants("rom").First().Attribute("mia")?.Value == "yes",
                         IsAlt = false
                     };
@@ -302,6 +302,14 @@ public partial class NiCommand : Command<NiSettings>
                 {
                     AnsiConsole.Write(new Rule());
                     Log.Fatal($"[red]!!DAT ERROR: Invalid Title ID -> {game.TitleId} -> {game.Name}[/]");
+                    AnsiConsole.Write(new Rule());
+                    continue;
+                }
+                
+                if (!game.IsDLC && !game.TitleId.EndsWith("00"))
+                {
+                    AnsiConsole.Write(new Rule());
+                    Log.Fatal($"[red]!!DAT ERROR: DLC found in wrong DAT -> {game.TitleId} -> {game.Name}[/]");
                     AnsiConsole.Write(new Rule());
                     continue;
                 }
