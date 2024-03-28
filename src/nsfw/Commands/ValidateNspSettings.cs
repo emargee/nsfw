@@ -131,6 +131,10 @@ public class ValidateNspSettings : CommandSettings
     [Description("Skip a certain number of files before processing.")]
     public int Skip { get; set; }
     
+    [CommandOption("-e|--exit-on-error")]
+    [Description("Exit batch processing on first error.")]
+    public bool ExitOnError { get; set; }
+    
     [CommandOption("--wait")]
     [Description("Wait for a key press before returning.")]
     public bool Wait { get; set; }

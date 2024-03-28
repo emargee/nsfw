@@ -413,7 +413,8 @@ public partial class HashCommand : Command<HashSettings>
         gameBuilder.AppendLine(headerGame);
         
         var last = string.Empty; 
-        var oneGameOneUpdate = new Dictionary<string, Dictionary<int, string>>();
+        var oneGameOneUpdateBase = new Dictionary<string, string>();
+        var oneGameOneUpdateUpdate = new Dictionary<string, Dictionary<int, string>>();
         foreach (var entry in entryCollection)
         {
             var isDupe = false;
@@ -464,29 +465,41 @@ public partial class HashCommand : Command<HashSettings>
                 var parsedEntry = XElement.Parse(entryString);
                 var titleId = parsedEntry.Descendants("game_id").First().Value.ToLower();
                 var internalVersion = parsedEntry.Descendants("version1").First().Value.Replace("v", string.Empty);
-                
-                if(titleId.EndsWith("000") || titleId.EndsWith("800"))
+                var category = parsedEntry.Descendants("category").First().Value.ToLower();
+                var altElement = parsedEntry.Descendants("isAlt").FirstOrDefault();
+                var isAlt = bool.Parse(altElement == null ? "false" : altElement.Value.ToLower());
+
+                if (!isAlt)
                 {
-                    try
+                    switch (category)
                     {
-                        if(titleId.EndsWith("800"))
-                        {
-                            titleId = titleId[..^3] + "000";
-                        }
-                        
-                        if (oneGameOneUpdate.TryGetValue(titleId, out var value))
-                        {
-                            var intVersion = int.Parse(internalVersion);
-                            value.TryAdd(intVersion, entryString);
-                        }
-                        else
-                        {
-                            oneGameOneUpdate.Add(titleId, new Dictionary<int, string> { { int.Parse(internalVersion), entryString } });
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Log.Error($"{titleId}/{internalVersion}/{e.Message}");
+                        case "game":
+                            oneGameOneUpdateBase.TryAdd(titleId, entryString);
+                            break;
+                        case "update":
+                            try
+                            {
+                                titleId = titleId[..^3] + "000";
+
+                                if (oneGameOneUpdateUpdate.TryGetValue(titleId, out var value))
+                                {
+                                    var intVersion = int.Parse(internalVersion);
+                                    if (value.TryAdd(intVersion, entryString))
+                                    {
+                                        //Console.WriteLine($"ADD EXTRA UPDATE => {titleId} / {intVersion}");
+                                    }
+                                }
+                                else
+                                {
+                                    oneGameOneUpdateUpdate.Add(titleId, new Dictionary<int, string> { { int.Parse(internalVersion), entryString } });
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                Log.Error($"{titleId}/{internalVersion}/{e.Message}");
+                            }
+
+                            break;
                     }
                 }
             }
@@ -502,33 +515,43 @@ public partial class HashCommand : Command<HashSettings>
         File.WriteAllText(gameDatPath, gameBuilder.ToString());
         Log.Information($"{entryCollection.Count} entries written to DAT successfully! ({datPath})");
         AnsiConsole.Write(new Rule());
-
+        
         if (settings.OneGameOneUpdate)
         {
             Log.Information("Generating OneGameOneUpdate DAT..");
+            var oneCount = 0;
             var oneBuilder = new StringBuilder();
             var oneGameOneUpdateHeader = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard) (1G1U)</name><description>Nintendo - Nintendo Switch (Digital) (Standard) (1G1U)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
             oneBuilder.AppendLine(oneGameOneUpdateHeader);
-
-            foreach (var game in oneGameOneUpdate)
+            
+            // Get latest update for each BASE game
+            foreach (var game in oneGameOneUpdateBase)
             {
-                var latestUpdate = game.Value.MaxBy(x => x.Key);
-                var hasGame = game.Value.ContainsKey(0);
-                
-                if (latestUpdate.Key > 0)
+                oneBuilder.AppendLine(game.Value);
+                oneCount++;
+
+                if (oneGameOneUpdateUpdate.TryGetValue(game.Key, out var value))
                 {
+                    var latestUpdate = value.MaxBy(x => x.Key);
                     oneBuilder.AppendLine(latestUpdate.Value);
+                    oneCount++;
                 }
-                
-                if(hasGame)
+            }
+
+            // Check for updates that do not have a BASE game
+            foreach (var updateOnly in oneGameOneUpdateUpdate)
+            {
+                if(!oneGameOneUpdateBase.ContainsKey(updateOnly.Key))
                 {
-                    oneBuilder.AppendLine(game.Value[0]);
-                } 
+                    var latestUpdate = updateOnly.Value.MaxBy(x => x.Key);
+                    oneBuilder.AppendLine(latestUpdate.Value);
+                    oneCount++;
+                }
             }
             
             oneBuilder.Append(footer);
             File.WriteAllText(Path.Combine(settings.OutputDirectory, datName.Replace(".xml","_1g1u.xml")), oneBuilder.ToString());
-            Log.Information($"{oneGameOneUpdate.Count} entries written to 1G1U DAT successfully!");
+            Log.Information($"{oneCount} entries written to 1G1U DAT successfully!");
             AnsiConsole.Write(new Rule());
         }
         

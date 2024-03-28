@@ -326,6 +326,12 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.RightsId = mainNca.Nca.Header.RightsId.ToHexString();
         }
 
+        if (mainNca.Nca.Header.KeyGeneration > 17)
+        {
+            Log.Error($"Unsupported key generation ({mainNca.Nca.Header.KeyGeneration.ToString()}). Contact author for an update!");
+            return (1, null);
+        }
+
         nspInfo.KeyGeneration = (KeyGeneration)mainNca.Nca.Header.KeyGeneration;
         nspInfo.HasTitleKeyCrypto = mainNca.Nca.Header.HasRightsId;
 

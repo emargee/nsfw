@@ -58,6 +58,12 @@ public class ValidateNspCommand : Command<ValidateNspSettings>
             {
                 var service = new ValidateNspService(settings);
                 result = service.Process(nsp,true);
+                if (settings.ExitOnError && result.Item1 != 0)
+                {
+                    Log.Fatal("Exiting on first error..");
+                    AnsiConsole.Write(new Rule());
+                    return result.Item1;
+                }
                 AnsiConsole.Write(new Rule($"[[{count}/{total}]]"));
                 count++;
             }
