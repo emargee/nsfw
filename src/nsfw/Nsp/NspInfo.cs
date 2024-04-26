@@ -182,7 +182,7 @@ public class NspInfo
     public KeyGeneration KeyGeneration { get; set; }
     public bool HasLooseFiles { get; set; }
     public bool IsFileOrderCorrect { get; set; }
-    public bool IsStandardNsp => CanProceed && !GenerateNewTicket && !HasLooseFiles && IsFileOrderCorrect && !CopyNewCert;
+    public bool IsStandardNsp => CanProceed && !GenerateNewTicket && !HasLooseFiles && IsFileOrderCorrect && !CopyNewCert && !BadPadding;
     public DateTime? ReleaseDate { get; set; }
     public bool IsOldTicketCrypto { get; set; }
     public bool IsDemo { get; set; }
@@ -191,6 +191,7 @@ public class NspInfo
     public string DistributionRegion { get; set; } = string.Empty;
     public string DistributionRegionList { get; set; } = string.Empty;
     public bool CopyNewCert { get; set; }
+    public bool BadPadding { get; set; }
 
     public NspInfo(string filePath)
     {

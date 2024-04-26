@@ -111,7 +111,18 @@ public class ValidateNspService(ValidateNspSettings settings)
             Log.Error("Cannot mount file-system. Invalid NSP file.");
             return (1, null);
         }
+        
+        var padding = new byte[57];
+        var paddingBuffer = new Span<byte>(padding);
+        localFile.GetSize(out var localFileSize);
+        localFile.Read(out _, localFileSize-57, paddingBuffer);
 
+        if (paddingBuffer[0] != 125 && paddingBuffer[2] != 1 && paddingBuffer[4] != 1)
+        {
+            nspInfo.BadPadding = true;
+            Log.Warning("NSP has incorrect padding at the end of the file. This may be an over-dump.");
+        }
+        
         var fileStorage = new FileStorage(localFile);
         var fileSystem = new PartitionFileSystem();
         fileSystem.Initialize(fileStorage);
