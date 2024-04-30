@@ -156,7 +156,8 @@ public class NspInfo
         KeyGeneration.U140 => "14.0.0 <-> 14.1.2",
         KeyGeneration.U150 => "15.0.0 <-> 15.0.1",
         KeyGeneration.U160 => "16.0.0 <-> 16.1.0",
-        KeyGeneration.U170 => "17.0.0+",
+        KeyGeneration.U170 => "17.0.0 <-> 17.0.1",
+        KeyGeneration.U180 => "18.0.0+",
         _ => Unknown
     };
 

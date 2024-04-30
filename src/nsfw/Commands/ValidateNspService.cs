@@ -120,7 +120,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (paddingBuffer[0] != 125 && paddingBuffer[2] != 1 && paddingBuffer[4] != 1)
         {
             nspInfo.BadPadding = true;
-            Log.Warning("NSP has incorrect padding at the end of the file. This may be an over-dump.");
+            Log.Warning("NSP has incorrect padding at the end of the file.");
         }
         
         var fileStorage = new FileStorage(localFile);
@@ -337,7 +337,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.RightsId = mainNca.Nca.Header.RightsId.ToHexString();
         }
 
-        if (mainNca.Nca.Header.KeyGeneration > 17)
+        if (mainNca.Nca.Header.KeyGeneration > 18)
         {
             Log.Error($"Unsupported key generation ({mainNca.Nca.Header.KeyGeneration.ToString()}). Contact author for an update!");
             return (1, null);
