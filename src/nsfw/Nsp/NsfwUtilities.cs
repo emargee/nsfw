@@ -727,6 +727,11 @@ public static partial class NsfwUtilities
         
         if (isDemo)
         {
+            if (cleanTitle.EndsWith(" -"))
+            {
+                cleanTitle = cleanTitle[..^2];
+            }
+            
             demo = "(Demo)";
         }
 
