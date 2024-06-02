@@ -54,81 +54,93 @@ public class ScanMissingCommand : AsyncCommand<ScanMissingSettings>
                 Version = version,
                 FullName = Path.GetFileName(x),
                 Name = Path.GetFileName(x).Split('(')[0].Trim(),
+                Region = Path.GetFileName(x).Split('(')[1].TrimEnd(')').Trim(),
                 Type = x.Contains("[BASE]") ? "GAME" : x.Contains("[UPD]") ? "UPD" : x.Contains("[DLC]") ? "DLC" : x.Contains("[DLCUPD]") ? "DLCUPD" : "UNKNOWN",
                 IsDLC = x.Contains("[DLC]") || x.Contains("[DLCUPD]"),
                 IsAlt = displayVersion.EndsWith("-ALT")
             };
         });
 
-        foreach (var fileEntry in fileEntries.Where(x => x.Type is "GAME"))
+        bool hasError = false;
+        
+        foreach (var fileEntry in fileEntries.Where(x => x.Type is "GAME").OrderBy(x => x.Name, StringComparer.InvariantCultureIgnoreCase))
         {
             if (!files.TryAdd(fileEntry.TitleId.ToLowerInvariant(), fileEntry))
             {
-                Log.Warning($"Duplicate file found: [green]{fileEntry.FullName.EscapeMarkup()}[/]");
+                if(fileEntry.FullName.Split("[", 2)[1] == files[fileEntry.TitleId.ToLowerInvariant()].FullName.Split("[", 2)[1])
+                {
+                    Log.Warning($"Duplicate file found: [red]{fileEntry.FullName.EscapeMarkup()}[/] => [green]{files[fileEntry.TitleId.ToLowerInvariant()].FullName.EscapeMarkup()}[/]");
+                    hasError = true;
+                }
             }
+            
+            //Console.WriteLine(fileEntry.Name);
+            
+            if (fileEntry.Name.EndsWith(" - ") || fileEntry.Name.EndsWith("-"))
+            {
+                if (fileEntry.FullName.Contains("(Demo)"))
+                {
+                    Log.Error($"Naming problem: [red]{fileEntry.FullName.EscapeMarkup()}[/]");
+                    hasError = true;
+                }
+            }
+            
+            //Log.Information($"[[{fileEntry.TitleId}]] {fileEntry.Name.EscapeMarkup()} => {fileEntry.Region}");
         }
         
-        // var query = await _dbConnection.Table<CnmtInfo>().ToArrayAsync();
-        //
-        // var missingList = new Dictionary<string, CnmtInfo>();
-        // var foundCount = 0;
-        //
-        // foreach (var cnmtInfo in query.DistinctBy(x => x.TitleId.ToLowerInvariant()))
-        // {
-        //     if(cnmtInfo.TitleId.ToLowerInvariant().EndsWith("000") && files.TryGetValue(cnmtInfo.TitleId.ToLowerInvariant(), out var entry))
-        //     {
-        //         //Log.Information($"[[{cnmtInfo.TitleId}]] => [grey]{entry.FullName.EscapeMarkup()}[/]");
-        //         foundCount++;
-        //     }
-        //     else
-        //     {
-        //         if(cnmtInfo.TitleId.ToLowerInvariant().EndsWith("000"))
-        //         {
-        //             missingList.Add(cnmtInfo.TitleId.ToLowerInvariant(), cnmtInfo);
-        //         }
-        //     }
-        // }
-        //
-        // foreach (var pair in missingList)
-        // {
-        //     var nameQuery = await _dbConnection.Table<GameInfo>().Where(x => x.Id != null && x.Id.ToLower() == pair.Key).FirstOrDefaultAsync();
-        //     var name = nameQuery != null ? nameQuery.Name : "Unknown";
-        //     Log.Warning($"[[{pair.Key}]] => {name} => [red]NOT FOUND![/]");
-        // }
-        //
-        // AnsiConsole.Write(new Rule());
-        // AnsiConsole.MarkupLine($"Found                   : [green]{foundCount}[/]");
-        // AnsiConsole.MarkupLine($"Missing                 : [red]{missingList.Count}[/] ");
-        // AnsiConsole.Write(new Rule());
+        if(hasError)
+        {
+            return 1;
+        }
 
-        var query = await _dbConnection.Table<GameInfo>().ToArrayAsync();
+        Log.Information("No file errors found.");
+
+        AnsiConsole.Write(new Rule());
+
+        var query = await _dbConnection.Table<GameInfo>().OrderBy(x => x.Name).ThenBy(x => x.Id).ToArrayAsync();
         
         var missingCount = 0;
         var noIdCount = 0;
         var foundCount = 0;
         
         var missingList = new Dictionary<string, GameInfo>();
+        var foundList = new Dictionary<string, GameInfo>();
         
         foreach (var game in query)
         {
             if (game.Id != null && game.Id.EndsWith("000") && files.TryGetValue(game.Id.ToLowerInvariant(), out var entry))
             {
-                //Log.Information($"[[{game.Id}]] [green]{game.Name}[/] => [grey]{entry.FullName.EscapeMarkup()}[/]");
-                foundCount++;
+                if(!foundList.ContainsKey(game.Id.ToLowerInvariant()))
+                {
+                    foundList.Add(game.Id.ToLowerInvariant(), game);
+                    Log.Information($"[[{game.Id}]] [green]{game.Name?.ReplaceLineEndings()}[/] => [grey]{entry.FullName.EscapeMarkup()}[/]");
+                    foundCount++;
+                }
+                else
+                {
+                    Log.Information($"[[----------------]] [green]{game.Name?.ReplaceLineEndings()}[/]");
+                }
             }
             else
             {
                 if (game.Id != null && game.Id.EndsWith("000"))
                 {
-                    if (missingList.ContainsKey(game.Id.ToLowerInvariant()))
+                    var name = game.Name?.ReplaceLineEndings(string.Empty);
+                    
+                    if (!missingList.ContainsKey(game.Id.ToLowerInvariant()))
                     {
-                        //Log.Information($"Already found: [grey]{game.Name}[/]");
+                        var cnmtQuery = _dbConnection.Table<CnmtInfo>().Where(x => x.TitleId == game.Id.ToLower()).FirstOrDefaultAsync();
+                        
+                        if (cnmtQuery.Result != null)
+                        {
+                            missingList.Add(game.Id.ToLowerInvariant(), game);
+                            Log.Warning($"[[{game.Id}]] [red]{name}[/] - NOT FOUND!");
+                            missingCount++; 
+                        }
                     }
                     else
                     {
-                        missingList.Add(game.Id.ToLowerInvariant(), game);
-                        //Log.Warning($"[[{game.Id}]] [red]{game.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
-                        missingCount++;
+                        Log.Warning($"[[----------------]] [red]{name}[/]");
                     }
                 }
                 else if (game.Id == null)
@@ -139,35 +151,35 @@ public class ScanMissingCommand : AsyncCommand<ScanMissingSettings>
             }
         }
 
-        var withCnmt = 0;
-        
-        foreach (var pair in missingList.OrderBy(x => x.Value.Name, StringComparer.InvariantCultureIgnoreCase))
-        {
-            var cnmtQuery = _dbConnection.Table<CnmtInfo>().Where(x => x.TitleId == pair.Key).FirstOrDefaultAsync();
-            
-            if(cnmtQuery.Result != null)
-            {
-                if (pair.Value.Name == null) continue;
-                
-                if (pair.Value.Name.ToLowerInvariant().EndsWith("demo") || pair.Value.Name.ToLowerInvariant().EndsWith("trial edition") || pair.Value.Name.ToLowerInvariant().StartsWith("demo:") || pair.Value.Name.ToLowerInvariant().EndsWith("(demo)") || pair.Value.Name.ToLowerInvariant().Contains("trial version"))
-                {
-                    Log.Information($"[[{pair.Key}]] [[DEMO]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
-                }
-                else
-                {
-                    Log.Information($"[[{pair.Key}]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
-                    withCnmt++;
-                }
-            }
-            else
-            {
-                //Log.Warning($"[[{pair.Key}]] [[NO CMNT]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
-            }
-        }
+        // var withCnmt = 0;
+        //
+        // foreach (var pair in missingList.OrderBy(x => x.Value.Name, StringComparer.InvariantCultureIgnoreCase))
+        // {
+        //     var cnmtQuery = _dbConnection.Table<CnmtInfo>().Where(x => x.TitleId == pair.Key).FirstOrDefaultAsync();
+        //     
+        //     if(cnmtQuery.Result != null)
+        //     {
+        //         if (pair.Value.Name == null) continue;
+        //         
+        //         if (pair.Value.Name.ToLowerInvariant().EndsWith("demo") || pair.Value.Name.ToLowerInvariant().EndsWith("trial edition") || pair.Value.Name.ToLowerInvariant().StartsWith("demo:") || pair.Value.Name.ToLowerInvariant().EndsWith("(demo)") || pair.Value.Name.ToLowerInvariant().Contains("trial version"))
+        //         {
+        //             Log.Information($"[[{pair.Key}]] [[DEMO]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
+        //         }
+        //         else
+        //         {
+        //             Log.Information($"[[{pair.Key}]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
+        //             withCnmt++;
+        //         }
+        //     }
+        //     else
+        //     {
+        //         //Log.Warning($"[[{pair.Key}]] [[NO CMNT]] [red]{pair.Value.Name.ReplaceLineEndings(string.Empty)}[/] - NOT FOUND!");
+        //     }
+        // }
         
         AnsiConsole.Write(new Rule());
         AnsiConsole.MarkupLine($"Found                   : [green]{foundCount}[/]");
-        AnsiConsole.MarkupLine($"Missing                 : [red]{missingCount}[/] ({withCnmt} with CNMT)");
+        AnsiConsole.MarkupLine($"Missing                 : [red]{missingCount}[/]");
         AnsiConsole.MarkupLine($"No TITLEID (in TitleTb) : [olive]{noIdCount}[/] ");
         AnsiConsole.Write(new Rule());
 

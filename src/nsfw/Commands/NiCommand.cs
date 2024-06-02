@@ -21,6 +21,8 @@ public class FileEntry
     // ReSharper disable once InconsistentNaming
     public bool IsDLC { get; set; }
     public bool IsAlt { get; set; }
+    public string Region { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty;
 }
 
 public class DatEntry
@@ -95,21 +97,31 @@ public partial class NiCommand : Command<NiSettings>
                 Name = filename.Contains('(') ? filename.Split('(')[0].Trim() : filename.Split('[')[0].Trim(),
                 Type = x.Contains("[BASE]") ? "GAME" : x.Contains("[UPD]") ? "UPD" : x.Contains("[DLC]") ? "DLC" : x.Contains("[DLCUPD]") ? "DLCUPD" : "UNKNOWN",
                 IsDLC = x.Contains("[DLC]") || x.Contains("[DLCUPD]"),
-                IsAlt = displayVersion.EndsWith("-ALT")
+                IsAlt = displayVersion.EndsWith("-ALT"),
+                Path = x
             };
         });
 
         var versionMap = new Dictionary<string, string[]>(); // TitleId -> [Version]
         var hasDuplicates = false;
+        var duplicateCount = 0;
         
         foreach (var fileEntry in fileEntries)
         {
+            if (fileEntry.FullName.StartsWith("__"))
+            {
+                continue;
+            }
+            
             var key = $"{fileEntry.TitleId.ToLowerInvariant()}_{fileEntry.Version.ToLowerInvariant()}_{fileEntry.IsDLC}_{fileEntry.IsAlt}";
             
             if(!files.TryAdd(key, fileEntry))
             {
                 Log.Warning($"Duplicate file found: [green]{fileEntry.FullName.EscapeMarkup()}[/] => {files[key].FullName.EscapeMarkup()}");
                 hasDuplicates = true;
+                duplicateCount++;
+                File.Move(fileEntry.Path, $"{Path.GetDirectoryName(fileEntry.Path)}/__{duplicateCount}__{Path.GetFileName(fileEntry.Path)}");
+                File.Move(files[key].Path, $"{Path.GetDirectoryName(files[key].Path)}/__{duplicateCount}__{Path.GetFileName(files[key].Path)}");
             }
 
             var title = fileEntry.TitleId.ToLowerInvariant();
@@ -346,7 +358,7 @@ public partial class NiCommand : Command<NiSettings>
 
                             nameErrorCount++;
 
-                            Log.Warning($"{game.TitleId.ToUpperInvariant()} -> [[[olive]R[/]]] [green]{file.Name.EscapeMarkup()}[/] -> [olive]{gameTrimmed.EscapeMarkup()}[/] ({game.Id}) ({game.Type}) ([grey]{file.FullName.EscapeMarkup()}[/])");
+                            //Log.Warning($"{game.TitleId.ToUpperInvariant()} -> [[[olive]R[/]]] [green]{file.Name.EscapeMarkup()}[/] -> [olive]{gameTrimmed.EscapeMarkup()}[/] ({game.Id}) ({game.Type}) ([grey]{file.FullName.EscapeMarkup()}[/])");
                             if (settings.CorrectName)
                             {
                                 if (AnsiConsole.Confirm($"Rename [green]{file.Name.EscapeMarkup()}[/] to [green]{gameTrimmed.EscapeMarkup()}[/] ?"))

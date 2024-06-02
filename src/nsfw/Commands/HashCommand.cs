@@ -31,7 +31,7 @@ public partial class HashCommand : Command<HashSettings>
         AnsiConsole.Write(new Rule($"[[[blue]N$FW[/]]][[{Program.GetVersion()}]]").LeftJustified());
         Log.Information($"NSP Directory : [olive]{settings.NspDirectory}[/]");
         
-        var allFiles = Directory.EnumerateFiles(settings.NspDirectory, "*.nsp").ToArray();
+        var allFiles = Directory.EnumerateFiles(settings.NspDirectory, "*.nsp").Order().ToArray();
 
         var extra = string.Empty;
         
@@ -83,7 +83,7 @@ public partial class HashCommand : Command<HashSettings>
             {
                 if (dlcLookup.ContainsKey(key))
                 {
-                    Log.Warning($"DUPE {id} + {dlcLookup[titleId].Item2} have same TitleId => {titleId} => {name} / {dlcLookup[titleId].Item1}");
+                    Log.Warning($"DUPE {id} + {dlcLookup[key].Item2} have same TitleId => {titleId} => {name} / {dlcLookup[key].Item1}");
                 }
                 else
                 {
@@ -312,7 +312,7 @@ public partial class HashCommand : Command<HashSettings>
                                 Languages = languages,
                                 TrimmedTitle = trimmedTitle,
                                 Region = region,
-                                IsDemo = isDemo
+                                IsDemo = isDemo,
                             });
                             
                             Log.Warning($"Renaming [olive]{existing.Item4.Replace(".nsp",string.Empty).EscapeMarkup()}[/] => [blue]{fileName.Replace(".nsp",string.Empty).EscapeMarkup()}[/]..");
@@ -415,22 +415,28 @@ public partial class HashCommand : Command<HashSettings>
         var last = string.Empty; 
         var oneGameOneUpdateBase = new Dictionary<string, string>();
         var oneGameOneUpdateUpdate = new Dictionary<string, Dictionary<int, string>>();
-        foreach (var entry in entryCollection)
+        foreach (var entry in entryCollection.OrderBy(x => x.Description, StringComparer.InvariantCultureIgnoreCase))
         {
             var isDupe = false;
             
-            if (last.StartsWith(entry.Description, StringComparison.InvariantCultureIgnoreCase))
+            if (last.StartsWith(entry.Description.ToLowerInvariant(), StringComparison.InvariantCultureIgnoreCase))
             {
                 isDupe = true;
                 
-                if(last.Contains("(Alt)") && !entry.IsAlt)
+                if(last.Contains("(alt)") && !entry.IsAlt)
                 {
                     isDupe = false;
                 }
                 
-                if (last.Contains("(Demo)") && !entry.IsDemo)
+                if (last.Contains("(demo)") && !entry.IsDemo)
                 {
                     isDupe = false;    
+                }
+
+                // Allowed duplicate (name the same but different titleId)
+                if (last.Length == entry.Description.Length + 19)
+                {
+                    isDupe = false;
                 }
             }
 

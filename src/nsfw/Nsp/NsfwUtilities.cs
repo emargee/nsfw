@@ -296,7 +296,7 @@ public static partial class NsfwUtilities
         
         var result = await query.ToArrayAsync();
         
-        return result.Select(x => (x.Name ?? "UNKNOWN").RemoveBrackets().CleanTitle()).ToArray();
+        return result.Select(x => ($"[{x.Id}] {x.Name?.RemoveBrackets().CleanTitle()}" ?? "UNKNOWN")).ToArray();
     }
     
     public static string[] LookupLanguages(SQLiteAsyncConnection dbConnection, string titleId)

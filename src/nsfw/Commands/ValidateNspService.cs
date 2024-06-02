@@ -123,6 +123,17 @@ public class ValidateNspService(ValidateNspSettings settings)
             Log.Warning("NSP has incorrect padding at the end of the file.");
         }
         
+        if(settings.CheckPadding)
+        {
+            if(nspInfo.BadPadding)
+            {
+                Log.Error("Padding check failed.");
+                return (1, null);
+            }
+            Log.Information("Padding check passed.");
+            return (0, null);
+        }
+        
         var fileStorage = new FileStorage(localFile);
         var fileSystem = new PartitionFileSystem();
         fileSystem.Initialize(fileStorage);
