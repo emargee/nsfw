@@ -206,7 +206,7 @@ public class ValidateNspSettings : CommandSettings
         
         if(attr.HasFlag(FileAttributes.Directory))
         {
-            NspCollection = Directory.EnumerateFiles(NspFile, "*.nsp", SearchOption.AllDirectories).ToArray();
+            NspCollection = Directory.EnumerateFiles(NspFile, "*.nsp", SearchOption.AllDirectories).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
         }
         else
         {
