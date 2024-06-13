@@ -1,6 +1,5 @@
 ﻿using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 using LibHac.Common;
 using LibHac.Common.Keys;
@@ -102,6 +101,8 @@ public class ValidateNspService(ValidateNspSettings settings)
                 ? "Output Mode <- [green]RENAME[/] ([olive]Dry Run[/])"
                 : "Output Mode <- [green]RENAME[/]");
         }
+        
+        var phase = "[olive]Validate File Structure[/]";
 
         var localFile = new LocalFile(nspInfo.FilePath, OpenMode.Read);
         var headerBuffer = new Span<byte>(new byte[4]);
@@ -130,7 +131,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (headerSize != alignedHeaderSize) // 32 byte alignment
         {
             nspInfo.BadPadding = true;
-            Log.Warning($"NSP file-header is not aligned correctly. ({headerSize:X8}=>{alignedHeaderSize:X8})");
+            Log.Warning($"{phase} <- NSP file-header is not aligned correctly. [grey]({headerSize:X8}=>{alignedHeaderSize:X8})[/]");
         }
         
         var padding = new byte[57];
@@ -141,17 +142,17 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (paddingBuffer[0] != 125 && paddingBuffer[2] != 1 && paddingBuffer[4] != 1)
         {
             nspInfo.BadPadding = true;
-            Log.Warning("NSP has incorrect padding at the end of the file.");
+            Log.Warning($"{phase} <- NSP has incorrect padding at the end of the file.");
         }
         
         if(settings.CheckPadding)
         {
             if(nspInfo.BadPadding)
             {
-                Log.Error("Padding check failed.");
+                Log.Error($"{phase} <- [red]Failed[/]");
                 return (1, null);
             }
-            Log.Information("Padding check passed.");
+            Log.Information($"{phase} <- [green]Passed[/]");
             return (0, null);
         }
         
@@ -161,7 +162,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         var nspStructure = new NspStructure();
 
-        var phase = "[olive]Read NCAs[/]";
+        phase = "[olive]Validate File-System[/]";
         
         foreach (var rawFile in fileSystem.EnumerateEntries("*.*", SearchOptions.RecurseSubdirectories))
         {
@@ -170,14 +171,14 @@ public class ValidateNspService(ValidateNspSettings settings)
                 var tikFile = new UniqueRef<IFile>();
                 fileSystem.OpenFile(ref tikFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
                 ImportTicket(new Ticket(tikFile.Get.AsStream()), _keySet, nspInfo);
-                Log.Verbose($"Import Tickets <- Ticket ({rawFile.Name}) imported.");
+                Log.Verbose($"{phase} <- Ticket imported [grey]({rawFile.Name})[/]");
             }
             
             if(rawFile.Name.EndsWith(".cert"))
             {
                 if (rawFile.Size != NsfwUtilities.CommonCertSize)
                 {
-                    Log.Warning($"Certificate ({rawFile.Name}) size is incorrect. Expected 0x700 bytes.");
+                    Log.Warning($"{phase} <- Certificate size is incorrect. Expected 0x700 bytes. [grey]({rawFile.Name})[/]");
                     nspInfo.CopyNewCert = true;
                 }
                 else
@@ -187,7 +188,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     var validCommonCert = NsfwUtilities.ValidateCommonCert(certFile.Get.AsStream());
                     if (!validCommonCert)
                     {
-                        Log.Warning($"Certificate ({rawFile.Name}) does not match common certificate SHA256.");
+                        Log.Warning($"{phase} <- Certificate does not match common certificate SHA256. [grey]({rawFile.Name})[/]");
                         nspInfo.CopyNewCert = true;
                     }
                     certFile.Destroy();
@@ -260,7 +261,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             Log.Verbose($"{phase} <- No valid tickets found.");
         }
         
-        phase = "[olive]NSP File-System[/]";
+        phase = "[olive]Open File-System[/]";
         
         nspStructure.Build();
 

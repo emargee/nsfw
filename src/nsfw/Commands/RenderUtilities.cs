@@ -360,7 +360,7 @@ public static class RenderUtilities
         propertiesTable.AddRow("Raw File Count", nspInfo.RawFileEntries.Count + $" ({nspInfo.RawFileEntries.Keys.Count(x => x.EndsWith(".nca"))} NCAs" + (nspInfo.DeltaCount > 0 ? $" + {nspInfo.DeltaCount} Missing Deltas" : "") + ") ");
         propertiesTable.AddRow("Has loose files ?", nspInfo.HasLooseFiles ? "[red]Yes[/]" : "[green]No[/]");
         propertiesTable.AddRow("NCA File Order", nspInfo.IsFileOrderCorrect ? "[green]Correct[/]" : "[red]Non-Standard[/]");
-        propertiesTable.AddRow("File Padding", nspInfo.BadPadding ? "[red]Incorrect[/]" : "[green]Correct[/]");
+        propertiesTable.AddRow("File Padding", nspInfo.BadPadding ? "[red]Incorrect[/] [grey](Can be fixed by conversion)[/]" : "[green]Correct[/]");
         if (nspInfo.TitleKeyDecrypted.Length > 0)
         {
             propertiesTable.AddRow("TitleKey (Enc)", nspInfo.TitleKeyEncrypted.ToHexString());
