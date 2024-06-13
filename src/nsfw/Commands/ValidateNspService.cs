@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using LibHac.Common;
 using LibHac.Common.Keys;
@@ -110,6 +111,26 @@ public class ValidateNspService(ValidateNspSettings settings)
         {
             Log.Error("Cannot mount file-system. Invalid NSP file.");
             return (1, null);
+        }
+
+        var entryCount = new byte[4];
+        var entryCountBuffer = new Span<byte>(entryCount);
+        localFile.Read(out _, 0x4, entryCountBuffer);
+
+        var entryCountSize = BitConverter.ToInt32(entryCountBuffer);
+        
+        var stringTableOffset = new byte[4];
+        var stringTableSizeBuffer = new Span<byte>(stringTableOffset);
+        localFile.Read(out _, 0x8, stringTableSizeBuffer);
+        
+        var stringTableSize = BitConverter.ToInt32(stringTableSizeBuffer);
+        var headerSize = 0x10 + (entryCountSize * 0x18) + stringTableSize;
+        var alignedHeaderSize = Alignment.AlignUp(headerSize, 0x20);
+        
+        if (headerSize != alignedHeaderSize) // 32 byte alignment
+        {
+            nspInfo.BadPadding = true;
+            Log.Warning($"NSP file-header is not aligned correctly. ({headerSize:X8}=>{alignedHeaderSize:X8})");
         }
         
         var padding = new byte[57];
