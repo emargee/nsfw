@@ -358,8 +358,8 @@ public static class RenderUtilities
         propertiesTable.AddRow("NCA Validity", nspInfo.NcaValidity == Validity.Valid ? PlainValid : PlainInValid);
         propertiesTable.AddRow("Meta Validity", nspInfo.ContentValidity == Validity.Valid ? PlainValid : PlainInValid);
         propertiesTable.AddRow("Raw File Count", nspInfo.RawFileEntries.Count + $" ({nspInfo.RawFileEntries.Keys.Count(x => x.EndsWith(".nca"))} NCAs" + (nspInfo.DeltaCount > 0 ? $" + {nspInfo.DeltaCount} Missing Deltas" : "") + ") ");
-        propertiesTable.AddRow("Has loose files ?", nspInfo.HasLooseFiles ? "[red]Yes[/]" : "[green]No[/]");
-        propertiesTable.AddRow("NCA File Order", nspInfo.IsFileOrderCorrect ? "[green]Correct[/]" : "[red]Non-Standard[/]");
+        propertiesTable.AddRow("Has loose files ?", nspInfo.HasLooseFiles ? "[red]Yes[/] [grey](Can be fixed by conversion)[/]" : "[green]No[/]");
+        propertiesTable.AddRow("NCA File Order", nspInfo.IsFileOrderCorrect ? "[green]Correct[/]" : "[red]Non-Standard[/] [grey](Can be fixed by conversion)[/]");
         propertiesTable.AddRow("File Padding", nspInfo.BadPadding ? "[red]Incorrect[/] [grey](Can be fixed by conversion)[/]" : "[green]Correct[/]");
         if (nspInfo.TitleKeyDecrypted.Length > 0)
         {
@@ -377,7 +377,7 @@ public static class RenderUtilities
 
             if (nspInfo.GenerateNewTicket)
             {
-                propertiesTable.AddRow("Ticket Properties", "[red]Non-Standard[/] - Will generate new ticket.");
+                propertiesTable.AddRow("Ticket Properties", "[red]Non-Standard[/] [grey](Can be fixed by conversion)[/]");
             }
             else
             {

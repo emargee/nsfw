@@ -734,6 +734,13 @@ public static partial class NsfwUtilities
             
             demo = "(Demo)";
         }
+        
+        if(cleanTitle.StartsWith("The ", StringComparison.InvariantCultureIgnoreCase))
+        {
+            cleanTitle = cleanTitle[4..];
+            var firstPart = cleanTitle.Split(" - ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).First();
+            cleanTitle = cleanTitle.Replace(firstPart, $"{firstPart}, The ", StringComparison.InvariantCultureIgnoreCase);
+        }
 
         if (titleType is FixedContentMetaType.Patch)
         {
