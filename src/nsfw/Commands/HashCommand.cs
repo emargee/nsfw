@@ -96,10 +96,12 @@ public partial class HashCommand : Command<HashSettings>
         
         Log.Information($"Hashing {allFiles.Length} NSPs {extra}..");
         
-        var datName = settings.DatName ?? $"Nintendo - Nintendo Switch (Digital) (Standard) ({DateTime.Now.ToString("yyyyMMdd-HHmmss")}).xml";
+        var timeStamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        
+        var datName = settings.DatName ?? $"Nintendo - Nintendo Switch (Digital) (Standard) ({timeStamp}).xml";
         var datPath = Path.Combine(settings.OutputDirectory, datName);
-        var dlcDatPath = Path.Combine(settings.OutputDirectory, datName.Replace(".xml", "_dlc.xml"));
-        var gameDatPath = Path.Combine(settings.OutputDirectory, datName.Replace(".xml", "_games.xml"));
+        var dlcDatPath = Path.Combine(settings.OutputDirectory, $"Nintendo - Nintendo Switch (Digital) (Standard) (DLC) ({timeStamp}).xml");
+        var gameDatPath = Path.Combine(settings.OutputDirectory, $"Nintendo - Nintendo Switch (Digital) (Standard) (Games + Updates) ({timeStamp}).xml");
 
         var alreadyHashed = new Dictionary<string, (string, string)>();
         var nameCheck = new Dictionary<string, (string, string, string, string)>();
@@ -183,6 +185,12 @@ public partial class HashCommand : Command<HashSettings>
             if(exitLoop)
             {
                 break;
+            }
+
+            if (!File.Exists(file))
+            {
+                Log.Error($"File not found: {file}");
+                continue;
             }
             
             var fileInfo = new FileInfo(file);
@@ -400,9 +408,9 @@ public partial class HashCommand : Command<HashSettings>
             return 0;
         }
         
-        var header     = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard)</name><description>Nintendo - Nintendo Switch (Digital) (Standard)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
-        var headerDlc  = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard) (DLC)</name><description>Nintendo - Nintendo Switch (Digital) (Standard) (DLC)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
-        var headerGame = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard) (Games + Updates)</name><description>Nintendo - Nintendo Switch (Digital) (Standard) (Games + Updates)</description><version>{DateTime.Now.ToString("yyyyMMdd-HHmmss")}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
+        var header     = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard)</name><description>Nintendo - Nintendo Switch (Digital) (Standard)</description><version>{timeStamp}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
+        var headerDlc  = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard) (DLC)</name><description>Nintendo - Nintendo Switch (Digital) (Standard) (DLC)</description><version>{timeStamp}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
+        var headerGame = $"""<?xml version="1.0"?><datafile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://datomatic.no-intro.org/stuff https://datomatic.no-intro.org/stuff/schema_nointro_datfile_v3.xsd"><header><name>Nintendo - Nintendo Switch (Digital) (Standard) (Games + Updates)</name><description>Nintendo - Nintendo Switch (Digital) (Standard) (Games + Updates)</description><version>{timeStamp}</version><author>[mRg]</author><romvault forcepacking="unzip" /></header>""";
         var footer = "</datafile>";
 
         var builder = new StringBuilder();
@@ -556,7 +564,7 @@ public partial class HashCommand : Command<HashSettings>
             }
             
             oneBuilder.Append(footer);
-            File.WriteAllText(Path.Combine(settings.OutputDirectory, datName.Replace(".xml","_1g1u.xml")), oneBuilder.ToString());
+            File.WriteAllText(Path.Combine(settings.OutputDirectory, $"Nintendo - Nintendo Switch (Digital) (Standard) (1G1U) ({timeStamp}).xml"), oneBuilder.ToString());
             Log.Information($"{oneCount} entries written to 1G1U DAT successfully!");
             AnsiConsole.Write(new Rule());
         }
@@ -669,6 +677,11 @@ public class Entry
             "DLCUPD" => "DLC Update",
             _ => "Game"
         };
+
+        if (IsDemo)
+        {
+            category = "Demo";
+        }
 
         var name = Description.Replace("&", "&amp;").Replace("'", "&apos;");
         

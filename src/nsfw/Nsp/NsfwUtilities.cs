@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Diacritics.Extensions;
 using LibHac.Common;
 using LibHac.Fs;
@@ -65,10 +66,106 @@ public static partial class NsfwUtilities
             .Replace(" <", " - ")
             .Replace(">", string.Empty)
             .Replace("–","-")
+            .Replace("—","-")
             .Replace("“", "'")
             .Replace("*", "")
             .Replace("”", "'")
             .Replace('/', '-')
+            .Replace("①","1")
+            .Replace("②","2")
+            .Replace("③","3")
+            .Replace("④","4")
+            .Replace("⑤","5")
+            .Replace("⑥","6")
+            .Replace("⑦","7")
+            .Replace("⑧","8")
+            .Replace("⑨","9")
+            .Replace("⑩","10")
+            .Replace("⑪","11")
+            .Replace("⑫","12")
+            .Replace("⑬","13")
+            .Replace("⑭","14")
+            .Replace("⑮","15")
+            .Replace("⑯","16")
+            .Replace("⑰","17")
+            .Replace("⑱","18")
+            .Replace("⑲","19")
+            .Replace("⑳","20")
+            .Replace("１","1")
+            .Replace("２","2")
+            .Replace("３","3")
+            .Replace("４","4")
+            .Replace("５","5")
+            .Replace("６","6")
+            .Replace("７","7")
+            .Replace("８","8")
+            .Replace("９","9")
+            .Replace("０","0")
+            .Replace("Ａ","A")
+            .Replace("Ｂ","B")
+            .Replace("Ｃ","C")
+            .Replace("Ｄ","D")
+            .Replace("Ｅ","E")
+            .Replace("Ｆ","F")
+            .Replace("Ｇ","G")
+            .Replace("Ｈ","H")
+            .Replace("Ｉ","I")
+            .Replace("Ｊ","J")
+            .Replace("Ｋ","K")
+            .Replace("Ｌ","L")
+            .Replace("Ｍ","M")
+            .Replace("Ｎ","N")
+            .Replace("Ｏ","O")
+            .Replace("Ｐ","P")
+            .Replace("Ｑ","Q")
+            .Replace("Ｒ","R")
+            .Replace("Ｓ","S")
+            .Replace("Ｔ","T")
+            .Replace("Ｕ","U")
+            .Replace("Ｖ","V")
+            .Replace("Ｗ","W")
+            .Replace("Ｘ","X")
+            .Replace("Ｙ","Y")
+            .Replace("Ｚ","Z")
+            .Replace("ａ","a")
+            .Replace("ｂ","b")
+            .Replace("ｃ","c")
+            .Replace("ｄ","d")
+            .Replace("ｅ","e")
+            .Replace("ｆ","f")
+            .Replace("ｇ","g")
+            .Replace("ｈ","h")
+            .Replace("ｉ","i")
+            .Replace("ｊ","j")
+            .Replace("ｋ","k")
+            .Replace("ｌ","l")
+            .Replace("ｍ","m")
+            .Replace("ｎ","n")
+            .Replace("ｏ","o")
+            .Replace("ｐ","p")
+            .Replace("ｑ","q")
+            .Replace("ｒ","r")
+            .Replace("ｓ","s")
+            .Replace("ｔ","t")
+            .Replace("ｕ","u")
+            .Replace("ｖ","v")
+            .Replace("ｗ","w")
+            .Replace("ｘ","x")
+            .Replace("ｙ","y")
+            .Replace("ｚ","z")
+            .Replace("×"," x ")
+            .Replace("™","")
+            .Replace("®","")
+            .Replace("©","")
+            .Replace("！", "!")
+            .Replace("？", "?")
+            .Replace("：", ":")
+            .Replace("；", ";")
+            .Replace("，", ",")
+            .Replace("、", ",")
+            .Replace("。", ".")
+            .Replace("「", "'")
+            .Replace("」", "'")
             .Replace('︰',':')
             .Replace("\uff5e", "-")
             .Replace(":||","-")
@@ -694,6 +791,12 @@ public static partial class NsfwUtilities
         }
         
         var demo = string.Empty;
+
+        if (cleanTitle.EndsWith("体験版"))
+        {
+            cleanTitle = cleanTitle[..^3];
+            isDemo = true;
+        }
         
         if (cleanTitle.ToUpperInvariant().EndsWith(" DEMO"))
         {
@@ -741,12 +844,33 @@ public static partial class NsfwUtilities
             var firstPart = cleanTitle.Split(" - ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).First();
             cleanTitle = cleanTitle.Replace(firstPart, $"{firstPart}, The ", StringComparison.InvariantCultureIgnoreCase);
         }
-
+        
+        if(cleanTitle.StartsWith("A ", StringComparison.InvariantCultureIgnoreCase))
+        {
+            cleanTitle = cleanTitle[2..];
+            var firstPart = cleanTitle.Split(" - ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).First();
+            cleanTitle = cleanTitle.Replace(firstPart, $"{firstPart}, A ", StringComparison.InvariantCultureIgnoreCase);
+        }
+        
         if (titleType is FixedContentMetaType.Patch)
         {
             return $"{cleanTitle.RemoveBrackets()} {displayRegion}{languageList}{demo}[{displayVersion}][{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
         }
+        
+        var regEx = CloseHyphenWrapRegex();
+        var match = regEx.Match(cleanTitle);
 
+        if (match.Success)
+        {
+            var replacement = match.Value[1..^1];
+            cleanTitle = cleanTitle.Replace(match.Value, $" - {replacement}", StringComparison.InvariantCultureIgnoreCase);
+        }
+        
+        if (cleanTitle.EndsWith('-'))
+        {
+            cleanTitle = cleanTitle[..^1];
+        }
+        
         if (isDlc && !string.IsNullOrEmpty(displayParentTitle))
         {
             if (parentLanguages.Any())
@@ -843,4 +967,7 @@ public static partial class NsfwUtilities
 
         return validityResult;
     }
+
+    [GeneratedRegex(@"-\S.*?\S-")]
+    private static partial Regex CloseHyphenWrapRegex();
 }
