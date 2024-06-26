@@ -680,7 +680,7 @@ public class Entry
 
         if (IsDemo)
         {
-            category = "Demo";
+            category = Type == "UPD" ? "Demo Update" : "Demo";
         }
 
         var name = Description.Replace("&", "&amp;").Replace("'", "&apos;");

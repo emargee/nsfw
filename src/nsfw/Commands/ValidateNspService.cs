@@ -313,6 +313,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (contentFile.NcaId != contentFile.Hash.Take(16).ToArray().ToHexString())
             {
                 Log.Error($"{phase} - Hash part should match NCA ID ({contentFile.NcaId}).");
+                Log.Fatal("NSP Validation failed.");
                 return (1, null);
             }
 
@@ -362,6 +363,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (mainNca == null)
         {
             Log.Error($"{phase} - Failed to open Main NCA.");
+            Log.Fatal("NSP Validation failed.");
             return (1, null);
         }
         
@@ -372,7 +374,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (mainNca.Nca.Header.KeyGeneration > 18)
         {
-            Log.Error($"Unsupported key generation ({mainNca.Nca.Header.KeyGeneration.ToString()}). Contact author for an update!");
+            Log.Error($"Unsupported key generation ({mainNca.Nca.Header.KeyGeneration.ToString()}). Contact author to update!");
             return (1, null);
         }
 
@@ -403,6 +405,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if (mainNca.Nca.Header.RightsId.IsZeros())
             {
                 Log.Error($"{phase} - NCA is encrypted but has empty rights ID.");
+                Log.Fatal("NSP Validation failed.");
                 return (1, null);
             }
 
@@ -476,7 +479,23 @@ public class ValidateNspService(ValidateNspSettings settings)
             }
 
             nspInfo.TitleKeyEncrypted = nspInfo.Ticket.GetTitleKey(_keySet);
-            nspInfo.TitleKeyDecrypted = mainNca.Nca.GetDecryptedTitleKey();
+            
+            try
+            {
+                nspInfo.TitleKeyDecrypted = mainNca.Nca.GetDecryptedTitleKey();
+            }
+            catch (MissingKeyException e)
+            {
+                Log.Error($"{phase} - Failed to decrypt title key. Missing NCA title key.");
+                
+                if (!string.Equals(e.Name, nspInfo.Ticket.RightsId.ToHexString(), StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Error($"{phase} - The ticket in this NSP does not match the title key of the main NCA [grey]({e.Name}/{nspInfo.Ticket.RightsId.ToHexString()})[/]");
+                }
+
+                Log.Fatal("NSP Validation failed.");
+                return (1, null);
+            }
 
             if (nspInfo.NormalisedSignature.ToHexString() == nspInfo.Ticket.Signature.ToHexString())
             {
@@ -716,6 +735,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (nspStructure.NcaCollection.Count == 0)
         {
             Log.Error($"{phase} - No NCAs found.");
+            Log.Fatal("NSP Validation failed.");
             return (1, null);
         }
 

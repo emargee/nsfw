@@ -852,11 +852,6 @@ public static partial class NsfwUtilities
             cleanTitle = cleanTitle.Replace(firstPart, $"{firstPart}, A ", StringComparison.InvariantCultureIgnoreCase);
         }
         
-        if (titleType is FixedContentMetaType.Patch)
-        {
-            return $"{cleanTitle.RemoveBrackets()} {displayRegion}{languageList}{demo}[{displayVersion}][{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
-        }
-        
         var regEx = CloseHyphenWrapRegex();
         var match = regEx.Match(cleanTitle);
 
@@ -869,6 +864,11 @@ public static partial class NsfwUtilities
         if (cleanTitle.EndsWith('-'))
         {
             cleanTitle = cleanTitle[..^1];
+        }
+        
+        if (titleType is FixedContentMetaType.Patch)
+        {
+            return $"{cleanTitle.RemoveBrackets()} {displayRegion}{languageList}{demo}[{displayVersion}][{titleId}][{titleVersion}][{displayTypeShort}]".CleanTitle();
         }
         
         if (isDlc && !string.IsNullOrEmpty(displayParentTitle))
