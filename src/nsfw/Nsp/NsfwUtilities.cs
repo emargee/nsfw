@@ -798,6 +798,18 @@ public static partial class NsfwUtilities
             isDemo = true;
         }
         
+        if (cleanTitle.StartsWith("【体験版】"))
+        {
+            cleanTitle = cleanTitle[5..];
+            isDemo = true;
+        }
+        
+        if (cleanTitle.EndsWith("【体験版】"))
+        {
+            cleanTitle = cleanTitle[..^5];
+            isDemo = true;
+        }
+        
         if (cleanTitle.ToUpperInvariant().EndsWith(" DEMO"))
         {
             cleanTitle = cleanTitle[..^5];

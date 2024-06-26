@@ -163,97 +163,110 @@ public class ValidateNspService(ValidateNspSettings settings)
         var nspStructure = new NspStructure();
 
         phase = "[olive]Validate File-System[/]";
-        
-        foreach (var rawFile in fileSystem.EnumerateEntries("*.*", SearchOptions.RecurseSubdirectories))
+
+        try
         {
-            if (rawFile.Name.EndsWith(".tik"))
+            foreach (var rawFile in fileSystem.EnumerateEntries("*.*", SearchOptions.RecurseSubdirectories))
             {
-                var tikFile = new UniqueRef<IFile>();
-                fileSystem.OpenFile(ref tikFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
-                ImportTicket(new Ticket(tikFile.Get.AsStream()), _keySet, nspInfo);
-                Log.Verbose($"{phase} <- Ticket imported [grey]({rawFile.Name})[/]");
-            }
-            
-            if(rawFile.Name.EndsWith(".cert"))
-            {
-                if (rawFile.Size != NsfwUtilities.CommonCertSize)
+                if (rawFile.Name.EndsWith(".tik"))
                 {
-                    Log.Warning($"{phase} <- Certificate size is incorrect. Expected 0x700 bytes. [grey]({rawFile.Name})[/]");
-                    nspInfo.CopyNewCert = true;
+                    var tikFile = new UniqueRef<IFile>();
+                    fileSystem.OpenFile(ref tikFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
+                    ImportTicket(new Ticket(tikFile.Get.AsStream()), _keySet, nspInfo);
+                    Log.Verbose($"{phase} <- Ticket imported [grey]({rawFile.Name})[/]");
                 }
-                else
+
+                if (rawFile.Name.EndsWith(".cert"))
                 {
-                    var certFile = new UniqueRef<IFile>();
-                    fileSystem.OpenFile(ref certFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
-                    var validCommonCert = NsfwUtilities.ValidateCommonCert(certFile.Get.AsStream());
-                    if (!validCommonCert)
+                    if (rawFile.Size != NsfwUtilities.CommonCertSize)
                     {
-                        Log.Warning($"{phase} <- Certificate does not match common certificate SHA256. [grey]({rawFile.Name})[/]");
+                        Log.Warning(
+                            $"{phase} <- Certificate size is incorrect. Expected 0x700 bytes. [grey]({rawFile.Name})[/]");
                         nspInfo.CopyNewCert = true;
                     }
-                    certFile.Destroy();
-                }
-            }
-            
-            if (rawFile.Name.EndsWith(".nca"))
-            {
-                var ncaFile = new UniqueRef<IFile>();
-                fileSystem.OpenFile(ref ncaFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
-
-                SwitchFsNca nca;
-                try
-                {
-                    nca = new SwitchFsNca(new Nca(_keySet, ncaFile.Release().AsStorage()))
+                    else
                     {
-                        Filename = rawFile.Name,
-                        NcaId = rawFile.Name[..32]
-                    };
-                }
-                catch (Exception e)
-                {
-                    Log.Fatal($"{phase} <- Error opening NCA ({rawFile.Name}) - {e.Message}");
-                    return (1,null);
-                }
-                
-                nspStructure.NcaCollection.Add(nca.NcaId, nca);
-                
-                if(rawFile.Name.EndsWith(".cnmt.nca"))
-                {
-                    nspStructure.MetaNca = nca;
-                    
-                    var fs = nca.OpenFileSystem(NcaSectionType.Data, IntegrityCheckLevel.ErrorOnInvalid);
-                    var cnmtPath = fs.EnumerateEntries("/", "*.cnmt").Single().FullPath;
+                        var certFile = new UniqueRef<IFile>();
+                        fileSystem.OpenFile(ref certFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
+                        var validCommonCert = NsfwUtilities.ValidateCommonCert(certFile.Get.AsStream());
+                        if (!validCommonCert)
+                        {
+                            Log.Warning(
+                                $"{phase} <- Certificate does not match common certificate SHA256. [grey]({rawFile.Name})[/]");
+                            nspInfo.CopyNewCert = true;
+                        }
 
-                    using var file = new UniqueRef<IFile>();
-                    fs.OpenFile(ref file.Ref, cnmtPath.ToU8Span(), OpenMode.Read).ThrowIfFailure();
-
-                    nspStructure.Metadata = new Cnmt(file.Release().AsStream());
-                    if (nspStructure.Metadata.ContentMetaAttributes.HasFlag(ContentMetaAttribute.Compacted))
-                    {
-                        nspInfo.HasSparseNcas = true;
-                        Log.Information($"[olive]{phase}[/] <- Sparse NCAs detected.");
+                        certFile.Destroy();
                     }
                 }
-            }
 
-            var isLooseFile = !(rawFile.Name.EndsWith(".nca") || rawFile.Name.EndsWith(".tik") || rawFile.Name.EndsWith(".cert"));
-
-            if (isLooseFile)
-            {
-                nspInfo.HasLooseFiles = true;
-            }
-
-            nspInfo.RawFileEntries.Add(rawFile.Name,
-                new RawContentFileInfo
+                if (rawFile.Name.EndsWith(".nca"))
                 {
-                    Name = rawFile.Name,
-                    Size = rawFile.Size,
-                    FullPath = rawFile.FullPath,
-                    Type = rawFile.Type,
-                    BlockCount = (int)BitUtil.DivideUp(rawFile.Size, nspInfo.DefaultBlockSize),
-                    IsLooseFile = isLooseFile,
-                    Priority = NsfwUtilities.AssignPriority(rawFile.Name)
-                });
+                    var ncaFile = new UniqueRef<IFile>();
+                    fileSystem.OpenFile(ref ncaFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
+
+                    SwitchFsNca nca;
+                    try
+                    {
+                        nca = new SwitchFsNca(new Nca(_keySet, ncaFile.Release().AsStorage()))
+                        {
+                            Filename = rawFile.Name,
+                            NcaId = rawFile.Name[..32]
+                        };
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Fatal($"{phase} <- Error opening NCA ({rawFile.Name}) - {e.Message}");
+                        return (1, null);
+                    }
+
+                    nspStructure.NcaCollection.Add(nca.NcaId, nca);
+
+                    if (rawFile.Name.EndsWith(".cnmt.nca"))
+                    {
+                        nspStructure.MetaNca = nca;
+
+                        var fs = nca.OpenFileSystem(NcaSectionType.Data, IntegrityCheckLevel.ErrorOnInvalid);
+                        var cnmtPath = fs.EnumerateEntries("/", "*.cnmt").Single().FullPath;
+
+                        using var file = new UniqueRef<IFile>();
+                        fs.OpenFile(ref file.Ref, cnmtPath.ToU8Span(), OpenMode.Read).ThrowIfFailure();
+
+                        nspStructure.Metadata = new Cnmt(file.Release().AsStream());
+                        if (nspStructure.Metadata.ContentMetaAttributes.HasFlag(ContentMetaAttribute.Compacted))
+                        {
+                            nspInfo.HasSparseNcas = true;
+                            Log.Information($"[olive]{phase}[/] <- Sparse NCAs detected.");
+                        }
+                    }
+                }
+
+                var isLooseFile = !(rawFile.Name.EndsWith(".nca") || rawFile.Name.EndsWith(".tik") ||
+                                    rawFile.Name.EndsWith(".cert"));
+
+                if (isLooseFile)
+                {
+                    nspInfo.HasLooseFiles = true;
+                }
+
+                nspInfo.RawFileEntries.Add(rawFile.Name,
+                    new RawContentFileInfo
+                    {
+                        Name = rawFile.Name,
+                        Size = rawFile.Size,
+                        FullPath = rawFile.FullPath,
+                        Type = rawFile.Type,
+                        BlockCount = (int)BitUtil.DivideUp(rawFile.Size, nspInfo.DefaultBlockSize),
+                        IsLooseFile = isLooseFile,
+                        Priority = NsfwUtilities.AssignPriority(rawFile.Name)
+                    });
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Error($"{phase} <- Corrupt file-system entries. Unable to load.");
+            Log.Fatal("NSP Validation failed.");
+            return (1, null);
         }
 
         if (!nspInfo.HasTicket)
