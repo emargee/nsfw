@@ -36,6 +36,12 @@ public class ValidateNspService(ValidateNspSettings settings)
     {
         _batchMode = batchMode;
         
+        if (!File.Exists(nspFullPath))
+        {
+            Log.Error($"File not found: [olive]{nspFullPath.EscapeMarkup()}[/]");
+            return (1, null);
+        }
+        
         var nspInfo = new NspInfo(nspFullPath);
 
         if (settings.NoLanguages)
@@ -262,7 +268,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     });
             }
         }
-        catch (Exception e)
+        catch (Exception)
         {
             Log.Error($"{phase} <- Corrupt file-system entries. Unable to load.");
             Log.Fatal("NSP Validation failed.");
