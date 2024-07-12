@@ -38,7 +38,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         
         if (!File.Exists(nspFullPath))
         {
-            Log.Error($"File not found: [olive]{nspFullPath.EscapeMarkup()}[/]");
+            Log.Fatal($"File not found: [olive]{nspFullPath.EscapeMarkup()}[/]");
             return (1, null);
         }
         
@@ -116,7 +116,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (headerBuffer.ToHexString() != nspInfo.HeaderMagic)
         {
-            Log.Error("Cannot mount file-system. Invalid NSP file.");
+            Log.Fatal("Cannot mount file-system. Invalid NSP file.");
             return (1, null);
         }
 
@@ -137,7 +137,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (headerSize != alignedHeaderSize) // 32 byte alignment
         {
             nspInfo.BadPadding = true;
-            Log.Warning($"{phase} <- NSP file-header is not aligned correctly. [grey]({headerSize:X8}=>{alignedHeaderSize:X8})[/]");
+            nspInfo.Errors.Add($"{phase} <- NSP file-header is not aligned correctly. [grey]({headerSize:X8}=>{alignedHeaderSize:X8})[/]");
         }
         
         var padding = new byte[57];
@@ -148,14 +148,14 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (paddingBuffer[0] != 125 && paddingBuffer[2] != 1 && paddingBuffer[4] != 1)
         {
             nspInfo.BadPadding = true;
-            Log.Warning($"{phase} <- NSP has incorrect padding at the end of the file.");
+            nspInfo.Errors.Add($"{phase} <- NSP has incorrect padding at the end of the file.");
         }
         
         if(settings.CheckPadding)
         {
             if(nspInfo.BadPadding)
             {
-                Log.Error($"{phase} <- [red]Failed[/]");
+                Log.Fatal($"{phase} <- [red]Failed[/]");
                 return (1, null);
             }
             Log.Information($"{phase} <- [green]Passed[/]");
@@ -186,8 +186,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 {
                     if (rawFile.Size != NsfwUtilities.CommonCertSize)
                     {
-                        Log.Warning(
-                            $"{phase} <- Certificate size is incorrect. Expected 0x700 bytes. [grey]({rawFile.Name})[/]");
+                        Log.Warning($"{phase} <- Certificate size is incorrect. Expected 0x700 bytes. [grey]({rawFile.Name})[/]");
                         nspInfo.CopyNewCert = true;
                     }
                     else
@@ -197,8 +196,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                         var validCommonCert = NsfwUtilities.ValidateCommonCert(certFile.Get.AsStream());
                         if (!validCommonCert)
                         {
-                            Log.Warning(
-                                $"{phase} <- Certificate does not match common certificate SHA256. [grey]({rawFile.Name})[/]");
+                            Log.Warning($"{phase} <- Certificate does not match common certificate SHA256. [grey]({rawFile.Name})[/]");
                             nspInfo.CopyNewCert = true;
                         }
 
@@ -270,7 +268,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         }
         catch (Exception)
         {
-            Log.Error($"{phase} <- Corrupt file-system entries. Unable to load.");
+            Log.Fatal($"{phase} <- Corrupt file-system entries. Unable to load.");
             Log.Fatal("NSP Validation failed.");
             return (1, null);
         }
@@ -292,7 +290,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (cnmt == null)
         {
-            Log.Error("Failed to open CNMT.");
+            Log.Fatal("Failed to open CNMT.");
             return (1, null);
         }
 
@@ -301,8 +299,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (nspInfo.TitleId != nspInfo.BaseTitleId && cnmt.Type == ContentMetaType.Application)
         {
-            nspInfo.Warnings.Add(
-                $"{phase} - TitleID Mis-match. Expected {nspInfo.BaseTitleId}, found {nspInfo.TitleId}");
+            nspInfo.Errors.Add($"{phase} - TitleID Mis-match. Expected {nspInfo.BaseTitleId}, found {nspInfo.TitleId}");
         }
 
         nspInfo.TitleVersion = $"v{cnmt.TitleVersion.Version}";
@@ -315,7 +312,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (nspInfo.TitleType != FixedContentMetaType.Patch && nspInfo.TitleType != FixedContentMetaType.Application &&
             nspInfo.TitleType != FixedContentMetaType.Delta && nspInfo.TitleType != FixedContentMetaType.AddOnContent && nspInfo.TitleType != FixedContentMetaType.DataPatch)
         {
-            Log.Error($"{phase} - Unsupported content type {nspInfo.TitleType}");
+            Log.Fatal($"{phase} - Unsupported content type {nspInfo.TitleType}");
             return (1, null);
         }
         
@@ -331,7 +328,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             if (contentFile.NcaId != contentFile.Hash.Take(16).ToArray().ToHexString())
             {
-                Log.Error($"{phase} - Hash part should match NCA ID ({contentFile.NcaId}).");
+                Log.Fatal($"{phase} - Hash part should match NCA ID ({contentFile.NcaId}).");
                 Log.Fatal("NSP Validation failed.");
                 return (1, null);
             }
@@ -381,7 +378,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (mainNca == null)
         {
-            Log.Error($"{phase} - Failed to open Main NCA.");
+            Log.Fatal($"{phase} - Failed to open Main NCA.");
             Log.Fatal("NSP Validation failed.");
             return (1, null);
         }
@@ -393,7 +390,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (mainNca.Nca.Header.KeyGeneration > 18)
         {
-            Log.Error($"Unsupported key generation ({mainNca.Nca.Header.KeyGeneration.ToString()}). Contact author to update!");
+            Log.Fatal($"Unsupported key generation ({mainNca.Nca.Header.KeyGeneration.ToString()}). Contact author to update!");
             return (1, null);
         }
 
@@ -402,7 +399,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (mainNca.Nca.Header.DistributionType != DistributionType.Download)
         {
-            Log.Error($"{phase} - Unsupported distribution type : {mainNca.Nca.Header.DistributionType}");
+            Log.Fatal($"{phase} - Unsupported distribution type : {mainNca.Nca.Header.DistributionType}");
             return (1, null);
         }
 
@@ -423,7 +420,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         {
             if (mainNca.Nca.Header.RightsId.IsZeros())
             {
-                Log.Error($"{phase} - NCA is encrypted but has empty rights ID.");
+                Log.Fatal($"{phase} - NCA is encrypted but has empty rights ID.");
                 Log.Fatal("NSP Validation failed.");
                 return (1, null);
             }
@@ -432,7 +429,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             if (nspInfo.Ticket.SignatureType != TicketSigType.Rsa2048Sha256)
             {
-                Log.Error($"{phase} - Unsupported ticket signature type {nspInfo.Ticket.SignatureType}");
+                Log.Fatal($"{phase} - Unsupported ticket signature type {nspInfo.Ticket.SignatureType}");
                 return (1, null);
             }
 
@@ -441,19 +438,19 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             if (!offset.ToHexString().Equals("000002C0"))
             {
-                nspInfo.Warnings.Add($"{phase} - Section Records Offset is incorrect.");
+                nspInfo.Errors.Add($"{phase} - Section Records Offset is incorrect.");
                 nspInfo.GenerateNewTicket = true; 
             }
 
             if (nspInfo.Ticket.LicenseType != LicenseType.Permanent)
             {
-                nspInfo.Warnings.Add($"{phase} - Incorrect license-type found.");
+                nspInfo.Errors.Add($"{phase} - Incorrect license-type found.");
                 nspInfo.GenerateNewTicket = true;
             }
 
             if (nspInfo.Ticket.TitleKeyType != TitleKeyType.Common)
             {
-                nspInfo.Warnings.Add($"{phase} - Personal ticket type found.");
+                nspInfo.Errors.Add($"{phase} - Personal ticket type found.");
                 nspInfo.GenerateNewTicket = true;
             }
 
@@ -461,25 +458,25 @@ public class ValidateNspService(ValidateNspSettings settings)
             
             if (nspInfo.Ticket.TicketId != 0)
             {
-                nspInfo.Warnings.Add($"{phase} - Ticket has ticket ID set ({nspInfo.Ticket.TicketId}).");
+                nspInfo.Errors.Add($"{phase} - Ticket has ticket ID set ({nspInfo.Ticket.TicketId}).");
                 nspInfo.GenerateNewTicket = true;
             }
 
             if (nspInfo.Ticket.PropertyMask != 0)
             {
-                nspInfo.Warnings.Add($"{phase} - Ticket has property mask set ({propertyMask}).");
+                nspInfo.Errors.Add($"{phase} - Ticket has property mask set ({propertyMask}).");
                 nspInfo.GenerateNewTicket = true;
             }
 
             if (nspInfo.Ticket.AccountId != 0)
             {
-                nspInfo.Warnings.Add($"{phase} - Ticket has account ID set ({nspInfo.Ticket.AccountId})");
+                nspInfo.Errors.Add($"{phase} - Ticket has account ID set ({nspInfo.Ticket.AccountId})");
                 nspInfo.GenerateNewTicket = true;
             }
 
             if (nspInfo.Ticket.DeviceId != 0)
             {
-                nspInfo.Warnings.Add($"{phase} - Ticket has device ID set ({nspInfo.Ticket.DeviceId})");
+                nspInfo.Errors.Add($"{phase} - Ticket has device ID set ({nspInfo.Ticket.DeviceId})");
                 nspInfo.GenerateNewTicket = true;
             }
             
@@ -487,13 +484,13 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             if (!nspInfo.IsOldTicketCrypto && (nspInfo.Ticket.CryptoType != nspInfo.Ticket.RightsId.Last()))
             {
-                nspInfo.Warnings.Add($"{phase} - Ticket has mis-matched crypto settings ({nspInfo.Ticket.CryptoType} vs {nspInfo.Ticket.RightsId.Last()})");
+                nspInfo.Errors.Add($"{phase} - Ticket has mis-matched crypto settings ({nspInfo.Ticket.CryptoType} vs {nspInfo.Ticket.RightsId.Last()})");
                 nspInfo.GenerateNewTicket = true;    
             }
 
             if (nspInfo.IsOldTicketCrypto && nspInfo.Ticket.CryptoType != 0)
             {
-                nspInfo.Warnings.Add($"{phase} - Ticket crypto should be set to zero (Keygen < 3)");
+                nspInfo.Errors.Add($"{phase} - Ticket crypto should be set to zero (Keygen < 3)");
                 nspInfo.GenerateNewTicket = true;
             }
 
@@ -526,7 +523,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 nspInfo.IsTicketSignatureValid = true;
                 if (!nspInfo.IsNormalisedSignature)
                 {
-                    nspInfo.Warnings.Add($"{phase} - Ticket signature is not normalised.");
+                    nspInfo.Errors.Add($"{phase} - Ticket signature is not normalised.");
                     nspInfo.GenerateNewTicket = true;
                 }
             }
@@ -742,7 +739,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
             if (File.Exists(targetName) && !settings.Overwrite)
             {
-                Log.Error($"File already exists. ({targetName.EscapeMarkup()}). Use [grey]--overwrite[/] to overwrite an existing file.");
+                Log.Fatal($"File already exists. ({targetName.EscapeMarkup()}). Use [grey]--overwrite[/] to overwrite an existing file.");
                 return (2, null);
             }
         }
@@ -753,7 +750,7 @@ public class ValidateNspService(ValidateNspSettings settings)
 
         if (nspStructure.NcaCollection.Count == 0)
         {
-            Log.Error($"{phase} - No NCAs found.");
+            Log.Fatal($"{phase} - No NCAs found.");
             Log.Fatal("NSP Validation failed.");
             return (1, null);
         }
@@ -952,7 +949,7 @@ public class ValidateNspService(ValidateNspSettings settings)
         }
         else
         {
-            nspInfo.Warnings.Add("[olive]NCA File Order[/] <- [red]Non-standard[/]");
+            nspInfo.Errors.Add("[olive]NCA File Order[/] <- [red]Non-standard[/]");
         }
         
         // VALIDATION CHECK
@@ -1072,6 +1069,11 @@ public class ValidateNspService(ValidateNspSettings settings)
         {
             AnsiConsole.Write(new Padder(RenderUtilities.RenderProperties(nspInfo, outputName)).PadLeft(1).PadTop(1).PadBottom(1));
         }
+
+        if (nspInfo.HasErrors && settings.ExitOnError)
+        {
+            return (1, null);
+        }
         
         if(!nspInfo.CanProceed && !(settings is { Extract: true, ForceExtract: true }))
         {
@@ -1149,7 +1151,6 @@ public class ValidateNspService(ValidateNspSettings settings)
             
             if(nspInfo is { IsTicketSignatureValid: true, TitleType: FixedContentMetaType.Patch or FixedContentMetaType.DataPatch })
             {
-                Log.Warning("Attempting to modify ticket for an update.");
                 signature = nspInfo.Ticket.Signature;
             }
             
