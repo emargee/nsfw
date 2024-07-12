@@ -154,7 +154,7 @@ public static class RenderUtilities
             }
             else
             {
-                keyNode.AddNode($"[grey][[{i}]] {ncaFile.DecryptedKeys[i]}[/]");
+                keyNode.AddNode($"[grey][[{i}]] Enc: {ncaFile.EncryptedKeys[i]} / Dec: {ncaFile.DecryptedKeys[i]}[/]");
             }
         }
         

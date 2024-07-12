@@ -240,6 +240,11 @@ public static partial class NsfwUtilities
             keyGen = masterKeyRevision += 1;
         }
 
+        if (keyGen < 3) // If key generation is less than 3, set it to 0 as this was before master key 3.0.0.0
+        {
+            keyGen = 0;
+        }
+
         var ticket = new Ticket
         {
             SignatureType = TicketSigType.Rsa2048Sha256,
