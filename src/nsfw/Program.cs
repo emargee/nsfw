@@ -45,6 +45,7 @@ public static class Program
             config.SetApplicationVersion(GetVersion());
             config.SetApplicationName("nsfw");
             config.ValidateExamples();
+            config.PropagateExceptions();
 
             config.AddCommand<Cdn2NspCommand>("cdn2nsp")
                 .WithDescription("Deterministically recreates NSP files from extracted CDN data following nxdumptool NSP generation guidelines.")
@@ -85,6 +86,11 @@ public static class Program
             config.AddCommand<ScanMissingCommand>("scan")
                 .WithDescription("Scan directory for games and missing updates.")
                 .WithAlias("s")
+                .IsHidden();
+
+            config.AddCommand<ExtractCommand>("extract")
+                .WithDescription("Extract all files from NSP.")
+                .WithAlias("e")
                 .IsHidden();
         });
 
