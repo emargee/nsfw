@@ -1,20 +1,19 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using LibHac;
 using LibHac.Common;
-using LibHac.Common.FixedArrays;
 using LibHac.Common.Keys;
-using LibHac.Crypto.Impl;
 using LibHac.Fs;
 using LibHac.Fs.Fsa;
 using LibHac.FsSystem;
-using LibHac.Tools.Fs;
+using LibHac.Spl;
+using LibHac.Tools.Es;
 using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
 using LibHac.Util;
 using Spectre.Console.Cli;
-using SQLitePCL;
+using SQLite;
 using ZstdSharp;
-using Aes = LibHac.Crypto.Aes;
 using Path = System.IO.Path;
 
 namespace Nsfw.Commands;
@@ -23,96 +22,194 @@ public class ExtractCommand : Command<ExtractSettings>
 {
     public override int Execute(CommandContext context, ExtractSettings settings)
     {
-        Console.WriteLine("NSP file        : {0}", settings.NspFile);
+        Console.WriteLine("NSZ file        : {0}", settings.NszFile);
         Console.WriteLine("Output directory: {0}", settings.OutDirectory);
         
-        var keySet = ExternalKeyReader.ReadKeyFile(settings.KeysFile);
+        var nspFilename = Path.GetFileName(settings.NszFile).Replace(Path.GetExtension(settings.NszFile), ".nsp");
+        Console.WriteLine(nspFilename);
         
-        var ncaPath = Path.Combine(settings.OutDirectory, "output.nca");
+        var outputNsp = Path.Combine(settings.OutDirectory, nspFilename);
+        
+        var localFile = new LocalFile(settings.NszFile, OpenMode.All);
+        var fileStorage = new FileStorage(localFile);
+        var fileSystem = new PartitionFileSystem();
+        fileSystem.Initialize(fileStorage);
+        
+        var builder = new PartitionFileSystemBuilder();
+        
+        using var file = new UniqueRef<IFile>();
+        
+        foreach (var rawFile in fileSystem.EnumerateEntries("*.*", SearchOptions.RecurseSubdirectories))
+        {
+            fileSystem.OpenFile(ref file.Ref, rawFile.FullPath.ToU8Span(), OpenMode.Read).ThrowIfFailure();
             
-        var fileStorage = new LocalStorage(ncaPath, FileAccess.Read);
-        var nca = new Nca(keySet, fileStorage);
+            if (rawFile.Name.EndsWith(".ncz"))
+            {
+                Console.WriteLine("NCZ Found!");
+            
+                var fileHash = rawFile.Name.Replace(".ncz", "");
+                
+                if(fileHash.Length != 32)
+                {
+                    Console.WriteLine("Filename of NCZ is used as verifying hash, but it's not 32 characters long. Cannot validate.");
+                    return 1;
+                }
+                
+                var ncz = new Ncz(file.Release().AsStream(), fileHash.ToUpperInvariant());
+                
+                //var decompFile = new DecompressNczFile(ncz);
+                
+                //builder.AddFile(fileHash + ".nca", decompFile);
+                
+                Console.WriteLine("Decompressing..");
+                
+                var ncaPath = Path.Combine(settings.OutDirectory, fileHash + ".nca");
+                
+                ncz.Decompress(ncaPath);
+                
+                if (!ncz.IsVerified)
+                {
+                    Console.WriteLine("Decompressed file hash does not match original hash");
+                    return 1;
+                }
+                
+                Console.WriteLine("Success - Decompressed file hash matches original hash");
+                
+                builder.AddFile(fileHash + ".nca", new LocalFile(ncaPath, OpenMode.Read));
+                continue;
+            }
+            
+            builder.AddFile(rawFile.FullPath.TrimStart('/'), file.Release());
+        }
         
-        var storage = new AesCtrStorage(nca.BaseStorage, "BB504B85D024BD9E3441CF4DB14DB2BD".ToBytes(), "00000000000000000000000000000000".ToBytes());
-        storage.Write(0x1C000, "12345678".ToBytes());
-        storage.WriteAllBytes(Path.Combine(settings.OutDirectory, "output2.nca"));
-        // var outBuffer = new byte[8];
-        // storage.Read(0x1C000, outBuffer);
-        // Console.WriteLine(outBuffer.ToHexString());
-
-        // var rawZero = nca.OpenFileSystem(0, IntegrityCheckLevel.ErrorOnInvalid);
-        //
-        // var entries = rawZero.EnumerateEntries("*.*", SearchOptions.RecurseSubdirectories).ToArray();
-        //
-        // foreach (var entry in entries)
-        // {
-        //     Console.WriteLine(entry.FullPath);
-        // }
-        //
-        // Console.WriteLine("Header: " + nca.Header.TitleId.ToString("X8"));
-        //
-        // if (nca.CanOpenSection(0))
-        // {
-        //     Console.WriteLine("Section 0");
-        //         
-        //     Console.WriteLine(nca.Header.Magic);
-        // }
-        
-        // var localFile = new LocalFile(settings.NspFile, OpenMode.Read);
-        // var fileStorage = new FileStorage(localFile);
-        // var fileSystem = new PartitionFileSystem();
-        // fileSystem.Initialize(fileStorage);
-        //
-        // foreach (var rawFile in fileSystem.EnumerateEntries("*.*", SearchOptions.RecurseSubdirectories))
-        // {
-        //     //Console.WriteLine(rawFile.FullPath);
-        //     
-        //     var ncaPath = Path.Combine(settings.OutDirectory, "output.nca");
-        //     
-        //     // if(rawFile.Name.EndsWith(".ncz"))
-        //     // {
-        //     //     Console.WriteLine("NCZ Found!");
-        //     //
-        //     //     using var nczFileRef = new UniqueRef<IFile>();
-        //     //     fileSystem.OpenFile(ref nczFileRef.Ref, rawFile.FullPath.ToU8Span(), OpenMode.Read).ThrowIfFailure();
-        //     //
-        //     //     var ncz = new Ncz(nczFileRef.Release().AsStream());
-        //     //     ncz.Decompress(ncaPath);
-        //     // }
-        //     
-        //     // using var miscFileRef = new UniqueRef<IFile>();
-        //     // fileSystem.OpenFile(ref miscFileRef.Ref, rawFile.FullPath.ToU8Span(), OpenMode.Read).ThrowIfFailure();
-        //     //
-        //     // var outFile = Path.Combine(settings.OutDirectory, rawFile.Name);
-        //     // using var outStream = new FileStream(outFile, FileMode.Create, FileAccess.ReadWrite);
-        //     // miscFileRef.Get.GetSize(out var fileSize);
-        //     // miscFileRef.Get.AsStream().CopyStream(outStream, fileSize);
-        // }
+        try
+        {
+            using var outStream = new FileStream(outputNsp, FileMode.Create, FileAccess.ReadWrite);
+            var builtPfs = builder.Build(PartitionFileSystemType.Standard);
+            builtPfs.GetSize(out var pfsSize).ThrowIfFailure();
+            builtPfs.CopyToStream(outStream, pfsSize);
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"Failed to convert file. {exception.Message}");
+        }
 
         return 0;
     }
 }
 
+// public class DecompressNczFile : IFile
+// {
+//     public readonly Ncz NczFile;
+//
+//     public long counterOffset = 0;
+//     
+//     public DecompressNczFile(Ncz nczFile)
+//     {
+//         NczFile = nczFile;
+//     }
+//     
+//     protected override Result DoRead(out long bytesRead, long offset, Span<byte> destination, in ReadOption option)
+//     {
+//         Console.WriteLine($"READ => Offset: {offset:X8} / Dest Size : {destination.Length:X8}");
+//         
+//         if (destination.IsEmpty)
+//         {
+//             bytesRead = 0;
+//             return Result.Success;
+//         }
+//
+//         var chunkSize = destination.Length;
+//
+//         var sliceStart = 0;
+//         
+//         if(counterOffset < Ncz.UncompressableHeaderSize)
+//         {
+//             var toRead = (int)Math.Min(destination.Length, Ncz.UncompressableHeaderSize - counterOffset);
+//             NczFile.UncompressableHeader.AsSpan(0, toRead).CopyTo(destination.Slice(0, toRead));
+//             Console.WriteLine($"Adding header .. {toRead:X8}");
+//             sliceStart += toRead;
+//             counterOffset += toRead;
+//             chunkSize -= toRead;
+//         }
+//
+//         bytesRead = NczFile.DecompressBlock(counterOffset, chunkSize, destination.Slice(sliceStart, destination.Length - sliceStart));
+//         
+//         counterOffset += chunkSize;
+//
+//         return Result.Success;
+//     }
+//
+//     protected override Result DoWrite(long offset, ReadOnlySpan<byte> source, in WriteOption option)
+//     {
+//         Console.WriteLine("DO WRITE!");
+//
+//         return Result.Success;
+//     }
+//
+//     protected override Result DoFlush()
+//     {
+//         Console.WriteLine("DO FLUSH!");
+//
+//         return Result.Success;
+//     }
+//
+//     protected override Result DoSetSize(long size)
+//     {
+//         Console.WriteLine("DO SETSIZE!");
+//
+//         return Result.Success;
+//     }
+//
+//     protected override Result DoGetSize(out long size)
+//     {
+//         UnsafeHelpers.SkipParamInit(out size);
+//         
+//         size = NczFile.DecompressedSize;
+//
+//         return Result.Success;
+//     }
+//
+//     protected override Result DoOperateRange(Span<byte> outBuffer, OperationId operationId, long offset, long size, ReadOnlySpan<byte> inBuffer)
+//     {
+//         Console.WriteLine("DO OPERATERANGE!");
+//
+//         return Result.Success;
+//     }
+// }
+
 public class Ncz
 {
-    private const int UncompressableHeaderSize = 0x4000;
+    public bool IsVerified => _fileHash.Equals(_sha256.Hash.ToHexString()[..^32]);
     
+    public const int UncompressableHeaderSize = 0x4000;
     private NczSection[] Sections { get; set; }
 
     private long _dataSectionStart;
 
-    private byte[] _uncompressableHeader;
-    
+    public byte[] UncompressableHeader { get; private set; }
+
     private BinaryReader _reader;
     
+    private byte[] Counter;
+    
+    private readonly object _locker = new object();
+    
+    private readonly SHA256 _sha256;
+    private readonly string _fileHash;
+
     public long DecompressedSize => UncompressableHeaderSize + Sections.Sum(x => x.Size);
     
-    public Ncz(Stream stream)
+    private NczBlock Block { get; set; }
+
+    public Ncz(Stream stream, string fileHash)
     {
+        _fileHash = fileHash;
+        _sha256 = SHA256.Create();
         _reader = new BinaryReader(stream);
-        _uncompressableHeader = _reader.ReadBytes(UncompressableHeaderSize);
+        UncompressableHeader = _reader.ReadBytes(UncompressableHeaderSize);
         var sectionMagic = _reader.ReadAscii(0x8);
-        
+
         if (sectionMagic != "NCZSECTN")
         {
             throw new InvalidDataException("NCZ magic is invalid.");
@@ -120,7 +217,7 @@ public class Ncz
 
         var sectionCount = _reader.ReadInt64();
         Sections = new NczSection[sectionCount];
-        
+
         for (var i = 0; i < sectionCount; i++)
         {
             var section = new NczSection();
@@ -140,228 +237,181 @@ public class Ncz
         {
             Console.WriteLine("Fake Section time ?");
         }
-        
+
         var blockMagic = _reader.ReadAscii(0x8);
-        
+
         if (blockMagic == "NCZBLOCK")
         {
-            throw new InvalidDataException("NCZ Block not supported.");
+            Block = new NczBlock();
+            Block.Version = _reader.ReadSByte();
+            Block.Type = _reader.ReadSByte();
+            _reader.ReadSByte(); // Unused
+            Block.BlockSizeExponent = _reader.ReadSByte();
+            Block.NumberOfBlocks = _reader.ReadInt32();
+            Block.DecompressedSize = _reader.ReadInt64();
+            Block.CompressedBlockSizeList = new int[Block.NumberOfBlocks];
+            for (int i = 0; i < Block.NumberOfBlocks; i++)
+            {
+                Block.CompressedBlockSizeList[i] = _reader.ReadInt32();
+            }
+            
+            throw new InvalidOperationException("Block decompression not implemented.");
         }
-        
-        Console.WriteLine("Data Section Start: 0x{0:X8}", _dataSectionStart);
-        Console.WriteLine($"Decompressed size: {DecompressedSize}/{DecompressedSize:X8}");
-        Console.WriteLine("--------------------");
     }
-    
-    public void Decompress(string path)
+
+    // public int DecompressBlock(long offset, long chunkSize, Span<byte> destination)
+    // {
+    //     Console.WriteLine($"Offset: {offset:X8} / Chunk Size: {chunkSize:X8} / Dest Size: {destination.Length:X8}");
+    //
+    //     Console.ReadLine();
+    //     
+    //     _reader.BaseStream.Seek(offset, SeekOrigin.Begin);
+    //     using var decompressor = new DecompressionStream(_reader.BaseStream);
+    //
+    //     var nczSection = GetSection(offset); // Work out which section corresponds to offset
+    //     var nczSectionEnd = nczSection.Offset + nczSection.Size;
+    //     
+    //     var useCrypto = nczSection.CryptoType is 3 or 4;
+    //     
+    //     long cryptoCounterOffset = 0;
+    //         
+    //     for (int i = 0; i < 8; i++)
+    //     {
+    //         cryptoCounterOffset |= (long)nczSection.CryptoCounter[0xF - i] << (4 + i * 8);
+    //     }
+    //         
+    //     var encryptor = new Aes128CtrTransform(nczSection.CryptoKey, nczSection.CryptoCounter);
+    //     var cryptoCounter = encryptor.Counter;
+    //     
+    //     // Does section end before end of chunk ?
+    //     if (nczSectionEnd - offset < chunkSize)
+    //     {
+    //         //Need to load next section !
+    //     }
+    //         
+    //     var buffer = new byte[chunkSize];
+    //     var bytesRead = decompressor.ReadAtLeast(buffer, (int)chunkSize);
+    //             
+    //     if(bytesRead == 0)
+    //     {
+    //         break;
+    //     }
+    //     
+    //     
+    //     //_reader.BaseStream.Seek(offset, SeekOrigin.Begin);
+    //
+    //     return 0;
+    // }
+
+    public void Decompress(string outputPath)
     {
-        using var fileStream = File.Create(path);
+        Console.WriteLine("Writing to : " + outputPath);
+
+        using IStorage outFile = new LocalStorage(outputPath, FileAccess.ReadWrite, FileMode.Create);
         
-        Console.WriteLine("Writing to : " + path);
+        _sha256.TransformBlock(UncompressableHeader, 0, UncompressableHeader.Length, null, 0);
         
-        fileStream.Write(_uncompressableHeader, 0, UncompressableHeaderSize);
+        outFile.Write(0, UncompressableHeader);
         
         _reader.BaseStream.Seek(_dataSectionStart, SeekOrigin.Begin);
         
         using var decompressor = new DecompressionStream(_reader.BaseStream);
-
+        
         foreach (var nczSection in Sections)
         {
             var currentOffset = nczSection.Offset;
             var sectionEnd = nczSection.Offset + nczSection.Size;
             
-            Console.WriteLine($"Start (Offset)      : 0x{nczSection.Offset:X8}");
-            Console.WriteLine($"Size                : 0x{nczSection.Size:X8}");
-            Console.WriteLine($"Section End         : 0x{sectionEnd:X8}");
-            Console.WriteLine($"CryptoType          : 0x{nczSection.CryptoType:X8}");
-            Console.WriteLine($"CryptoKey           : {nczSection.CryptoKey.ToHexString()}");
-            Console.WriteLine($"CryptoCounter       : {nczSection.CryptoCounter.ToHexString()}");
-            Console.WriteLine("BaseStream Position : 0x{0:X8}", _reader.BaseStream.Position);
+            // Console.WriteLine($"Start (Offset)      : 0x{nczSection.Offset:X8}");
+            // Console.WriteLine($"Size                : 0x{nczSection.Size:X8}");
+            // Console.WriteLine($"Section End         : 0x{sectionEnd:X8}");
+            // Console.WriteLine($"CryptoType          : 0x{nczSection.CryptoType:X8}");
+            // Console.WriteLine($"CryptoKey           : {nczSection.CryptoKey.ToHexString()}");
+            // Console.WriteLine($"CryptoCounter       : {nczSection.CryptoCounter.ToHexString()}");
+            // Console.WriteLine("BaseStream Position  : 0x{0:X8}", _reader.BaseStream.Position);
+            
+            // ERR = 0
+            // NONE = 1
+            // XTS = 2
+            // CTR = 3
+            // BKTR = 4
+            // NCA0 = 0x3041434E
             
             var useCrypto = nczSection.CryptoType is 3 or 4;
-            //var crypto = Aes.CreateCtrEncryptor(nczSection.CryptoKey, nczSection.CryptoCounter, false);
-            //var crypto = Aes.CreateCtrEncryptor(nczSection.CryptoKey, "00000000000000000000000000000000".ToBytes(), false);
+            
+            Stream outputFileStream;
 
+            outputFileStream = outFile.AsStream();
+            outputFileStream.Seek(nczSection.Offset, SeekOrigin.Current);
+            
+            long counterOffset = 0;
+            
+            for (int i = 0; i < 8; i++)
+            {
+                counterOffset |= (long)nczSection.CryptoCounter[0xF - i] << (4 + i * 8);
+            }
+            
+            var decryptor = new Aes128CtrTransform(nczSection.CryptoKey, nczSection.CryptoCounter);
+            Counter = decryptor.Counter;
+            
             long unpackedBytes = 0;
-
+            long totalBytesRead = 0;
+            
             while (currentOffset < sectionEnd)
             {
                 long chunkSize = 0x10000;
-
+            
                 if (sectionEnd - currentOffset < 0x10000)
                 {
                     chunkSize = sectionEnd - currentOffset;
                 }
-                
+            
                 var buffer = new byte[chunkSize];
-                var bytesRead = decompressor.Read(buffer);
+                var bytesRead = decompressor.ReadAtLeast(buffer, (int)chunkSize);
                 
                 if(bytesRead == 0)
                 {
                     break;
                 }
-
+                
+                // Console.WriteLine($"Decompressing: {currentOffset}/{sectionEnd}");
+                // Console.WriteLine($"Chunk size   : {chunkSize}");
+                // Console.WriteLine($"Input chunk  : {bytesRead}");
+                
                 if (useCrypto)
                 {
-                    //var transformBuffer = new byte[buffer.Length];
-                    //var encSize = Aes.EncryptCtr128(buffer, transformBuffer, nczSection.CryptoKey, nczSection.CryptoCounter);
-                    
-                    //Buffer.BlockCopy(buffer, 0, transformBuffer, 0, buffer.Length);
-                    //crypto.Transform(transformBuffer, transformBuffer);
-                    
-                    //Console.WriteLine(transformBuffer.ToHexString());
-                    
-                    //return;
+                    UpdateCounter(currentOffset);
+                    decryptor.TransformBlock(buffer);
+                    outputFileStream.Write(buffer);
+
+                }
+                else
+                {
+                    outputFileStream.Write(buffer);
                 }
                 
-                //Console.WriteLine($"Chunk : 0x{chunkSize:X8}");
-                //Console.WriteLine(buffer.ToHexString());
+                _sha256.TransformBlock(buffer, 0, bytesRead,null, 0);
                 
-                unpackedBytes += chunkSize;
+                totalBytesRead += bytesRead;
                 currentOffset += chunkSize;
-                fileStream.Write(buffer);
             }
-            
-            Console.WriteLine($"UNPACKED : {unpackedBytes:X8}");
-            Console.WriteLine($"ORIGINAL : {nczSection.Size:X8}");
-            Console.WriteLine("--------------------");
-            
-            if(unpackedBytes != nczSection.Size)
-            {
-                throw new InvalidDataException("Unpacked size does not match expected size.");
-            }
-            
-            /*
-             * 		while i < end:
-			if useCrypto:
-				crypto.seek(i)
-			chunkSz = 0x10000 if end - i > 0x10000 else end - i
-			inputChunk = decompressor.read(chunkSz)
-			if not len(inputChunk):
-				break
-			if useCrypto:
-				inputChunk = crypto.encrypt(inputChunk)
-			if f != None:
-				f.write(inputChunk)
-			hash.update(inputChunk)
-			lenInputChunk = len(inputChunk)
-			i += lenInputChunk
-			decompressedBytes += lenInputChunk
-			if statusReportInfo != None:
-				statusReport[id] = [statusReport[id][0]+chunkSz, statusReport[id][1], nca_size, currentStep]
-			elif decompressedBytes - decompressedBytesOld > 52428800: #Refresh every 50 MB
-				decompressedBytesOld = decompressedBytes
-				bar.count = decompressedBytes//1048576
-				bar.refresh()
-             */
-            
         }
         
-        //
-        // foreach (var section in Sections)
-        // {
-        //     stream.Seek(section.Offset, SeekOrigin.Begin);
-        //     stream.CopyStream(stream, section.Size);
-        // }
+        _sha256.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+    }
+    
+    private void UpdateCounter(long offset)
+    {
+        ulong off = (ulong)offset >> 4;
+
+        for (uint j = 0; j < 0x7; j++)
+        {
+            Counter[0x10 - j - 1] = (byte)(off & 0xFF);
+            off >>= 8;
+        }
+
+        // Because the value stored in the counter is offset >> 4, the top 4 bits 
+        // of byte 8 need to have their original value preserved
+        Counter[8] = (byte)((Counter[8] & 0xF0) | (int)(off & 0x0F));
     }
 }
-
-public class NczSection
-{
-    public long Offset { get; set; }
-    public long Size { get; set; }
-    public long CryptoType { get; set; }
-    public byte[] CryptoKey { get; set; } = [];
-    public byte[] CryptoCounter { get; set; } = [];
-}
-
-// public class AESCTR
-// {
-//     private byte[] key;
-//     private byte[] nonce;
-//     private int blockSize = 64;
-//     private int counterSize = 8;
-//     private long counter;
-//     private Aes aes;
-//
-//     public AESCTR(byte[] key, byte[] nonce, long offset = 0)
-//     {
-//         this.key = key;
-//         this.nonce = nonce;
-//         this.aes = aes;
-//         Seek(offset);
-//     }
-//
-//     public byte[] Encrypt(byte[] data, long? ctr = null)
-//     {
-//         if (ctr.HasValue)
-//         {
-//             counter = ctr.Value;
-//         }
-//
-//         return ProcessData(data);
-//     }
-//
-//     public byte[] Decrypt(byte[] data, long? ctr = null)
-//     {
-//         // Encryption and decryption are symmetric in CTR mode
-//         return Encrypt(data, ctr);
-//     }
-//
-//     public void Seek(long offset)
-//     {
-//         counter = offset >> 4;
-//         InitializeAes();
-//     }
-//
-//     private void InitializeAes()
-//     {
-//         aes = Aes.Create();
-//         aes.Key = key;
-//         aes.Mode = CipherMode.ECB; // CTR mode will be implemented manually
-//         aes.Padding = PaddingMode.None;
-//     }
-//
-//     private byte[] ProcessData(byte[] data)
-//     {
-//         int dataLength = data.Length;
-//         byte[] output = new byte[dataLength];
-//         byte[] counterBlock = new byte[blockSize];
-//         byte[] encryptedCounterBlock = new byte[blockSize];
-//
-//         using (ICryptoTransform encryptor = aes.CreateEncryptor())
-//         {
-//             for (int i = 0; i < dataLength; i += blockSize)
-//             {
-//                 Array.Copy(nonce, 0, counterBlock, 0, nonce.Length);
-//                 BitConverter.GetBytes(counter).CopyTo(counterBlock, nonce.Length);
-//                 encryptor.TransformBlock(counterBlock, 0, blockSize, encryptedCounterBlock, 0);
-//
-//                 for (int j = 0; j < blockSize && (i + j) < dataLength; j++)
-//                 {
-//                     output[i + j] = (byte)(data[i + j] ^ encryptedCounterBlock[j]);
-//                 }
-//
-//                 counter++;
-//             }
-//         }
-//
-//         return output;
-//     }
-//
-//     public byte[] BktrPrefix(long ctrVal)
-//     {
-//         byte[] prefix = new byte[nonce.Length + sizeof(int)];
-//         Array.Copy(nonce, 0, prefix, 0, 4);
-//         BitConverter.GetBytes(ctrVal).CopyTo(prefix, 4);
-//         return prefix;
-//     }
-//
-//     public void BktrSeek(long offset, long ctrVal, long virtualOffset = 0)
-//     {
-//         offset += virtualOffset;
-//         counter = offset >> 4;
-//         nonce = BktrPrefix(ctrVal);
-//         InitializeAes();
-//     }
-// }
