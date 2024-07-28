@@ -10,4 +10,6 @@ public class ContentFileInfo
     public bool IsMissing { get; set; }
     public ContentType Type { get; set; }
     public bool SizeMismatch { get; set; }
+    public bool IsCompressed { get; set; }
+    public string CompressedFileName { get; set; } = string.Empty;
 }

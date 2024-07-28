@@ -1,5 +1,6 @@
 ﻿using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem.NcaUtils;
+using Nsfw.Commands;
 
 namespace Nsfw.Nsp;
 
@@ -17,4 +18,9 @@ public class NcaInfo(SwitchFsNca nca)
     public byte[] RawHeader { get; set; } = [];
     public int EncryptionKeyIndex { get; set; }
     public string[] DecryptedKeys { get; set; } = [];
+    
+    public bool IsCompressed { get; set; }
+    public Ncz? CompressionMetadata { get; set; }
+    
+    public long FileSize { get; set; }
 }

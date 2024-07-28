@@ -5,6 +5,7 @@ using LibHac.Common;
 using LibHac.Common.Keys;
 using LibHac.Fs;
 using LibHac.Fs.Fsa;
+using LibHac.FsSrv.FsCreator;
 using LibHac.FsSystem;
 using LibHac.Ncm;
 using LibHac.Ns;
@@ -203,8 +204,8 @@ public class ValidateNspService(ValidateNspSettings settings)
                         certFile.Destroy();
                     }
                 }
-
-                if (rawFile.Name.EndsWith(".nca"))
+                
+                if (rawFile.Name.EndsWith(".nca") || rawFile.Name.EndsWith(".ncz"))
                 {
                     var ncaFile = new UniqueRef<IFile>();
                     fileSystem.OpenFile(ref ncaFile, rawFile.FullPath.ToU8Span(), OpenMode.Read);
@@ -212,7 +213,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     SwitchFsNca nca;
                     try
                     {
-                        nca = new SwitchFsNca(new Nca(_keySet, ncaFile.Release().AsStorage()))
+                        nca = new SwitchFsNca(new Nca(_keySet, ncaFile.Get.AsStorage()))
                         {
                             Filename = rawFile.Name,
                             NcaId = rawFile.Name[..32]
@@ -222,6 +223,18 @@ public class ValidateNspService(ValidateNspSettings settings)
                     {
                         Log.Fatal($"{phase} <- Error opening NCA ({rawFile.Name}) - {e.Message}");
                         return (1, null);
+                    }
+
+                    if (rawFile.Name.EndsWith(".ncz"))
+                    {
+                        nspInfo.CompressedNcaFileName = rawFile.Name;
+                        nspStructure.CompressedNca = new Ncz(ncaFile.Get.AsStream(), rawFile.Name.Replace(".ncz", ""));
+                        nspInfo.Warnings.Add($"[olive]{phase}[/] <- Compressed NCA ([blue]NCZ[/]) detected.");
+                    }
+
+                    if (nca.Nca.Header.ContentType == NcaContentType.Program || nca.Nca.Header.ContentType == NcaContentType.PublicData)
+                    {
+                        nspStructure.MainNcaId = nca.NcaId;
                     }
 
                     nspStructure.NcaCollection.Add(nca.NcaId, nca);
@@ -246,7 +259,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 }
 
                 var isLooseFile = !(rawFile.Name.EndsWith(".nca") || rawFile.Name.EndsWith(".tik") ||
-                                    rawFile.Name.EndsWith(".cert"));
+                                    rawFile.Name.EndsWith(".cert") || rawFile.Name.EndsWith(".ncz"));
 
                 if (isLooseFile)
                 {
@@ -262,6 +275,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                         Type = rawFile.Type,
                         BlockCount = (int)BitUtil.DivideUp(rawFile.Size, nspInfo.DefaultBlockSize),
                         IsLooseFile = isLooseFile,
+                        IsCompressed = rawFile.Name.EndsWith(".ncz"),
                         Priority = NsfwUtilities.AssignPriority(rawFile.Name)
                     });
             }
@@ -339,8 +353,16 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                 if (contentFile.Type != ContentType.DeltaFragment)
                 {
-                    nspInfo.Errors.Add($"{phase} - NSP file-system is missing content file : " + contentFile.FileName);
-                    nspInfo.CanProceed = false;
+                    if (nspStructure.CompressedNca != null && contentFile.FileName.StartsWith(nspStructure.CompressedNca.TargetHash))
+                    {
+                        contentFile.IsCompressed = true;
+                        contentFile.CompressedFileName = nspStructure.CompressedNca.TargetHash + ".ncz";
+                    }
+                    else
+                    {
+                        nspInfo.Errors.Add($"{phase} - NSP file-system is missing content file : " +  contentFile.FileName);
+                        nspInfo.CanProceed = false;
+                    }
                 }
                 else
                 {
@@ -372,7 +394,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             : string.Empty));
 
         var title = nspStructure.Titles.First().Value;
-        var mainNca = title.MainNca;
+        var mainNca = !string.IsNullOrWhiteSpace(nspStructure.MainNcaId) ? nspStructure.NcaCollection[nspStructure.MainNcaId] : null;
 
         phase = "[olive]Validate Main NCA[/]";
 
@@ -758,12 +780,19 @@ public class ValidateNspService(ValidateNspSettings settings)
         foreach (var fsNca in nspStructure.NcaCollection.Values)
         {
             var npdmValidity = !nspInfo.HasSparseNcas ? NsfwUtilities.VerifyNpdm(fsNca.Nca) : Validity.Unchecked;
-            
+
             var ncaInfo = new NcaInfo(fsNca)
             {
                 IsHeaderValid = fsNca.Nca.VerifyHeaderSignature() == Validity.Valid,
-                IsNpdmValid = npdmValidity == Validity.Valid
+                IsNpdmValid = npdmValidity == Validity.Valid, 
             };
+            
+            if(fsNca.Filename.EndsWith(".ncz"))
+            {
+                ncaInfo.IsCompressed = true;
+                ncaInfo.CompressionMetadata = nspStructure.CompressedNca;
+                ncaInfo.FileSize = nspInfo.RawFileEntries[fsNca.Filename].Size;
+            }
             
             // Get encrypted keys from header
             var ver = fsNca.Nca.Header.FormatVersion;
@@ -794,7 +823,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                 switch (npdmValidity)
                 {
                     case Validity.Unchecked:
-                        if (!nspInfo.HasSparseNcas) nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} <- Error opening NPDM.");
+                        if (!nspInfo.HasSparseNcas && !nspInfo.HasCompressedNca) nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} <- Error opening NPDM.");
                         break;
                     case Validity.Invalid:
                         nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} <- NPDM signature is invalid.");
@@ -845,14 +874,21 @@ public class ValidateNspService(ValidateNspSettings settings)
                     {
                         if (!(fsNca.Nca.Header.ContentType == NcaContentType.Program && nspInfo.HasSparseNcas))
                         {
-                            sectionInfo.IsErrored = true;
-                            sectionInfo.ErrorMessage = $"Error opening file-system - {exception.Message}";
-                            nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} ({(ncaInfo.Type == NcaContentType.Data ? "Delta" : ncaInfo.Type)}) (Section {sectionInfo.SectionId}) <- Error opening file-system");
-                            nspInfo.CanProceed = false;
+                                sectionInfo.IsErrored = true;
+
+                                if (!ncaInfo.IsCompressed)
+                                {
+                                    sectionInfo.ErrorMessage = $"Error opening file-system - {exception.Message}";
+                                    nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} ({(ncaInfo.Type == NcaContentType.Data ? "Delta" : ncaInfo.Type)}) (Section {sectionInfo.SectionId}) <- Error opening file-system");
+                                    nspInfo.CanProceed = false;
+                                }
                         }
                         else
                         {
-                            sectionInfo.IsSparse = true;
+                            if (nspInfo.HasSparseNcas)
+                            {
+                                sectionInfo.IsSparse = true;
+                            }
                         }
                     }
                 }
@@ -1302,7 +1338,6 @@ public class ValidateNspService(ValidateNspSettings settings)
                 Log.Information($"[[[green]DRYRUN[/]]] -> Would create: [olive]{outputName.EscapeMarkup()}.nsp[/]");
             }
             
-            
             var certFile = new LocalFile(settings.CertFile, OpenMode.Read);
             var ticketFile = nspInfo.Ticket != null ? new MemoryStorage(nspInfo.Ticket.GetBytes()).AsFile(OpenMode.Read) : null;
 
@@ -1326,15 +1361,27 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                         if (!nspInfo.NcaFiles.TryGetValue(contentFile.FileName, out var ncaInfo))
                         {
-                            if (contentFile.Type != ContentType.DeltaFragment)
+                            if (contentFile.IsCompressed)
                             {
-                                Log.Error($"Failed to locate NCA file [olive]{contentFile.FileName.EscapeMarkup()}[/] in the NSP file-system.");
-                                buildStatus = 1;
-                                return;
+                                if(!nspInfo.NcaFiles.TryGetValue(contentFile.CompressedFileName, out ncaInfo))
+                                {
+                                    Log.Error($"Failed to locate NCZ file [olive]{contentFile.CompressedFileName.EscapeMarkup()}[/] in the NSP file-system.");
+                                    buildStatus = 1;
+                                    return;
+                                }
                             }
+                            else
+                            {
+                                if (contentFile.Type != ContentType.DeltaFragment)
+                                {
+                                    Log.Error($"Failed to locate NCA file [olive]{contentFile.FileName.EscapeMarkup()}[/] in the NSP file-system.");
+                                    buildStatus = 1;
+                                    return;
+                                }
 
-                            Log.Information($"[[[green]SKIP[/]]] -> Delta fragment [olive]{contentFile.FileName.EscapeMarkup()}[/] not found in the NSP file-system. Skipping.");
-                            continue;
+                                Log.Information($"[[[green]SKIP[/]]] -> Delta fragment [olive]{contentFile.FileName.EscapeMarkup()}[/] not found in the NSP file-system. Skipping.");
+                                continue;
+                            }
                         }
 
                         var nca = ncaInfo.FsNca;
@@ -1345,7 +1392,15 @@ public class ValidateNspService(ValidateNspSettings settings)
                         }
                         else
                         {
-                            builder.AddFile(nca.Filename, nca.Nca.BaseStorage.AsFile(OpenMode.Read));
+                            if (ncaInfo is { IsCompressed: true, CompressionMetadata: not null })
+                            {
+                                var file = new DecompressNczFile(ncaInfo.CompressionMetadata);
+                                builder.AddFile(ncaInfo.CompressionMetadata.TargetHash + ".nca", file);
+                            }
+                            else
+                            {
+                                builder.AddFile(nca.Filename, nca.Nca.BaseStorage.AsFile(OpenMode.Read));
+                            }
                         }
                     }
 
@@ -1422,10 +1477,19 @@ public class ValidateNspService(ValidateNspSettings settings)
                 return (buildStatus, null);
             }
 
-            Log.Information($"Converted: [olive]{outputName.EscapeMarkup()}.nsp[/]");
-            
+            if (!settings.DryRun)
+            {
+                Log.Information($"Converted: [olive]{outputName.EscapeMarkup()}.nsp[/]");
+            }
+
             if (settings.DeleteSource)
             {
+                if (settings.DryRun)
+                {
+                    Log.Information($"[[[green]DRYRUN[/]]] -> Would delete: [olive]{Path.GetFileName(nspFullPath.EscapeMarkup())}[/]");
+                    return (buildStatus, null);
+                }
+                
                 try
                 {
                     File.Delete(nspFullPath);

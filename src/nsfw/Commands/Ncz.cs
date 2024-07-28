@@ -1,5 +1,4 @@
-﻿using System.Runtime.Intrinsics.Arm;
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using LibHac.Common;
 using LibHac.Tools.FsSystem;
 using LibHac.Util;
@@ -9,14 +8,16 @@ namespace Nsfw.Commands;
 
 public class Ncz
 {
-    public byte[] UncompressableHeader { get; private set; }
-    public const int UncompressableHeaderSize = 0x4000;
-    private NczSectionHeader[] Sections { get; set; }
+    public static int UncompressableHeaderSize => 0x4000;
+    public byte[] UncompressableHeader { get; init; }
+    public NczSectionHeader[] Sections { get; init; }
+    public  NczBlockHeader? Block { get; init; }
+
+    public string TargetHash { get; init; }
+    
     private readonly SHA256 _sha256;
-    private readonly string _fileHash;
     private readonly DecompressionStream _decompressor;
-    private NczBlockHeader? Block;
-    private BlockReader? _blockReader;
+    private readonly BlockReader? _blockReader;
     
     public NczCompressionType CompressionType => Block != null ? NczCompressionType.Block : NczCompressionType.Solid;
     
@@ -25,9 +26,9 @@ public class Ncz
         get { return UncompressableHeaderSize + Sections.Sum(x => x.Size); }
     }
 
-    public Ncz(Stream stream, string fileHash)
+    public Ncz(Stream stream, string targetHash)
     {
-        _fileHash = fileHash;
+        TargetHash = targetHash;
         var reader = new BinaryReader(stream);
         UncompressableHeader = reader.ReadBytes(UncompressableHeaderSize);
         var sectionMagic = reader.ReadAscii(0x8);
@@ -92,7 +93,7 @@ public class Ncz
     public bool IsValid()
     {
         _sha256.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-        return _fileHash.Equals(_sha256.Hash.ToHexString()[..^32]);
+        return TargetHash.ToUpper().Equals(_sha256.Hash.ToHexString()[..^32]);
     }
     
     public int DecompressChunk(long offset, Span<byte> destination)
