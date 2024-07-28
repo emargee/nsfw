@@ -1,6 +1,6 @@
 ﻿namespace Nsfw.Commands;
 
-public class NczSection
+public class NczSectionHeader
 {
     public long Offset { get; set; }
     public long Size { get; set; }

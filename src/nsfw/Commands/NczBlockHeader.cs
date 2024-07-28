@@ -1,6 +1,6 @@
 namespace Nsfw.Commands;
 
-public class NczBlock
+public class NczBlockHeader
 {
     public int Version { get; set; }
     
