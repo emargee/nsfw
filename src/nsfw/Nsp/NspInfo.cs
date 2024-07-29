@@ -193,6 +193,8 @@ public class NspInfo
     public string DistributionRegionList { get; set; } = string.Empty;
     public bool CopyNewCert { get; set; }
     public bool BadPadding { get; set; }
+    public bool HasCompressedNca => CompressedNcaFileName != null;
+    public string? CompressedNcaFileName { get; set; }
 
     public NspInfo(string filePath)
     {

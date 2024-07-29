@@ -12,4 +12,5 @@ public class RawContentFileInfo
     public int BlockCount { get; set; }
     public bool IsLooseFile { get; set; }
     public int? Priority { get; set; } = null;
+    public bool IsCompressed { get; set; }
 }

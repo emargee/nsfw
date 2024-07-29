@@ -13,6 +13,7 @@ public static class RenderUtilities
 {
     private const string ValidationFail = "[red][[X]][/]";
     private const string ValidationPass = "[green][[V]][/]";
+    private const string ValidationCompressed = "[blue][[C]][/]";
     private const string HeaderPass = "[green][[H]][/]";
     private const string HeaderFail = "[red][[H]][/]";
     private const string ValidationSkipped = "[olive][[-]][/]";
@@ -39,13 +40,20 @@ public static class RenderUtilities
             }
             else
             {
-                if (highlight != null && highlight.Contains(rawFile.Name))
+                if (rawFile.IsCompressed)
                 {
-                    rawFileTree.AddNode($"[olive]{displayLine}[/]");  
+                    rawFileTree.AddNode($"[blue]{displayLine}[/]");
                 }
                 else
                 {
-                    rawFileTree.AddNode($"{displayLine}");
+                    if (highlight != null && highlight.Contains(rawFile.Name))
+                    {
+                        rawFileTree.AddNode($"[olive]{displayLine}[/]");
+                    }
+                    else
+                    {
+                        rawFileTree.AddNode($"{displayLine}");
+                    }
                 }
             }
         }
@@ -69,7 +77,19 @@ public static class RenderUtilities
                 
             var status = contentFile.IsMissing || contentFile.SizeMismatch ? ValidationFail : ValidationPass;
             var error = contentFile.IsMissing ? "<- Missing" : contentFile.SizeMismatch ? "<- Size Mismatch" : string.Empty;
-            metaTree.AddNode($"{status} {contentFile.FileName} [[{contentFile.Type}]] {error}");
+            
+            if (contentFile.IsCompressed)
+            {
+                status = ValidationCompressed;
+                var topNode = new TreeNode(new Markup($"{status} {contentFile.FileName} [[{contentFile.Type}]]"));
+                topNode.AddNode($"[blue]{contentFile.CompressedFileName}[/] [[Compressed]]");
+
+                metaTree.AddNode(topNode);
+            }
+            else
+            {
+                metaTree.AddNode($"{status} {contentFile.FileName} [[{contentFile.Type}]] {error}");
+            }
         }
 
         return metaTree;
@@ -107,25 +127,65 @@ public static class RenderUtilities
                 HashMatchType.Mismatch => HashFail,
                 _ => HashSkip
             };
-            var ncaNode = new TreeNode(new Markup($"{status}{hashStatus} {ncaFile.FileName}"));
-            ncaNode.Expanded = true;
 
-            foreach (var section in ncaFile.Sections.Values)
+            var fileName = ncaFile.FileName;
+            
+            if (ncaFile.IsCompressed)
             {
-                var sectionStatus = section.IsErrored ? ValidationFail : section.IsPatchSection ? ValidationSkipped : ValidationPass;
+                hashStatus = "[blue][[ZSTD]][/]";
+                fileName = $"[blue]{fileName}[/]";
+            }
+            
+            var ncaNode = new TreeNode(new Markup($"{status}{hashStatus} {fileName}")) { Expanded = true };
 
-                if (section.IsErrored)
+            if (ncaFile.IsCompressed && ncaFile.CompressionMetadata != null)
+            {
+                var solidTable = new Table
                 {
-                    ncaNode.AddNode($"{sectionStatus} Section {section.SectionId} <- [red]{section.ErrorMessage}[/]");
+                    ShowHeaders = false
+                };
+                solidTable.AddColumn("Property");
+                solidTable.AddColumn("Value");
+
+                solidTable.AddRow("Compression Type", ncaFile.CompressionMetadata.CompressionType.ToString());
+                solidTable.AddRow("Decompressed Size", ncaFile.CompressionMetadata.DecompressedSize.BytesToHumanReadable() + $" [grey]({ncaFile.FileSize.BytesToHumanReadable()} => {Math.Round((double)ncaFile.FileSize/ncaFile.CompressionMetadata.DecompressedSize * 100) }%)[/]");
+
+                if (ncaFile.CompressionMetadata.CompressionType == NczCompressionType.Solid)
+                {
+                    solidTable.AddRow("Section Count", ncaFile.CompressionMetadata.Sections.Length.ToString());
                 }
                 else
                 {
-                    var sparse = section.IsSparse ? "[grey](Sparse)[/]" : string.Empty;
-                    var subNode = new TreeNode(new Markup($"{sectionStatus} Section {section.SectionId} [grey]({section.EncryptionType})[/]{sparse}"));
-                    
-                    ncaNode.AddNode(subNode);
+                    if (ncaFile.CompressionMetadata.Block != null)
+                    {
+                        solidTable.AddRow("Block Count", ncaFile.CompressionMetadata.Block.NumberOfBlocks.ToString());
+                        solidTable.AddRow("Block Version", ncaFile.CompressionMetadata.Block.Version.ToString());
+                        solidTable.AddRow("Block Type", ncaFile.CompressionMetadata.Block.Type.ToString());
+                    }
                 }
+                
+                ncaNode.AddNode(solidTable);
+            }
+            else
+            {
+                foreach (var section in ncaFile.Sections.Values)
+                {
+                    var sectionStatus = section.IsErrored ? ValidationFail :
+                        section.IsPatchSection ? ValidationSkipped : ValidationPass;
 
+                    if (section.IsErrored)
+                    {
+                        ncaNode.AddNode($"{sectionStatus} Section {section.SectionId} <- [red]{section.ErrorMessage}[/]");
+                    }
+                    else
+                    {
+                        var sparse = section.IsSparse ? "[grey](Sparse)[/]" : string.Empty;
+                        var subNode = new TreeNode(new Markup($"{sectionStatus} Section {section.SectionId} [grey]({section.EncryptionType})[/]{sparse}"));
+
+                        ncaNode.AddNode(subNode);
+                    }
+
+                }
             }
 
             if (showKeys)
@@ -351,6 +411,7 @@ public static class RenderUtilities
             propertiesTable.AddRow("Release Date", nspInfo.ReleaseDate.Value.ToString("yyyy-MM-dd"));
         }
         propertiesTable.AddRow("Has Sparse NCAs ?", nspInfo.HasSparseNcas ? "[olive]Yes[/]" : "No");
+        propertiesTable.AddRow("Is Main NCA Compressed ?", nspInfo.HasCompressedNca ? "[blue]Yes[/]" : "No");
         propertiesTable.AddRow("Key Generation", nspInfo.DisplayKeyGeneration);
         propertiesTable.AddRow("NSP Version", nspInfo.DisplayVersion);
         propertiesTable.AddRow("Rights ID", nspInfo.RightsId);

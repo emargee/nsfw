@@ -17,6 +17,8 @@ public class NspStructure
     public Dictionary<string, SwitchFsNca> NcaCollection { get; } = new (StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, TitleStructure> Titles { get; }  = new (StringComparer.OrdinalIgnoreCase);
     public SwitchFsNca? MetaNca { get; set; }
+    public string MainNcaId { get; set; } = string.Empty;
+    public Ncz? CompressedNca { get; set; }
 
     public void Build()
     {
