@@ -87,11 +87,6 @@ public static class Program
                 .WithDescription("Scan directory for games and missing updates.")
                 .WithAlias("s")
                 .IsHidden();
-
-            config.AddCommand<ExtractCommand>("extract")
-                .WithDescription("Extract all files from NSP.")
-                .WithAlias("e")
-                .IsHidden();
         });
 
         return app.Run(args);
