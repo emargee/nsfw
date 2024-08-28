@@ -14,6 +14,7 @@ public class Ncz
     public  NczBlockHeader? Block { get; init; }
 
     public string TargetHash { get; init; }
+    public string CurrentHash { get; private set; } = string.Empty;
     
     private readonly SHA256 _sha256;
     private readonly DecompressionStream _decompressor;
@@ -93,7 +94,8 @@ public class Ncz
     public bool IsValid()
     {
         _sha256.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-        return TargetHash.ToUpper().Equals(_sha256.Hash.ToHexString()[..^32]);
+        CurrentHash = _sha256.Hash.ToHexString()[..^32];
+        return TargetHash.ToUpper().Equals(CurrentHash.ToUpper());
     }
     
     public int DecompressChunk(long offset, Span<byte> destination)
