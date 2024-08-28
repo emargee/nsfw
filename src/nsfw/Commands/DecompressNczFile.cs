@@ -1,5 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-using LibHac;
+﻿using LibHac;
 using LibHac.Fs;
 using LibHac.Fs.Fsa;
 
@@ -30,7 +29,7 @@ public class DecompressNczFile(Ncz ncz) : IFile
         {
             if(!ncz.IsValid())
             {
-                throw new InvalidDataException("Current hash does not original hash. File is corrupted.");
+                throw new InvalidDataException($"Current hash ({ncz.CurrentHash}) does not match original hash ({ncz.TargetHash.ToUpper()}). File is corrupted.");
             }
         }
         

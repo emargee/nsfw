@@ -1463,6 +1463,7 @@ public class ValidateNspService(ValidateNspSettings settings)
                     catch (Exception exception)
                     {
                         Log.Error($"Failed to convert file. {exception.Message}");
+                        File.Delete(targetName); // Clean up target file
                         buildStatus = 1;
                     }
                 });
