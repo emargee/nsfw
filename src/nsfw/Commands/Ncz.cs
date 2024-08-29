@@ -2,6 +2,7 @@
 using LibHac.Common;
 using LibHac.Tools.FsSystem;
 using LibHac.Util;
+using Serilog;
 using ZstdSharp;
 
 namespace Nsfw.Commands;
@@ -52,6 +53,7 @@ public class Ncz
             reader.ReadInt64(); // padding
             section.CryptoKey = reader.ReadBytes(16);
             section.CryptoCounter = reader.ReadBytes(16);
+            section.Index = i+1;
             Sections[i] = section;
         }
 
@@ -59,7 +61,7 @@ public class Ncz
 
         if (Sections[0].Offset - UncompressableHeaderSize > 0)
         {
-            Console.WriteLine("Fake Section time ?");
+            Log.Error("Fake Section time ?");
         }
 
         var blockMagic = reader.ReadAscii(0x8);
@@ -101,39 +103,19 @@ public class Ncz
     public int DecompressChunk(long offset, Span<byte> destination)
     {
         // Find section with current offset 
-
-        var section = GetSection(offset);
-        var sectionEnd = section.Offset + section.Size;
-        
-        var hasExtraChunk = false;
-        
-        Span<byte> destinationChunk;
-        
-        if(destination.Length > sectionEnd - offset)
+        var destinationPosition = 0;
+        while (destinationPosition < destination.Length)
         {
-            destinationChunk = destination.Slice(0, (int)(sectionEnd - offset));
-            hasExtraChunk = true;
-        }
-        else
-        {
-            destinationChunk = destination;
+            var section = GetSection(offset);
+            var sectionRemaining = (section.Offset + section.Size) - offset;
+            
+            var chunkSize = Math.Min((int)sectionRemaining, destination.Length - destinationPosition);
+            var destinationChunk = destination.Slice(destinationPosition, chunkSize);
+            DecompressFromSection(section, offset, destinationChunk);
+            destinationPosition += chunkSize;
+            offset += chunkSize;
         }
 
-        DecompressFromSection(section, offset, destinationChunk);
-        
-        if (!hasExtraChunk)
-        {
-            _sha256.TransformBlock(destination.ToArray(), 0, destination.Length, null, 0);
-            return destinationChunk.Length;
-        }
-        
-        offset += destinationChunk.Length;
-        
-        // Find next section ..
-        var nextSection = GetSection(offset);
-        
-        DecompressFromSection(nextSection, offset, destination.Slice(destinationChunk.Length, destination.Length - destinationChunk.Length));
-        
         _sha256.TransformBlock(destination.ToArray(), 0, destination.Length, null, 0);
         return destination.Length;
     }

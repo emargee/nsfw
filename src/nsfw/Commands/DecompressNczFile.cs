@@ -1,6 +1,8 @@
 ﻿using LibHac;
 using LibHac.Fs;
 using LibHac.Fs.Fsa;
+using LibHac.Util;
+using Serilog;
 
 namespace Nsfw.Commands;
 
@@ -10,7 +12,7 @@ public class DecompressNczFile(Ncz ncz) : IFile
     
     protected override Result DoRead(out long bytesRead, long offset, Span<byte> destination, in ReadOption option)
     {
-        var slice = destination.Slice(0, destination.Length); // Full slice 
+        var slice = destination[..destination.Length]; // Full slice 
         
         if (_readOffset < Ncz.UncompressableHeaderSize)
         {
@@ -19,11 +21,11 @@ public class DecompressNczFile(Ncz ncz) : IFile
             bytesRead = Ncz.UncompressableHeaderSize;
             slice = destination.Slice(Ncz.UncompressableHeaderSize, destination.Length - Ncz.UncompressableHeaderSize); // Full slice
         }
-
-        _readOffset += ncz.DecompressChunk(_readOffset, slice);
         
-        bytesRead = destination.Length;
-
+        bytesRead = ncz.DecompressChunk(_readOffset, slice);
+        
+        _readOffset += bytesRead;
+        
         // Check hash validity on last block..
         if (_readOffset == ncz.DecompressedSize)
         {
