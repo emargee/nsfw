@@ -154,6 +154,38 @@ public static partial class NsfwUtilities
             .Replace("ｙ","y")
             .Replace("ｚ","z")
             .Replace("×"," x ")
+            .Replace("Ⅰ", "I")
+            .Replace("Ⅱ","II")
+            .Replace("Ⅲ","III")
+            .Replace("Ⅳ","IV")
+            .Replace("Ⅴ","V")
+            .Replace("Ⅵ","VI")
+            .Replace("Ⅶ","VII")
+            .Replace("Ⅷ","VIII")
+            .Replace("Ⅸ","IX")
+            .Replace("Ⅹ","X")
+            .Replace("Ⅺ","XI")
+            .Replace("Ⅻ","XII")
+            .Replace("Ⅼ","L")
+            .Replace("Ⅽ","C")
+            .Replace("Ⅾ","D")
+            .Replace("Ⅿ","M")
+            .Replace("ⅰ", "i")
+            .Replace("ⅱ","ii")
+            .Replace("ⅲ","iii")
+            .Replace("ⅳ","iv")
+            .Replace("ⅴ","v")
+            .Replace("ⅵ","vi")
+            .Replace("ⅶ","vii")
+            .Replace("ⅷ","viii")
+            .Replace("ⅸ","ix")
+            .Replace("ⅹ","x")
+            .Replace("ⅺ","xi")
+            .Replace("ⅻ","xii")
+            .Replace("ⅼ","l")
+            .Replace("ⅽ","c")
+            .Replace("ⅾ","d")
+            .Replace("ⅿ","m")
             .Replace("™","")
             .Replace("®","")
             .Replace("©","")
@@ -931,6 +963,20 @@ public static partial class NsfwUtilities
             if (keepName)
             {
                 finalTitle = $"{displayTitle.RemoveBrackets()} {displayRegion}{languageList}".CleanTitle();
+            }
+            
+            if(finalTitle.StartsWith("The ", StringComparison.InvariantCultureIgnoreCase))
+            {
+                finalTitle = finalTitle[4..];
+                var firstPart = finalTitle.Split(" - ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).First();
+                finalTitle = finalTitle.Replace(firstPart, $"{firstPart}, The ", StringComparison.InvariantCultureIgnoreCase);
+            }
+        
+            if(finalTitle.StartsWith("A ", StringComparison.InvariantCultureIgnoreCase))
+            {
+                finalTitle = finalTitle[2..];
+                var firstPart = finalTitle.Split(" - ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).First();
+                finalTitle = finalTitle.Replace(firstPart, $"{firstPart}, A ", StringComparison.InvariantCultureIgnoreCase);
             }
 
             var formattedTitle = $"{finalTitle}[{titleId}][{titleVersion}][{displayTypeShort}]";

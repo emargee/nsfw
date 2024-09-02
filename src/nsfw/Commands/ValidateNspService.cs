@@ -228,11 +228,11 @@ public class ValidateNspService(ValidateNspSettings settings)
                     if (rawFile.Name.EndsWith(".ncz"))
                     {
                         nspInfo.CompressedNcaFileName = rawFile.Name;
-                        nspStructure.CompressedNca = new Ncz(ncaFile.Get.AsStream(), rawFile.Name.Replace(".ncz", ""));
+                        nspStructure.CompressedNcaCollection.Add(nca.NcaId, new Ncz(ncaFile.Get.AsStream(), rawFile.Name.Replace(".ncz", "")));
                         nspInfo.Warnings.Add($"[olive]{phase}[/] <- Compressed NCA ([blue]NCZ[/]) detected.");
                     }
 
-                    if (nca.Nca.Header.ContentType == NcaContentType.Program || nca.Nca.Header.ContentType == NcaContentType.PublicData)
+                    if (string.IsNullOrWhiteSpace(nspStructure.MainNcaId) && (nca.Nca.Header.ContentType == NcaContentType.Program || nca.Nca.Header.ContentType == NcaContentType.PublicData))
                     {
                         nspStructure.MainNcaId = nca.NcaId;
                     }
@@ -353,10 +353,10 @@ public class ValidateNspService(ValidateNspSettings settings)
 
                 if (contentFile.Type != ContentType.DeltaFragment)
                 {
-                    if (nspStructure.CompressedNca != null && contentFile.FileName.StartsWith(nspStructure.CompressedNca.TargetHash))
+                    if (nspStructure.CompressedNcaCollection.Count > 0 && nspStructure.CompressedNcaCollection.ContainsKey(contentFile.NcaId.ToLowerInvariant()))
                     {
                         contentFile.IsCompressed = true;
-                        contentFile.CompressedFileName = nspStructure.CompressedNca.TargetHash + ".ncz";
+                        contentFile.CompressedFileName = contentFile.NcaId.ToLowerInvariant() + ".ncz";
                     }
                     else
                     {
@@ -790,7 +790,7 @@ public class ValidateNspService(ValidateNspSettings settings)
             if(fsNca.Filename.EndsWith(".ncz"))
             {
                 ncaInfo.IsCompressed = true;
-                ncaInfo.CompressionMetadata = nspStructure.CompressedNca;
+                ncaInfo.CompressionMetadata = nspStructure.CompressedNcaCollection[fsNca.NcaId];
                 ncaInfo.FileSize = nspInfo.RawFileEntries[fsNca.Filename].Size;
             }
             

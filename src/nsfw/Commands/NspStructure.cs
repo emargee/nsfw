@@ -18,7 +18,7 @@ public class NspStructure
     public Dictionary<string, TitleStructure> Titles { get; }  = new (StringComparer.OrdinalIgnoreCase);
     public SwitchFsNca? MetaNca { get; set; }
     public string MainNcaId { get; set; } = string.Empty;
-    public Ncz? CompressedNca { get; set; }
+    public Dictionary<string, Ncz> CompressedNcaCollection { get; set; } = new (StringComparer.OrdinalIgnoreCase);
 
     public void Build()
     {
@@ -47,7 +47,7 @@ public class NspStructure
                 control.Get.Read(out _, 0, titleStructure.Control.ByteSpan).ThrowIfFailure();
             }
 
-            if (contentType is ContentType.Program or ContentType.Data)
+            if (titleStructure.MainNca != null && contentType is ContentType.Program or ContentType.Data)
             {
                 titleStructure.MainNca = nca;
             }
@@ -62,7 +62,7 @@ public class NspStructure
     public class TitleStructure
     {
         // ReSharper disable once NullableWarningSuppressionIsUsed
-        public SwitchFsNca MainNca { get; set; } = null!;
+        public SwitchFsNca? MainNca { get; set; }
         public BlitStruct<ApplicationControlProperty> Control { get; } = new(1);
         public string DisplayVersion => Control.Value.DisplayVersionString.ToString();
     }
