@@ -76,7 +76,7 @@ public class Ncz
             Block.NumberOfBlocks = reader.ReadInt32();
             Block.DecompressedSize = reader.ReadInt64();
             Block.CompressedBlockSizeList = new int[Block.NumberOfBlocks];
-            for (int i = 0; i < Block.NumberOfBlocks; i++)
+            for (var i = 0; i < Block.NumberOfBlocks; i++)
             {
                 Block.CompressedBlockSizeList[i] = reader.ReadInt32();
             }
@@ -88,9 +88,13 @@ public class Ncz
         
         _sha256 = SHA256.Create();
         _sha256.Initialize();
-        _sha256.TransformBlock(UncompressableHeader, 0, UncompressableHeaderSize, null, 0);
         reader.BaseStream.Seek(dataSectionStart, SeekOrigin.Begin);
         _decompressor = new DecompressionStream(reader.BaseStream);
+    }
+    
+    public void HashChunk(byte[] chunk)
+    {
+        _sha256.TransformBlock(chunk, 0, chunk.Length, null, 0);
     }
     
     public bool IsValid()
@@ -109,14 +113,14 @@ public class Ncz
             var section = GetSection(offset);
             var sectionRemaining = (section.Offset + section.Size) - offset;
             
-            var chunkSize = Math.Min((int)sectionRemaining, destination.Length - destinationPosition);
+            var chunkSize = destination.Length - destinationPosition > sectionRemaining ? (int)sectionRemaining : destination.Length - destinationPosition;
             var destinationChunk = destination.Slice(destinationPosition, chunkSize);
             DecompressFromSection(section, offset, destinationChunk);
             destinationPosition += chunkSize;
             offset += chunkSize;
         }
 
-        _sha256.TransformBlock(destination.ToArray(), 0, destination.Length, null, 0);
+        HashChunk(destination.ToArray());
         return destination.Length;
     }
     

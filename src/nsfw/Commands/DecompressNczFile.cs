@@ -12,18 +12,29 @@ public class DecompressNczFile(Ncz ncz) : IFile
     
     protected override Result DoRead(out long bytesRead, long offset, Span<byte> destination, in ReadOption option)
     {
-        var slice = destination[..destination.Length]; // Full slice 
+        var slice = destination[..destination.Length];
         
-        if (_readOffset < Ncz.UncompressableHeaderSize)
+        if (_readOffset <= Ncz.UncompressableHeaderSize)
         {
-            ncz.UncompressableHeader.AsSpan(0, Ncz.UncompressableHeaderSize).CopyTo(destination.Slice(0, Ncz.UncompressableHeaderSize));
-            _readOffset += Ncz.UncompressableHeaderSize;
-            bytesRead = Ncz.UncompressableHeaderSize;
-            slice = destination.Slice(Ncz.UncompressableHeaderSize, destination.Length - Ncz.UncompressableHeaderSize); // Full slice
+            if(destination.Length <= Ncz.UncompressableHeaderSize)
+            {
+                ncz.UncompressableHeader.AsSpan((int)_readOffset, destination.Length).CopyTo(destination);
+                _readOffset += destination.Length;
+                bytesRead = destination.Length;
+                ncz.HashChunk(destination.ToArray());
+                return Result.Success;
+            }
+            
+            var headerLength = (int)(Ncz.UncompressableHeaderSize - _readOffset);
+            
+            var destinationSlice = destination.Slice(0, headerLength);
+            ncz.UncompressableHeader.AsSpan((int)_readOffset, headerLength).CopyTo(destinationSlice);
+            _readOffset += headerLength;
+            ncz.HashChunk(destinationSlice.ToArray());
+            slice = destination.Slice(destinationSlice.Length, destination.Length - destinationSlice.Length);
         }
         
         bytesRead = ncz.DecompressChunk(_readOffset, slice);
-        
         _readOffset += bytesRead;
         
         // Check hash validity on last block..
