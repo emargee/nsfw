@@ -60,14 +60,6 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.OutputOptions.KeepName = true;
         }
 
-        var titleDbPath = Path.GetFullPath(settings.TitleDbFile);
-
-        if (File.Exists(titleDbPath))
-        {
-            nspInfo.OutputOptions.IsTitleDbAvailable = true;
-            _dbConnection = new SQLiteAsyncConnection(titleDbPath);
-        }
-
         if (!cdnMode)
         {
             Log.Information($"Validating NSP : [olive]{nspInfo.FileName.EscapeMarkup()}[/]");
@@ -93,6 +85,26 @@ public class ValidateNspService(ValidateNspSettings settings)
             }
             
             Log.Information($"Output Mode <- [green]CONVERT[/]{extra}");
+        }
+        
+        var titleDbPath = Path.GetFullPath(settings.TitleDbFile);
+
+        if (File.Exists(titleDbPath))
+        {
+            nspInfo.OutputOptions.IsTitleDbAvailable = true;
+            _dbConnection = new SQLiteAsyncConnection(titleDbPath);
+            
+            if(settings.VerifyTitle)
+            {
+                Log.Verbose($"[olive]TitleDB[/] <- [green]Found[/] [grey]({titleDbPath.EscapeMarkup()})[/]");
+            }
+        }
+        else
+        {
+            if (settings.VerifyTitle)
+            {
+                Log.Warning($"[olive]TitleDB[/] <- [red]Not Found[/] [grey]({titleDbPath.EscapeMarkup()})[/]");
+            }
         }
 
         if (settings.Extract)
