@@ -847,6 +847,18 @@ public static partial class NsfwUtilities
             isDemo = true;
         }
         
+        if (cleanTitle.ToUpperInvariant().EndsWith(" (DEMO)"))
+        {
+            cleanTitle = cleanTitle[..^7];
+            isDemo = true;
+        }
+        
+        if (cleanTitle.ToUpperInvariant().EndsWith(" DEMO "))
+        {
+            cleanTitle = cleanTitle[..^6];
+            isDemo = true;
+        }
+        
         if (cleanTitle.ToUpperInvariant().EndsWith(" DEMO"))
         {
             cleanTitle = cleanTitle[..^5];
@@ -877,11 +889,42 @@ public static partial class NsfwUtilities
             isDemo = true;
         }
         
+        if(cleanTitle.ToUpperInvariant().EndsWith(" TRIAL VERSION"))
+        {
+            cleanTitle = cleanTitle[..^13];
+            isDemo = true;
+        }
+        
+        if(cleanTitle.ToUpperInvariant().EndsWith(" [TRIAL VERSION]"))
+        {
+            cleanTitle = cleanTitle[..^15];
+            isDemo = true;
+        }
+        
+        if(cleanTitle.ToUpperInvariant().EndsWith(" TRIAL EDITION"))
+        {
+            cleanTitle = cleanTitle[..^14];
+            isDemo = true;
+        }
+        
+        if(cleanTitle.ToUpperInvariant().EndsWith(" FREE TRIAL"))
+        {
+            cleanTitle = cleanTitle[..^10];
+            isDemo = true;
+        }
+        
         if (isDemo)
         {
+            
+            Console.WriteLine(cleanTitle);
             if (cleanTitle.EndsWith(" -"))
             {
                 cleanTitle = cleanTitle[..^2];
+            }
+            
+            if (cleanTitle.EndsWith(" - "))
+            {
+                cleanTitle = cleanTitle[..^3];
             }
             
             demo = "(Demo)";

@@ -1,4 +1,5 @@
-﻿using LibHac.Fs;
+﻿using System.Text;
+using LibHac.Fs;
 
 namespace Nsfw.Nsp;
 
@@ -9,6 +10,7 @@ public class RawContentFileInfo
     public long Size { get; set; }
     public DirectoryEntryType Type { get; set; }
     public string DisplaySize => Size.BytesToHumanReadable();
+    public int NameSize => Encoding.UTF8.GetByteCount(Name);
     public int BlockCount { get; set; }
     public bool IsLooseFile { get; set; }
     public int? Priority { get; set; } = null;

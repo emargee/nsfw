@@ -488,7 +488,19 @@ public partial class HashCommand : Command<HashSettings>
                     switch (category)
                     {
                         case "game":
-                            oneGameOneUpdateBase.TryAdd(titleId, entryString);
+                            
+                            // Check for higher base version .. if so, replace
+                            if(!oneGameOneUpdateBase.TryAdd(titleId, entryString))
+                            {
+                                var dupeEntry = oneGameOneUpdateBase[titleId];
+                                var parsedDupeEntry = XElement.Parse(dupeEntry);
+                                var dupeInternalVersion = parsedDupeEntry.Descendants("version1").First().Value.Replace("v", string.Empty);
+                                
+                                if(int.Parse(internalVersion) > int.Parse(dupeInternalVersion))
+                                {
+                                    oneGameOneUpdateBase[titleId] = entryString;
+                                }
+                            }
                             break;
                         case "update":
                             try

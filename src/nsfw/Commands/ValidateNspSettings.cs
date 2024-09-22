@@ -139,8 +139,8 @@ public class ValidateNspSettings : CommandSettings
     [Description("Wait for a key press before returning.")]
     public bool Wait { get; set; }
     
-    [CommandOption("--check-padding")]
-    [Description("Check padding of NCA files.")]
+    [CommandOption("-H|--check-padding")]
+    [Description("Check headers and padding of NCA files.")]
     public bool CheckPadding { get; set; }
     
     [CommandArgument(0, "<NSP_FILE>")]

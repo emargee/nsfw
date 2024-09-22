@@ -5,7 +5,6 @@ using LibHac.Common;
 using LibHac.Common.Keys;
 using LibHac.Fs;
 using LibHac.Fs.Fsa;
-using LibHac.FsSrv.FsCreator;
 using LibHac.FsSystem;
 using LibHac.Ncm;
 using LibHac.Ns;
@@ -164,17 +163,6 @@ public class ValidateNspService(ValidateNspSettings settings)
             nspInfo.Errors.Add($"{phase} <- NSP has incorrect padding at the end of the file.");
         }
         
-        if(settings.CheckPadding)
-        {
-            if(nspInfo.BadPadding)
-            {
-                Log.Fatal($"{phase} <- [red]Failed[/]");
-                return (1, null);
-            }
-            Log.Information($"{phase} <- [green]Passed[/]");
-            return (0, null);
-        }
-        
         var fileStorage = new FileStorage(localFile);
         var fileSystem = new PartitionFileSystem();
         fileSystem.Initialize(fileStorage);
@@ -302,6 +290,35 @@ public class ValidateNspService(ValidateNspSettings settings)
         if (!nspInfo.HasTicket)
         {
             Log.Verbose($"{phase} <- No valid tickets found.");
+        }
+        
+        phase = "[olive]Validate Padding[/]";
+        
+        var tableSize = nspInfo.RawFileEntries.Values.Sum(entry => entry.NameSize + 1);
+        var alignedTableSize = Alignment.AlignUp(tableSize, 0x20);
+        
+        if (tableSize == alignedTableSize)
+        {
+            if(alignedTableSize == stringTableSize)
+            {
+                nspInfo.BadPadding = true;
+                nspInfo.Errors.Add($"{phase} <- NSP header needs additional padding.");
+            }
+        }
+        
+        if(settings.CheckPadding)
+        {
+            Log.Verbose("String Table Size           : " + tableSize);
+            Log.Verbose("String Table Size (Aligned) : " + alignedTableSize);
+            Log.Verbose("String Table Size (Header)  : " + stringTableSize);
+            
+            if(nspInfo.BadPadding)
+            {
+                Log.Fatal($"{phase} <- [red]Failed[/]");
+                return (1, null);
+            }
+            Log.Information($"{phase} <- [green]Passed[/]");
+            return (0, null);
         }
         
         phase = "[olive]Open File-System[/]";
@@ -884,16 +901,16 @@ public class ValidateNspService(ValidateNspSettings settings)
                     }
                     catch (Exception exception)
                     {
-                        if (!(fsNca.Nca.Header.ContentType == NcaContentType.Program && nspInfo.HasSparseNcas))
+                        if (!nspInfo.HasSparseNcas)
                         {
-                                sectionInfo.IsErrored = true;
+                            sectionInfo.IsErrored = true;
 
-                                if (!ncaInfo.IsCompressed)
-                                {
-                                    sectionInfo.ErrorMessage = $"Error opening file-system - {exception.Message}";
-                                    nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} ({(ncaInfo.Type == NcaContentType.Data ? "Delta" : ncaInfo.Type)}) (Section {sectionInfo.SectionId}) <- Error opening file-system");
-                                    nspInfo.CanProceed = false;
-                                }
+                            if (!ncaInfo.IsCompressed)
+                            {
+                                sectionInfo.ErrorMessage = $"Error opening file-system - {exception.Message}";
+                                nspInfo.Errors.Add($"{phase} - {ncaInfo.FileName} ({(ncaInfo.Type == NcaContentType.Data ? "Delta" : ncaInfo.Type)}) (Section {sectionInfo.SectionId}) <- Error opening file-system");
+                                nspInfo.CanProceed = false;
+                            }
                         }
                         else
                         {
@@ -1359,8 +1376,8 @@ public class ValidateNspService(ValidateNspSettings settings)
                 .Start($"Building Standard NSP => [olive]{outputName.EscapeMarkup()}[/]", ctx =>
                 {
                     ctx.Spinner(Spinner.Known.Ascii);
-                    
-                    var builder = new PartitionFileSystemBuilder();
+
+                    var builder = new CustomPartitionFileSystemBuilder();
 
                     // Add NCAs in CNMT order
                     foreach (var contentFile in nspInfo.ContentFiles.Values)
