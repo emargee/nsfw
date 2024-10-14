@@ -915,8 +915,6 @@ public static partial class NsfwUtilities
         
         if (isDemo)
         {
-            
-            Console.WriteLine(cleanTitle);
             if (cleanTitle.EndsWith(" -"))
             {
                 cleanTitle = cleanTitle[..^2];
