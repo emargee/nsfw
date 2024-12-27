@@ -11,24 +11,31 @@ jobs:
       actions: read
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          repository: blawar/titledb
-          sparse-checkout: .
-      - name: Download Artifacts
-        uses: dawidd6/action-download-artifact@v7
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: build.yml
-          name: .*linux-x64
-          name_is_regexp: true
-      - name: "List"
-        run: ls -la
+      # - name: Checkout
+      #   uses: actions/checkout@v4
+      #   with:
+      #     repository: blawar/titledb
+      #     sparse-checkout: .
+      - name: Get Latest Release Tag
+        id: get_latest
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/emargee/nsfw/releases/latest | jq -r .tag_name)
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+
+      - name: Download Latest x64 Linux Release
+        run: |
+          curl -L -o nsfw_latest.zip https://github.com/emargee/nsfw/releases/download/$LATEST_TAG/nsfw-linux-x64.zip
+
+      - name: Unzip Release
+        run: |
+          mkdir -p nsfw_release
+          unzip nsfw_latest.zip -d nsfw_release
+
       - name: "Build TitleDB"
-        run: cd *linux-x64 && chmod +x nsfw && ./nsfw btdb --titledbdir ..
-      - name: "Upload TitleDB"
-        uses: actions/upload-artifact@v4
-        with:
-          name: "titledb-${{github.sha}}"
-          path: ./titledb.db
+        run: cd nsfw_release && chmod +x nsfw #&& ./nsfw btdb --titledbdir ..
+        
+      # - name: "Upload TitleDB"
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: "titledb-${{github.sha}}"
+      #     path: ./titledb.db
