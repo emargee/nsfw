@@ -26,7 +26,7 @@ jobs:
 
       - name: Download Latest x64 Linux Release
         run: |
-          curl -L -o nsfw_latest.zip https://github.com/emargee/nsfw/releases/download/$LATEST_TAG/nsfw-linux-x64.zip
+          curl -L -o nsfw_latest.zip https://github.com/emargee/nsfw/releases/download/$LATEST_TAG/nsfw-$LATEST_TAG-linux-x64.zip
 
       - name: Unzip Release
         run: |
