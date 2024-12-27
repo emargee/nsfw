@@ -13,11 +13,12 @@ jobs:
       actions: read
     runs-on: ubuntu-latest
     steps:
-      # - name: Checkout
-      #   uses: actions/checkout@v4
-      #   with:
-      #     repository: blawar/titledb
-      #     sparse-checkout: .
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: blawar/titledb
+          sparse-checkout: .
+          
       - name: Get Latest Release Tag
         id: get_latest
         run: |
@@ -36,8 +37,8 @@ jobs:
       - name: "Build TitleDB"
         run: cd nsfw_release && chmod +x nsfw #&& ./nsfw btdb --titledbdir ..
         
-      # - name: "Upload TitleDB"
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: "titledb-${{github.sha}}"
-      #     path: ./titledb.db
+      - name: "Upload TitleDB"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "titledb-${{github.sha}}"
+          path: ./titledb.db
