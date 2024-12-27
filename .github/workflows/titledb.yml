@@ -35,7 +35,7 @@ jobs:
           unzip nsfw_latest.zip -d nsfw_release
 
       - name: "Build TitleDB"
-        run: cd nsfw_release && chmod +x nsfw #&& ./nsfw btdb --titledbdir ..
+        run: cd nsfw_release && chmod +x nsfw && ./nsfw btdb --titledbdir ..
         
       - name: "Upload TitleDB"
         uses: actions/upload-artifact@v4
