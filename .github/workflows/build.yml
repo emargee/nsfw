@@ -77,7 +77,7 @@ jobs:
         with:
           useConfigFile: true
       - name: Download TitleDb
-        uses: dawidd6/action-download-artifact@v4
+        uses: dawidd6/action-download-artifact@v6
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: titledb.yml
