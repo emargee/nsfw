@@ -55,45 +55,57 @@ public partial class HashCommand : Command<HashSettings>
             extra += $"(Batch of {settings.Batch}) ";
         }
         
-        var dlcXml = XDocument.Load(settings.DlcDat);
-        Log.Information($"DLC Dat Loaded : [olive]{settings.DlcDat}[/]");
+
 
         // Key -> (Name, Id, TitleId)
         var dlcLookup = new Dictionary<string, (string, string, string)>();
         var dlcCount = 0;
-        
-        foreach (var game in dlcXml.Descendants("game"))
-        {
-            dlcCount++;
-            var nameAttribute = game.Attribute("name");
-            var name = nameAttribute != null ? nameAttribute.Value : string.Empty;
-            var id = game.Attribute("id")?.Value;
-            var gameId = game.Descendants("game_id").FirstOrDefault();
-            var titleId = gameId != null ? gameId.Value : string.Empty;
-            var version = VersionRegex().IsMatch(name) ? VersionRegex().Match(name).Value : "v0";
-            var key = $"{titleId}_{version}".ToLowerInvariant();
 
-            if (string.IsNullOrWhiteSpace(titleId))
+        if (!string.IsNullOrWhiteSpace(settings.DlcDat))
+        {
+
+            var dlcXml = XDocument.Load(settings.DlcDat);
+            Log.Information($"DLC Dat Loaded : [olive]{settings.DlcDat}[/]");
+
+            foreach (var game in dlcXml.Descendants("game"))
             {
-                Log.Warning($"[[[red]NO TITLE ID[/]]] => {name}");
-                continue;
-            }
-            
-            if (!string.IsNullOrWhiteSpace(name) && id != null && !string.IsNullOrWhiteSpace(titleId))
-            {
-                if (dlcLookup.ContainsKey(key))
+                dlcCount++;
+                var nameAttribute = game.Attribute("name");
+                var name = nameAttribute != null ? nameAttribute.Value : string.Empty;
+                var id = game.Attribute("id")?.Value;
+                var gameId = game.Descendants("game_id").FirstOrDefault();
+                var titleId = gameId != null ? gameId.Value : string.Empty;
+                var version = VersionRegex().IsMatch(name) ? VersionRegex().Match(name).Value : "v0";
+                var key = $"{titleId}_{version}".ToLowerInvariant();
+
+                if (string.IsNullOrWhiteSpace(titleId))
                 {
-                    Log.Warning($"DUPE {id} + {dlcLookup[key].Item2} have same TitleId => {titleId} => {name} / {dlcLookup[key].Item1}");
+                    Log.Warning($"[[[red]NO TITLE ID[/]]] => {name}");
+                    continue;
                 }
-                else
+
+                if (!string.IsNullOrWhiteSpace(name) && id != null && !string.IsNullOrWhiteSpace(titleId))
                 {
-                    dlcLookup.Add(key, (name, id, titleId));
+                    if (dlcLookup.ContainsKey(key))
+                    {
+                        Log.Warning(
+                            $"DUPE {id} + {dlcLookup[key].Item2} have same TitleId => {titleId} => {name} / {dlcLookup[key].Item1}");
+                    }
+                    else
+                    {
+                        dlcLookup.Add(key, (name, id, titleId));
+                    }
                 }
             }
+
+            Log.Information($"Loaded {dlcLookup.Count}/{dlcCount} entries from DLC Dat..");
+
+        }
+        else
+        {
+            Log.Information("DLC Dat not loaded.");
         }
 
-        Log.Information($"Loaded {dlcLookup.Count}/{dlcCount} entries from DLC Dat..");
-        
         Log.Information($"Hashing {allFiles.Length} NSPs {extra}..");
         
         var timeStamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
@@ -482,12 +494,19 @@ public partial class HashCommand : Command<HashSettings>
                 var category = parsedEntry.Descendants("category").First().Value.ToLower();
                 var altElement = parsedEntry.Descendants("isAlt").FirstOrDefault();
                 var isAlt = bool.Parse(altElement == null ? "false" : altElement.Value.ToLower());
+                var isDemo = bool.Parse(parsedEntry.Descendants("isDemo").First().Value.ToLower());
 
                 if (!isAlt)
                 {
                     switch (category)
                     {
+                        case "demo":
                         case "game":
+                            
+                            if (isDemo)
+                            {
+                                entryString = entryString.Replace("category>Game", "category>Demo");
+                            }
                             
                             // Check for higher base version .. if so, replace
                             if(!oneGameOneUpdateBase.TryAdd(titleId, entryString))
